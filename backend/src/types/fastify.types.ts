@@ -9,10 +9,13 @@ import type {
   CampaignService,
   HealthService,
   JobQueueService,
+  KeywordService,
   LabelService,
   LeverService,
   LineService,
+  ListService,
   TargetingGroupService,
+  TargetingService,
   SecretStore,
   StatusService,
   StorageService,
@@ -82,6 +85,9 @@ declare module 'fastify' {
     lineService: LineService;
     /** The daily curve of any node of the tree, and its pacing. */
     budgetCurveService: BudgetCurveService;
+    targetingService: TargetingService;
+    listService: ListService;
+    keywordService: KeywordService;
     /** Object storage (S3). */
     storageService: StorageService;
     /** Credentials the application needs (AWS Secrets Manager). */

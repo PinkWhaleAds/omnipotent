@@ -16,16 +16,20 @@ import ValidationPlugin from '@src/plugins/validation.plugin';
 import AccessServicePlugin from '@src/services/access.service';
 import AdGroupServicePlugin from '@src/services/ad-group.service';
 import AdvertiserServicePlugin from '@src/services/advertiser.service';
+import BudgetCurveServicePlugin from '@src/services/budget-curve.service';
 import CampaignServicePlugin from '@src/services/campaign.service';
 import HealthServicePlugin from '@src/services/health.service';
 import JobQueuePlugin from '@src/services/job-queue.service';
+import KeywordServicePlugin from '@src/services/keyword.service';
 import LabelServicePlugin from '@src/services/label.service';
 import LeverServicePlugin from '@src/services/lever.service';
 import LineServicePlugin from '@src/services/line.service';
+import ListServicePlugin from '@src/services/list.service';
 import SecretStorePlugin from '@src/services/secret-store.service';
 import StatusServicePlugin from '@src/services/status.service';
 import StorageServicePlugin from '@src/services/storage.service';
 import TargetingGroupServicePlugin from '@src/services/targeting-group.service';
+import TargetingServicePlugin from '@src/services/targeting.service';
 import TokenVerifierPlugin from '@src/services/token-verifier.service';
 import { Opt, Callback } from '@src/types';
 import { callCallback, LoggerBuilder, Logger, trustNearestProxies } from '@utils';
@@ -124,6 +128,12 @@ export class HttpServer extends Server {
     await this.fastify.register(AdGroupServicePlugin);
     await this.fastify.register(TargetingGroupServicePlugin);
     await this.fastify.register(LineServicePlugin);
+    // The daily curves and the pacing, over the five levels.
+    await this.fastify.register(BudgetCurveServicePlugin);
+    // The targeting, the lists it references and the keywords; the lists read the targeting.
+    await this.fastify.register(TargetingServicePlugin);
+    await this.fastify.register(ListServicePlugin);
+    await this.fastify.register(KeywordServicePlugin);
 
     if (!isApi) {
       await this.fastify.register(ProbeControllers);

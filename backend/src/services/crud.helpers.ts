@@ -23,12 +23,21 @@ export type BulkItemHandler<I, O> = (item: I, index: number, manager: EntityMana
  * A failure with no stable code is not reported per item: it is not something the caller can act on,
  * so it is rethrown and becomes a 500 for the whole request.
  *
+ * Exported because a resource whose bulk is not one transaction per item — the keywords, judged in
+ * memory and inserted in one statement — still reports its refusals in **this** shape
+ * (`docs/phase-5.md` § 4).
+ *
  * @param error - What the item's handler threw
  * @param index - Its position in the array that was sent
  * @returns The entry for `failed`
  * @throws The error itself when it carries no 4xx status
+ *
+ * @example
+ * ```typescript
+ * failed.push(toBulkFailure(error, index));
+ * ```
  */
-function toBulkFailure(error: unknown, index: number): BulkFailure {
+export function toBulkFailure(error: unknown, index: number): BulkFailure {
   const statusCode: number | undefined = statusCodeOf(error);
   const coded: { code: string; params: MessageParams } | undefined = errorCodeOf(error);
   if (statusCode === undefined || statusCode >= 500 || !coded) throw error;

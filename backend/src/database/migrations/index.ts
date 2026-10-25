@@ -13,9 +13,11 @@
 import { AdvertisersAndLabels1792936887388 } from './1792936887388-AdvertisersAndLabels';
 import { BudgetDays1792962958804 } from './1792962958804-BudgetDays';
 import { CampaignTree1792952658715 } from './1792952658715-CampaignTree';
+import { Targeting1792967310499 } from './1792967310499-Targeting';
 
 export const MIGRATIONS: (new () => unknown)[] = [
   AdvertisersAndLabels1792936887388,
   CampaignTree1792952658715,
   BudgetDays1792962958804,
+  Targeting1792967310499,
 ];

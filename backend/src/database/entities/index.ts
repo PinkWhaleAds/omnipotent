@@ -11,10 +11,12 @@ import { AdGroupEntity } from './ad-group.entity';
 import { AdvertiserEntity } from './advertiser.entity';
 import { BudgetDayEntity } from './budget-day.entity';
 import { CampaignEntity } from './campaign.entity';
+import { KeywordEntity } from './keyword.entity';
 import { LabelAssignmentEntity } from './label-assignment.entity';
 import { LabelEntity } from './label.entity';
 import { LeverEntity } from './lever.entity';
 import { LineEntity } from './line.entity';
+import { ListEntity } from './list.entity';
 import { TargetingGroupEntity } from './targeting-group.entity';
 
 export * from './ad-group.entity';
@@ -22,10 +24,12 @@ export * from './advertiser.entity';
 export * from './base.entity';
 export * from './budget-day.entity';
 export * from './campaign.entity';
+export * from './keyword.entity';
 export * from './label-assignment.entity';
 export * from './label.entity';
 export * from './lever.entity';
 export * from './line.entity';
+export * from './list.entity';
 export * from './targeting-group.entity';
 
 /** Every entity registered on the data source. Add new entities here. */
@@ -39,4 +43,6 @@ export const ENTITIES: (new () => unknown)[] = [
   TargetingGroupEntity,
   LineEntity,
   BudgetDayEntity,
+  ListEntity,
+  KeywordEntity,
 ];

@@ -26,6 +26,11 @@ export const MCP_INSTRUCTIONS: string = [
   'not deliver. A day at 0 pauses the node that day. A node with an inherited budget has no curve of its',
   'own: it follows the shape of its parent at its scale. The pacing says what to spend today; the spend',
   'it compares against is 0 until the reporting phase exists, so it answers a plan.',
+  'All the targeting lives on the TargetingGroup: an AdGroup and a Line carry none. get-targeting-dimensions',
+  'says what can be targeted and the shape of each dimension, so never guess one; what a lever has nothing',
+  'to do with is refused at once. Sites, apps, devices, points of interest, screens and negative keywords',
+  'are reusable lists of the Organization that a targeting references by id. Only the search lever buys',
+  'keywords, posted by the hundred on a TargetingGroup.',
   'Org-scoped tools take an organizationId; ask the user which Organization to use when there are several.',
   'Roles: viewer reads, manager edits, admin also manages members.',
 ].join(' ');

@@ -8,6 +8,9 @@ jest.mock('@utils/logger.utils', () => ({
 import { FastifyMock, FASTIFY_INSTANCE_MOCK } from '@test/unit/mocks/fastify.mock';
 jest.mock('fastify', () => FastifyMock);
 
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
+
 import FastifyMultipart from '@fastify/multipart';
 
 import { Controllers, ProbeControllers } from '@modules';
@@ -113,6 +116,26 @@ describe('Unit::HttpServer', () => {
       expect(plugins.indexOf(RateLimitPlugin)).toBeLessThan(plugins.indexOf(SwaggerPlugin));
       expect(plugins.indexOf(RateLimitPlugin)).toBeLessThan(plugins.indexOf(AuthPlugin));
       expect(plugins[plugins.length - 1]).toBe(Controllers);
+    });
+
+    it('should register every service plugin the repository exports', async (): Promise<void> => {
+      // A phase that writes a service, decorates the instance with it and forgets this list ships
+      // routes that throw on the first call, while every unit test passes — it happened once, with
+      // the budget curves of phase 4. The list is read from the filesystem so it cannot drift.
+      server = new HttpServer('api');
+      await callPrivateMethodAsync(server, 'initFastifyInstance');
+      const plugins: unknown[] = registeredPlugins();
+
+      const directory: string = join(__dirname, '..', '..', '..', 'src', 'services');
+      const missing: string[] = [];
+      for (const name of readdirSync(directory).filter((file: string): boolean => file.endsWith('.service.ts'))) {
+        const exported: { default?: unknown } = (await import(`@src/services/${name.replace(/\.ts$/, '')}`)) as {
+          default?: unknown;
+        };
+        if (exported.default !== undefined && !plugins.includes(exported.default)) missing.push(name);
+      }
+
+      expect(missing).toEqual([]);
     });
 
     it('should default to the configured mode', async (): Promise<void> => {

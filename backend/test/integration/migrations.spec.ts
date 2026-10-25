@@ -14,10 +14,12 @@ const APPLICATION_TABLES: string[] = [
   'advertisers',
   'budget_days',
   'campaigns',
+  'keywords',
   'label_assignments',
   'labels',
   'levers',
   'lines',
+  'lists',
   'targeting_groups',
 ];
 

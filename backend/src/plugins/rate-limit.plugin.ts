@@ -56,6 +56,12 @@ export const ROUTE_RATE_LIMITS: Readonly<Record<string, RateLimit | false>> = {
   'PATCH /campaigns/bulk': BULK_RATE_LIMIT,
   'DELETE /campaigns/bulk': BULK_RATE_LIMIT,
   'POST /campaigns/bulk/restore': BULK_RATE_LIMIT,
+  'POST /lists/bulk': BULK_RATE_LIMIT,
+  'PATCH /lists/bulk': BULK_RATE_LIMIT,
+  'DELETE /lists/bulk': BULK_RATE_LIMIT,
+  'POST /lists/bulk/restore': BULK_RATE_LIMIT,
+  // Five hundred keywords in one call is a bulk by any other name.
+  'POST /targeting-groups/:id/keywords': BULK_RATE_LIMIT,
   'POST /levers/:id/ad-groups/bulk': BULK_RATE_LIMIT,
   'PATCH /ad-groups/bulk': BULK_RATE_LIMIT,
   'DELETE /ad-groups/bulk': BULK_RATE_LIMIT,

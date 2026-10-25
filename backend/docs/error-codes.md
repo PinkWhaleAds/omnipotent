@@ -225,6 +225,55 @@ refusé.
 Deux choses que le front peut compter sur : les jours d'une courbe somment **exactement** au budget
 du nœud, et un jour à `0` est une intention, pas un vide — il met le nœud en pause ce jour-là.
 
+## Le ciblage, les listes et les mots-clés
+
+`src/targeting/dimensions/`, `src/services/{targeting,list,keyword}.service.ts` (phase 5,
+`docs/phase-5.md` § 8).
+
+Deux registres se partagent les refus (L2) : le **profil de levier** dit ce que le modèle permet
+d'exprimer et refuse en 400 ; le **registre de plateforme** dit ce qu'une plateforme accepte et
+produit un avertissement de preview, jamais une erreur.
+
+### Le ciblage
+
+| Code                            | Statut | Quand                                                                          | `params`                     |
+| ------------------------------- | ------ | ------------------------------------------------------------------------------ | ---------------------------- |
+| `targeting_dimension_forbidden` | 400    | Le levier du nœud n'a rien à faire de cette dimension                          | `lever`, `dimension`         |
+| `targeting_criteria_invalid`    | 400    | Les critères ne passent pas le schéma de leur dimension, clé inconnue comprise | `dimension`, `reason`        |
+| `targeting_list_kind_mismatch`  | 400    | Une liste d'un genre branchée sur une dimension qui en attend un autre         | `listId`, `kind`, `expected` |
+| `targeting_group_not_found`     | 404    | Le TargetingGroup est absent, supprimé, ou d'une autre Organization            | `{}`                         |
+
+Une dimension absente du registre ou un type de dimension inconnu sont refusés **par le schéma** de
+la route, donc en `validation_failed` : l'énumération des dimensions fait partie du contrat.
+
+### Les listes
+
+| Code                     | Statut | Quand                                                                             | `params`               |
+| ------------------------ | ------ | --------------------------------------------------------------------------------- | ---------------------- |
+| `list_not_found`         | 404    | Absente, supprimée, ou d'une autre Organization                                   | `listId`               |
+| `list_not_deleted`       | 409    | `restore` sur une liste vivante                                                   | `{}`                   |
+| `list_name_taken`        | 409    | Une liste vivante du même genre porte déjà ce nom                                 | `kind`, `name`         |
+| `list_referenced`        | 409    | **Déplacement** d'une liste qu'un ciblage référence encore : dupliquer à la place | `listId`, `references` |
+| `list_same_organization` | 400    | Dupliquer ou déplacer vers l'Organization d'origine                               | `organizationId`       |
+| `list_other_seat`        | 400    | La cible appartient à un autre Seat : une liste ne voyage que dans le sien        | `organizationId`       |
+
+Le genre d'une liste ne change jamais : les dimensions la référencent par ce qu'elle contient, et le
+corps de la mise à jour ne déclare donc pas `kind` — l'envoyer est un `validation_failed`.
+
+### Les mots-clés
+
+| Code                     | Statut | Quand                                                          | `params`                        |
+| ------------------------ | ------ | -------------------------------------------------------------- | ------------------------------- |
+| `keywords_not_permitted` | 400    | Le levier n'achète pas de mots : seul le Search en achète      | `lever`                         |
+| `keyword_text_invalid`   | 400    | Le texte porte plus de mots que les plateformes n'en acceptent | `text`, `words`, `max`          |
+| `keyword_not_found`      | 404    | Absent, ou d'une autre Organization                            | `{}`                            |
+| `keyword_already_exists` | 409    | Le changement ferait un doublon du même mot dans le même nœud  | `text`, `matchType`, `negative` |
+
+Trois choses que le front peut compter sur : poster un mot-clé que le nœud porte déjà **n'est pas une
+erreur** — la réponse le donne tel qu'il est, donc coller deux fois la même liste ne change rien ;
+un texte refusé est rapporté par son **index** dans `failed`, comme tous les bulks ; et un mot-clé
+supprimé l'est pour de bon, la réponse disant `deleted: true` plutôt qu'une date.
+
 ## Limite de débit
 
 `src/plugins/rate-limit.plugin.ts` (routes HTTP) et `src/mcp/tool-rate-limit.ts` (tools MCP, sur la limite de la route qu'ils reflètent).

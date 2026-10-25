@@ -6,6 +6,7 @@ import {
   Objective,
   Platform,
   RuledField,
+  TargetingDimension,
   TreeLevel,
   VolumeUnit,
 } from '@src/types';
@@ -116,7 +117,129 @@ export type LeverProfile = {
   volumeUnits: readonly VolumeUnit[];
   dealsPermitted: boolean;
   productsModePermitted: boolean;
+  targetingDimensions: readonly TargetingDimension[];
+  keywordsPermitted: boolean;
 };
+
+/**
+ * Where delivery happens, everywhere: no paradigm refuses a place.
+ */
+const GEO: readonly TargetingDimension[] = [
+  'country',
+  'zip_code',
+  'metro_code',
+  'location',
+  'proximity',
+  'zip_code_lists',
+];
+
+/** Shapes drawn on a map, points of interest and geographic meshes: everything but Search. */
+const PLACES: readonly TargetingDimension[] = ['gps', 'poi', 'poi_lists', 'grid_lists'];
+
+/** The device, the network and the language: what a browser or an app exposes. */
+const TECHNICAL: readonly TargetingDimension[] = [
+  'device',
+  'device_make',
+  'device_model',
+  'device_make_model',
+  'os',
+  'browser',
+  'carrier',
+  'connection',
+  'ip',
+  'language',
+  'environment',
+  'device_lists',
+  'bundle_lists',
+];
+
+/** What a Search platform exposes of the device: no app, no carrier, no network. */
+const TECHNICAL_ON_SEARCH: readonly TargetingDimension[] = ['device', 'os', 'browser', 'ip', 'language'];
+
+/** To whom, everywhere. */
+const AUDIENCES: readonly TargetingDimension[] = [
+  'demographics',
+  'audience',
+  'segment',
+  'interest',
+  'audience_lists',
+  'retargeting_lists',
+];
+
+/** Which inventory, on the levers that buy inventory — so not Search, which buys intent. */
+const INVENTORY: readonly TargetingDimension[] = [
+  'exchange',
+  'supply_source',
+  'inventory_source',
+  'publisher',
+  'placement',
+  'publisher_lists',
+  'placement_lists',
+  'supply_lists',
+];
+
+/** The inventory of a web or in-app impression: a screen in the street has no domain. */
+const WEB_INVENTORY: readonly TargetingDimension[] = ['domain', 'app', 'app_site_name', 'app_site_lists'];
+
+/** Around which content, where there is content to speak of. */
+const CONTENT: readonly TargetingDimension[] = ['category', 'content_genre', 'content_rating', 'content_duration'];
+
+/** The format of a video impression, and the inventory of a video platform. */
+const VIDEO: readonly TargetingDimension[] = [
+  'video_ad_format',
+  'video_player_size',
+  'playback_method',
+  'skippable_video',
+  'position',
+  'interstitial_parallax',
+  'youtube_channel',
+  'youtube_video',
+];
+
+/** The formats a social feed serves, which are video without being an open-web player. */
+const SOCIAL_VIDEO: readonly TargetingDimension[] = [
+  'video_ad_format',
+  'video_player_size',
+  'playback_method',
+  'skippable_video',
+];
+
+/** At which quality: the verification market, plus the sampling of identifiers. */
+const QUALITY: readonly TargetingDimension[] = [
+  'viewability',
+  'brand_safety',
+  'brand_suitability',
+  'verifier',
+  'ifa_sampling',
+];
+
+/** What quality means without a viewport: a play is heard or seen whole, it is not « viewable ». */
+const QUALITY_WITHOUT_VIEWPORT: readonly TargetingDimension[] = [
+  'brand_safety',
+  'brand_suitability',
+  'verifier',
+  'ifa_sampling',
+];
+
+/** When, everywhere. */
+const TIME: readonly TargetingDimension[] = ['schedule'];
+
+/** What the platform lets us pass through, on the levers that buy programmatically. */
+const PASSTHROUGH: readonly TargetingDimension[] = ['key_value'];
+
+/** What only a Search lever means: the words, the hints, and the catalogue. */
+const SEARCH_ONLY: readonly TargetingDimension[] = [
+  'context_hints',
+  'product',
+  'product_category',
+  'negative_keyword_lists',
+];
+
+/** What only DOOH means: a screen, and how many impressions one play of it is worth. */
+const DOOH_ONLY: readonly TargetingDimension[] = ['screen', 'screen_lists', 'multiplier'];
+
+/** What only a social feed means: its own placements. */
+const SOCIAL_ONLY: readonly TargetingDimension[] = ['social_placement'];
 
 /**
  * The profile of each lever.
@@ -137,6 +260,8 @@ export const LEVER_PROFILES: Readonly<Record<Lever, LeverProfile>> = {
     volumeUnits: [],
     dealsPermitted: false,
     productsModePermitted: true,
+    targetingDimensions: [...GEO, ...TECHNICAL_ON_SEARCH, ...AUDIENCES, ...TIME, ...SEARCH_ONLY],
+    keywordsPermitted: true,
   },
   dooh: {
     label: 'DOOH',
@@ -148,6 +273,17 @@ export const LEVER_PROFILES: Readonly<Record<Lever, LeverProfile>> = {
     volumeUnits: ['impressions', 'plays'],
     dealsPermitted: true,
     productsModePermitted: false,
+    targetingDimensions: [
+      ...GEO,
+      ...PLACES,
+      ...DOOH_ONLY,
+      ...INVENTORY,
+      ...AUDIENCES,
+      ...TIME,
+      ...PASSTHROUGH,
+      'category',
+    ],
+    keywordsPermitted: false,
   },
   audio: {
     label: 'Audio',
@@ -159,6 +295,19 @@ export const LEVER_PROFILES: Readonly<Record<Lever, LeverProfile>> = {
     volumeUnits: ['impressions', 'completions'],
     dealsPermitted: true,
     productsModePermitted: false,
+    targetingDimensions: [
+      ...GEO,
+      ...PLACES,
+      ...TECHNICAL,
+      ...AUDIENCES,
+      ...INVENTORY,
+      ...WEB_INVENTORY,
+      ...CONTENT,
+      ...QUALITY_WITHOUT_VIEWPORT,
+      ...TIME,
+      ...PASSTHROUGH,
+    ],
+    keywordsPermitted: false,
   },
   social: {
     label: 'Social',
@@ -170,6 +319,18 @@ export const LEVER_PROFILES: Readonly<Record<Lever, LeverProfile>> = {
     volumeUnits: [],
     dealsPermitted: false,
     productsModePermitted: false,
+    targetingDimensions: [
+      ...GEO,
+      ...TECHNICAL,
+      ...AUDIENCES,
+      ...SOCIAL_ONLY,
+      ...SOCIAL_VIDEO,
+      ...QUALITY,
+      ...TIME,
+      'category',
+      'content_genre',
+    ],
+    keywordsPermitted: false,
   },
   ctv_tvs: {
     label: 'CTV & TVS',
@@ -181,6 +342,20 @@ export const LEVER_PROFILES: Readonly<Record<Lever, LeverProfile>> = {
     volumeUnits: ['impressions', 'completions'],
     dealsPermitted: true,
     productsModePermitted: false,
+    targetingDimensions: [
+      ...GEO,
+      ...PLACES,
+      ...TECHNICAL,
+      ...AUDIENCES,
+      ...INVENTORY,
+      ...WEB_INVENTORY,
+      ...CONTENT,
+      ...VIDEO,
+      ...QUALITY,
+      ...TIME,
+      ...PASSTHROUGH,
+    ],
+    keywordsPermitted: false,
   },
   dac: {
     label: 'Display & video on the web and in apps',
@@ -192,6 +367,20 @@ export const LEVER_PROFILES: Readonly<Record<Lever, LeverProfile>> = {
     volumeUnits: ['impressions'],
     dealsPermitted: true,
     productsModePermitted: false,
+    targetingDimensions: [
+      ...GEO,
+      ...PLACES,
+      ...TECHNICAL,
+      ...AUDIENCES,
+      ...INVENTORY,
+      ...WEB_INVENTORY,
+      ...CONTENT,
+      ...VIDEO,
+      ...QUALITY,
+      ...TIME,
+      ...PASSTHROUGH,
+    ],
+    keywordsPermitted: false,
   },
 };
 
@@ -425,4 +614,74 @@ export function assertFieldAllowedForLevers(
   present: boolean
 ): void {
   for (const lever of levers) assertFieldAllowed(lever, level, field, present);
+}
+
+/**
+ * The dimensions a lever gives a meaning to.
+ *
+ * This is the **model's** answer, keyed by lever alone: it says what can be expressed, and refuses
+ * the rest in 400. What one platform of that lever accepts is the platform registry, which produces
+ * a preview warning instead (L2, `docs/phase-5.md` § 5).
+ *
+ * @param lever - The lever
+ * @returns Its dimensions, sorted
+ *
+ * @example
+ * ```typescript
+ * targetingDimensionsOf('search').includes('context_hints'); // true
+ * targetingDimensionsOf('dooh').includes('context_hints'); // false
+ * ```
+ */
+export function targetingDimensionsOf(lever: Lever): TargetingDimension[] {
+  return [...profileOf(lever).targetingDimensions].sort();
+}
+
+/**
+ * Whether a lever gives a meaning to a dimension.
+ *
+ * @param lever - The lever
+ * @param dimension - The dimension
+ * @returns `true` when it does
+ */
+export function permitsDimension(lever: Lever, dimension: TargetingDimension): boolean {
+  return profileOf(lever).targetingDimensions.includes(dimension);
+}
+
+/**
+ * Refuse a dimension the lever gives no meaning to.
+ *
+ * @param lever - The lever of the node being targeted
+ * @param dimension - The dimension asked for
+ * @returns Nothing
+ * @throws Error with status 400 coded `targeting_dimension_forbidden`
+ *
+ * @example
+ * ```typescript
+ * assertDimensionPermitted('dooh', 'browser'); // throws
+ * ```
+ */
+export function assertDimensionPermitted(lever: Lever, dimension: TargetingDimension): void {
+  if (permitsDimension(lever, dimension)) return;
+  throw httpError(400, `The ${lever} lever has nothing to do with ${dimension}`, {
+    code: 'targeting_dimension_forbidden',
+    params: { lever, dimension },
+  });
+}
+
+/**
+ * Refuse keywords on a lever that buys no words.
+ *
+ * Keywords belong to the Search paradigm: a programmatic lever buys inventory and audiences, and a
+ * keyword posted on it would never reach a platform (`docs/phase-5.md` § 4).
+ *
+ * @param lever - The lever of the node
+ * @returns Nothing
+ * @throws Error with status 400 coded `keywords_not_permitted`
+ */
+export function assertKeywordsPermitted(lever: Lever): void {
+  if (profileOf(lever).keywordsPermitted) return;
+  throw httpError(400, `The ${lever} lever does not buy keywords`, {
+    code: 'keywords_not_permitted',
+    params: { lever },
+  });
 }

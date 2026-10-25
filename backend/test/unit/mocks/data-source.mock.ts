@@ -53,7 +53,7 @@ export type EntityManagerMock = {
 
 /**
  * Jest mock of a TypeORM query builder: every clause returns the builder, so the chain a service
- * writes works, and every terminal method answers nothing found.
+ * writes works — a select as well as an insert — and every terminal method answers nothing found.
  *
  * `alias` is the one `createQueryBuilder(alias)` was given, which the SQL of a service reads
  * (see `applyLabelFilter`).
@@ -62,6 +62,11 @@ export type QueryBuilderMock = {
   alias: string;
   select: jest.Mock;
   from: jest.Mock;
+  insert: jest.Mock;
+  into: jest.Mock;
+  values: jest.Mock;
+  orIgnore: jest.Mock;
+  execute: jest.Mock;
   innerJoinAndMapOne: jest.Mock;
   withDeleted: jest.Mock;
   where: jest.Mock;
@@ -111,6 +116,10 @@ export function createQueryBuilderMock(alias = ''): QueryBuilderMock {
   const clauses: string[] = [
     'select',
     'from',
+    'insert',
+    'into',
+    'values',
+    'orIgnore',
     'innerJoinAndMapOne',
     'withDeleted',
     'where',
@@ -123,6 +132,7 @@ export function createQueryBuilderMock(alias = ''): QueryBuilderMock {
   for (const clause of clauses) {
     (builder as Record<string, jest.Mock>)[clause] = jest.fn((): Partial<QueryBuilderMock> => builder);
   }
+  builder.execute = jest.fn().mockResolvedValue({ identifiers: [], raw: [] });
   builder.getOne = jest.fn().mockResolvedValue(null);
   builder.getMany = jest.fn().mockResolvedValue([]);
   builder.getManyAndCount = jest.fn().mockResolvedValue([[], 0]);

@@ -1,7 +1,9 @@
 import {
   allLevers,
   assertBidStrategyPermitted,
+  assertDimensionPermitted,
   assertFieldAllowed,
+  assertKeywordsPermitted,
   assertObjectivePermitted,
   assertPlatformEligible,
   assertVolumeUnitPermitted,
@@ -10,10 +12,13 @@ import {
   defaultObjectiveOf,
   fieldRuleOf,
   LEVER_PROFILES,
+  permitsDimension,
+  targetingDimensionsOf,
   LeverProfile,
   profileOf,
 } from '@src/levers/lever-profiles';
-import { BidStrategy, Lever, leverSchema, treeLevelSchema } from '@src/types';
+import { allDimensions } from '@src/targeting/dimensions';
+import { BidStrategy, Lever, leverSchema, TargetingDimension, treeLevelSchema } from '@src/types';
 
 /** The levers whose inventory is bought programmatically: the ones deals apply to (L7). */
 const PROGRAMMATIC: Lever[] = ['dooh', 'audio', 'ctv_tvs', 'dac'];
@@ -209,6 +214,65 @@ describe('Unit::Levers::LeverProfiles', () => {
       expect(defaultBidStrategyOf('dooh')).toBe('fixed_cpm');
       expect(defaultObjectiveOf('search')).toBe('traffic');
       expect(defaultObjectiveOf('social')).toBe('awareness');
+    });
+  });
+
+  describe('what a lever can be targeted on', () => {
+    it('should give each paradigm the dimensions that mean something to it', (): void => {
+      // The words and the catalogue are Search; a screen and its audience multiplier are DOOH; a
+      // feed placement is social. Nothing else is exclusive (`docs/phase-5.md` § 5).
+      expect(targetingDimensionsOf('search')).toContain('context_hints');
+      expect(targetingDimensionsOf('search')).not.toContain('screen');
+      expect(targetingDimensionsOf('dooh')).toContain('screen');
+      expect(targetingDimensionsOf('dooh')).toContain('multiplier');
+      expect(targetingDimensionsOf('dooh')).not.toContain('context_hints');
+      expect(targetingDimensionsOf('social')).toContain('social_placement');
+      expect(targetingDimensionsOf('dac')).not.toContain('social_placement');
+    });
+
+    it('should refuse what a paradigm has nothing to do with', (): void => {
+      // A screen in the street has no browser and no viewport; a Search platform buys intent, not
+      // inventory.
+      expect(permitsDimension('dooh', 'browser')).toBe(false);
+      expect(permitsDimension('audio', 'viewability')).toBe(false);
+      expect(permitsDimension('search', 'exchange')).toBe(false);
+      expect(permitsDimension('dac', 'viewability')).toBe(true);
+    });
+
+    it('should let every dimension of the registry be reached by at least one lever', (): void => {
+      const reachable = new Set<TargetingDimension>(
+        allLevers().flatMap((lever: Lever): TargetingDimension[] => targetingDimensionsOf(lever))
+      );
+
+      expect(allDimensions().filter((dimension: TargetingDimension): boolean => !reachable.has(dimension))).toEqual([]);
+    });
+
+    it('should never declare the same dimension twice on one lever', (): void => {
+      for (const lever of allLevers()) {
+        const declared: readonly TargetingDimension[] = LEVER_PROFILES[lever].targetingDimensions;
+
+        expect({ lever, duplicates: declared.length - new Set(declared).size }).toEqual({ lever, duplicates: 0 });
+      }
+    });
+
+    it('should refuse a dimension in 400, naming the lever and the dimension', (): void => {
+      expect((): void => assertDimensionPermitted('search', 'exchange')).toThrow(
+        expect.objectContaining({
+          statusCode: 400,
+          errorCode: 'targeting_dimension_forbidden',
+          errorParams: { lever: 'search', dimension: 'exchange' },
+        })
+      );
+      expect((): void => assertDimensionPermitted('search', 'country')).not.toThrow();
+    });
+
+    it('should buy keywords on Search only', (): void => {
+      expect((): void => assertKeywordsPermitted('search')).not.toThrow();
+      for (const lever of allLevers().filter((lever: Lever): boolean => lever !== 'search')) {
+        expect((): void => assertKeywordsPermitted(lever)).toThrow(
+          expect.objectContaining({ errorCode: 'keywords_not_permitted', errorParams: { lever } })
+        );
+      }
     });
   });
 });

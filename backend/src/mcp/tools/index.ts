@@ -12,11 +12,14 @@ import AdGroupToolsController from './ad-group/ad-group.controller';
 import AdvertiserToolsController from './advertiser/advertiser.controller';
 import BudgetDayToolsController from './budget-day/budget-day.controller';
 import CampaignToolsController from './campaign/campaign.controller';
+import KeywordToolsController from './keyword/keyword.controller';
 import LabelToolsController from './label/label.controller';
 import LeverToolsController from './lever/lever.controller';
 import LineToolsController from './line/line.controller';
+import ListToolsController from './list/list.controller';
 import StatusToolsController from './status/status.controller';
 import TargetingGroupToolsController from './targeting-group/targeting-group.controller';
+import TargetingToolsController from './targeting/targeting.controller';
 
 /**
  * Register every MCP tool controller on the given MCP server.
@@ -40,4 +43,8 @@ export function registerToolControllers(server: McpServer, fastify: FastifyInsta
   LineToolsController(server, fastify, context);
   // The daily curve and the pacing of every level, over one table and one service.
   BudgetDayToolsController(server, fastify, context);
+  // The targeting of the TargetingGroups, the lists it references and the keywords it buys.
+  TargetingToolsController(server, fastify, context);
+  ListToolsController(server, fastify, context);
+  KeywordToolsController(server, fastify, context);
 }

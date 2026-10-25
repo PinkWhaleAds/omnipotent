@@ -1,6 +1,7 @@
 import { Column, DeleteDateColumn, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import type { Capping, Lever, VolumeUnit } from '@src/types/lever.types';
+import type { Targeting } from '@src/types/targeting.types';
 import type { NodeStatus } from '@src/types/tree.types';
 import { centsTransformer } from '../transformers';
 import { AdGroupEntity } from './ad-group.entity';
@@ -12,8 +13,12 @@ import { CampaignEntity } from './campaign.entity';
  * a Google ad group, a DV360 line item, an Amazon ad group, a Meta ad set
  * (`../../CADRAGE.md` § 7, § 8).
  *
- * It has **no dates**: it is a targeting applied, not a period of delivery. The targeting dimensions
- * themselves arrive with the phase of the targeting; what is here is the node and its money.
+ * It has **no dates**: it is a targeting applied, not a period of delivery.
+ *
+ * Its targeting is **one object**, not rows (`../../CADRAGE.md` § 8): one write, one read, and a
+ * dimension the object does not carry restricts nothing. The shape of each dimension's criteria is
+ * the registry's (`src/targeting/dimensions`), and the column is indexed with a GIN so one question
+ * answers « which TargetingGroups still reference this list » (`docs/phase-5.md` § 3).
  */
 @Entity({ name: 'targeting_groups' })
 export class TargetingGroupEntity extends BaseEntity {
@@ -51,6 +56,16 @@ export class TargetingGroupEntity extends BaseEntity {
   @ManyToOne(() => CampaignEntity, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'campaign_id' })
   campaign?: CampaignEntity;
+
+  /**
+   * What it targets: a map of dimension to criteria, empty when it restricts nothing.
+   *
+   * The keywords are **not** here: they have their own table, an AdGroup carrying thousands of them
+   * (`docs/phase-5.md` § 4).
+   */
+  @Index('idx_targeting_groups_targeting', { synchronize: false })
+  @Column({ type: 'jsonb', default: '{}' })
+  targeting!: Targeting;
 
   /** Name of the TargetingGroup. */
   @Column({ type: 'varchar', length: 255 })

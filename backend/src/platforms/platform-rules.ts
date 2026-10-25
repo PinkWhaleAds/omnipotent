@@ -1,3 +1,4 @@
+import { TargetingDimension } from '@src/types';
 import { httpError } from '@utils';
 
 /**
@@ -10,9 +11,12 @@ import { httpError } from '@utils';
  * platform.
  *
  * @property label - Display name of the platform
+ * @property targeting - The targeting dimensions this couple accepts; what it is asked for and does
+ *   not accept is **dropped for it**, and the preview names the loss (L2, `docs/phase-5.md` § 5)
  */
 export type PlatformRules = {
   label: string;
+  targeting: readonly TargetingDimension[];
 };
 
 /**
@@ -91,4 +95,33 @@ export function rulesOf(platform: string, lever: string): PlatformRules {
     });
   }
   return rules;
+}
+
+/**
+ * The dimensions a couple cannot express, among those a node asks for.
+ *
+ * This is the **platform's** answer, and it is never a refusal: the dimension was already permitted
+ * by the lever profile, so the campaign is legitimate — this part of it simply will not reach that
+ * platform, and the share bought there delivers without the restriction. Naming it is the whole
+ * point of the preview, and the trap § 8 of `../../CADRAGE.md` describes
+ * (`docs/phase-5.md` § 5).
+ *
+ * @param platform - Its id
+ * @param lever - The lever the campaign buys on
+ * @param asked - The dimensions the node carries
+ * @returns Those the couple does not accept, sorted
+ * @throws Error with status 400 when the platform has no connector, or none for that lever
+ *
+ * @example
+ * ```typescript
+ * unsupportedDimensions('hawk', 'dooh', ['browser', 'screen']); // ['browser'], once Hawk has landed
+ * ```
+ */
+export function unsupportedDimensions(
+  platform: string,
+  lever: string,
+  asked: readonly TargetingDimension[]
+): TargetingDimension[] {
+  const accepted: readonly TargetingDimension[] = rulesOf(platform, lever).targeting;
+  return asked.filter((dimension: TargetingDimension): boolean => !accepted.includes(dimension)).sort();
 }

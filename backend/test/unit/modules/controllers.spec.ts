@@ -123,6 +123,20 @@ const API_ROUTES: RouteKey[] = [
   ...nestedCrudRoutes('/levers/:id', 'ad-groups'),
   ...nestedCrudRoutes('/ad-groups/:id', 'targeting-groups'),
   ...nestedCrudRoutes('/targeting-groups/:id', 'lines'),
+  // Phase 5: the registry of dimensions, the targeting of a TargetingGroup, its keywords, and the
+  // reusable lists of the Organization.
+  { method: 'GET', url: '/targeting-dimensions' },
+  { method: 'GET', url: '/targeting-groups/:id/targeting' },
+  { method: 'PUT', url: '/targeting-groups/:id/targeting' },
+  { method: 'PUT', url: '/targeting-groups/:id/targeting/:dimension' },
+  { method: 'DELETE', url: '/targeting-groups/:id/targeting/:dimension' },
+  { method: 'GET', url: '/targeting-groups/:id/keywords' },
+  { method: 'POST', url: '/targeting-groups/:id/keywords' },
+  { method: 'PATCH', url: '/keywords/:id' },
+  { method: 'DELETE', url: '/keywords/:id' },
+  ...crudRoutes('lists', { labels: false }),
+  { method: 'POST', url: '/lists/:id/duplicate' },
+  { method: 'POST', url: '/lists/:id/move' },
   // Phase 4: the daily curve and the pacing, on each level of the tree.
   ...curveRoutes('campaigns'),
   ...curveRoutes('levers'),

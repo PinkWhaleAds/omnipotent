@@ -13,10 +13,13 @@ import AdvertiserController from './advertiser/advertiser.controller';
 import BudgetDayController from './budget-day/budget-day.controller';
 import CampaignController from './campaign/campaign.controller';
 import HealthController from './health/health.controller';
+import KeywordController from './keyword/keyword.controller';
 import LabelController from './label/label.controller';
 import LeverController from './lever/lever.controller';
 import LineController from './line/line.controller';
+import ListController from './list/list.controller';
 import TargetingGroupController from './targeting-group/targeting-group.controller';
+import TargetingController from './targeting/targeting.controller';
 import OAuthController from './oauth/oauth.controller';
 import StatusController from './status/status.controller';
 
@@ -60,6 +63,10 @@ async function registerControllers(fastify: FastifyInstance): Promise<void> {
   await fastify.register(LineController);
   // The daily curve and the pacing of every level, over one table and one service.
   await fastify.register(BudgetDayController);
+  // The targeting of the TargetingGroups, the lists it references and the keywords it buys.
+  await fastify.register(TargetingController);
+  await fastify.register(ListController);
+  await fastify.register(KeywordController);
 }
 
 /**

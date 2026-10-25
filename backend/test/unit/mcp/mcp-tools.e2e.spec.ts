@@ -38,7 +38,10 @@ type ServiceName =
   | 'adGroupService'
   | 'targetingGroupService'
   | 'lineService'
-  | 'budgetCurveService';
+  | 'budgetCurveService'
+  | 'targetingService'
+  | 'listService'
+  | 'keywordService';
 
 /** A fake Fastify instance: every service method is a jest mock. */
 type FakeServices = Record<ServiceName, Record<string, jest.Mock>>;
@@ -287,6 +290,207 @@ const PACING = {
   budgetReached: false,
   status: 'underspending',
 };
+
+/** What the targeting tools answer: a node targeting one country. */
+const TARGETING = {
+  targetingGroupId: NODE_ID,
+  lever: 'dac',
+  permittedDimensions: ['country'],
+  targeting: { country: { include: ['FR'], exclude: [] } },
+};
+
+/** What the list tools answer. */
+const LIST = {
+  id: 'fa000000-0000-4000-8000-000000000001',
+  organizationId: IDS.organization,
+  kind: 'app_site',
+  name: 'Sites à exclure',
+  items: [{ value: 'example.com' }],
+  itemCount: 1,
+  createdAt: NOW.toISOString(),
+  updatedAt: NOW.toISOString(),
+  deletedAt: null,
+};
+
+/** What the keyword tools answer. */
+const KEYWORD = {
+  id: 'fb000000-0000-4000-8000-000000000001',
+  targetingGroupId: NODE_ID,
+  text: 'chaussures de rando',
+  matchType: 'exact',
+  negative: false,
+  createdAt: NOW.toISOString(),
+};
+
+/** The query a list of lists receives once the defaults of its schema apply. */
+const LIST_QUERY = { page: 1, limit: 50, sortBy: 'name', sortOrder: 'asc', includeDeleted: false };
+
+/** The tool calls of the targeting, the lists and the keywords (`backend/docs/phase-5.md` § 7). */
+const TARGETING_CASES: ToolCase[] = [
+  {
+    tool: 'get-targeting',
+    args: { targetingGroupId: NODE_ID },
+    service: 'targetingService',
+    method: 'get',
+    answer: TARGETING,
+    expected: [NODE_ID],
+  },
+  {
+    tool: 'set-targeting',
+    args: { targetingGroupId: NODE_ID, targeting: { country: { include: ['FR'] } } },
+    service: 'targetingService',
+    method: 'replace',
+    answer: TARGETING,
+    expected: [NODE_ID, { country: { include: ['FR'], exclude: [] } }],
+  },
+  {
+    tool: 'set-targeting-dimension',
+    args: { targetingGroupId: NODE_ID, dimension: 'country', criteria: { include: ['FR'] } },
+    service: 'targetingService',
+    method: 'setDimension',
+    answer: TARGETING,
+    expected: [NODE_ID, 'country', { include: ['FR'] }],
+  },
+  {
+    tool: 'remove-targeting-dimension',
+    args: { targetingGroupId: NODE_ID, dimension: 'country' },
+    service: 'targetingService',
+    method: 'removeDimension',
+    answer: TARGETING,
+    expected: [NODE_ID, 'country'],
+  },
+  {
+    tool: 'list-lists',
+    args: {},
+    service: 'listService',
+    method: 'list',
+    answer: { items: [LIST], total: 1, page: 1, limit: 50 },
+    expected: [LIST_QUERY],
+  },
+  {
+    tool: 'get-list',
+    args: { listId: LIST.id },
+    service: 'listService',
+    method: 'get',
+    answer: LIST,
+    expected: [LIST.id],
+  },
+  {
+    tool: 'create-list',
+    args: { kind: 'app_site', name: 'Sites à exclure', items: [{ value: 'example.com' }] },
+    service: 'listService',
+    method: 'create',
+    answer: LIST,
+    expected: [{ kind: 'app_site', name: 'Sites à exclure', items: [{ value: 'example.com' }] }],
+  },
+  {
+    tool: 'update-list',
+    args: { listId: LIST.id, name: 'Sites bloqués' },
+    service: 'listService',
+    method: 'update',
+    answer: LIST,
+    expected: [LIST.id, { name: 'Sites bloqués' }],
+  },
+  {
+    tool: 'delete-list',
+    args: { listId: LIST.id },
+    service: 'listService',
+    method: 'delete',
+    answer: { id: LIST.id, deletedAt: NOW.toISOString() },
+    expected: [LIST.id],
+  },
+  {
+    tool: 'restore-list',
+    args: { listId: LIST.id },
+    service: 'listService',
+    method: 'restore',
+    answer: { id: LIST.id, deletedAt: null },
+    expected: [LIST.id],
+  },
+  {
+    tool: 'duplicate-list',
+    args: { listId: LIST.id, targetOrganizationId: IDS.otherOrganization },
+    service: 'listService',
+    method: 'duplicate',
+    answer: LIST,
+    expected: [LIST.id, { organizationId: IDS.otherOrganization }],
+  },
+  {
+    tool: 'move-list',
+    args: { listId: LIST.id, targetOrganizationId: IDS.otherOrganization },
+    service: 'listService',
+    method: 'move',
+    answer: LIST,
+    expected: [LIST.id, { organizationId: IDS.otherOrganization }],
+  },
+  {
+    tool: 'bulk-create-lists',
+    args: { items: [{ kind: 'app_site', name: 'Sites à exclure' }] },
+    service: 'listService',
+    method: 'bulkCreate',
+    answer: { items: [LIST], failed: [] },
+    expected: [{ mode: 'atomic', items: [{ kind: 'app_site', name: 'Sites à exclure' }] }],
+  },
+  {
+    tool: 'bulk-update-lists',
+    args: { items: [{ id: LIST.id, name: 'Sites bloqués' }] },
+    service: 'listService',
+    method: 'bulkUpdate',
+    answer: { items: [LIST], failed: [] },
+    expected: [{ mode: 'atomic', items: [{ id: LIST.id, name: 'Sites bloqués' }] }],
+  },
+  {
+    tool: 'bulk-delete-lists',
+    args: { ids: [LIST.id] },
+    service: 'listService',
+    method: 'bulkDelete',
+    answer: { items: [{ id: LIST.id, deletedAt: NOW.toISOString() }], failed: [] },
+    expected: [{ mode: 'atomic', ids: [LIST.id] }],
+  },
+  {
+    tool: 'bulk-restore-lists',
+    args: { ids: [LIST.id] },
+    service: 'listService',
+    method: 'bulkRestore',
+    answer: { items: [{ id: LIST.id, deletedAt: null }], failed: [] },
+    expected: [{ mode: 'atomic', ids: [LIST.id] }],
+  },
+  {
+    tool: 'list-keywords',
+    args: { targetingGroupId: NODE_ID, negative: false },
+    service: 'keywordService',
+    method: 'list',
+    answer: { items: [KEYWORD], total: 1, page: 1, limit: 50 },
+    expected: [NODE_ID, { page: 1, limit: 50, negative: false }],
+  },
+  {
+    tool: 'add-keywords',
+    args: { targetingGroupId: NODE_ID, keywords: [{ text: 'chaussures de rando', matchType: 'exact' }] },
+    service: 'keywordService',
+    method: 'add',
+    answer: { items: [KEYWORD], failed: [] },
+    expected: [
+      NODE_ID,
+      { mode: 'atomic', keywords: [{ text: 'chaussures de rando', matchType: 'exact', negative: false }] },
+    ],
+  },
+  {
+    tool: 'update-keyword',
+    args: { keywordId: KEYWORD.id, negative: true },
+    service: 'keywordService',
+    method: 'update',
+    answer: KEYWORD,
+    expected: [KEYWORD.id, { negative: true }],
+  },
+  {
+    tool: 'delete-keyword',
+    args: { keywordId: KEYWORD.id },
+    service: 'keywordService',
+    method: 'remove',
+    answer: { id: KEYWORD.id, deleted: true },
+    expected: [KEYWORD.id],
+  },
+];
 
 /**
  * The tool calls one level serves on its curve and on its pacing (`backend/docs/phase-4.md` § 6).
@@ -640,6 +844,7 @@ const TOOL_CASES: ToolCase[] = [
   },
   ...TREE_LEVELS.flatMap(treeLevelCases),
   ...TREE_LEVELS.flatMap(curveCases),
+  ...TARGETING_CASES,
 ];
 
 /** The bulk tools, with the route whose limit they are counted on. */
@@ -718,6 +923,14 @@ function fakeServices(): FakeServices {
       reset: jest.fn(),
       pacing: jest.fn(),
     },
+    targetingService: {
+      get: jest.fn(),
+      replace: jest.fn(),
+      setDimension: jest.fn(),
+      removeDimension: jest.fn(),
+    },
+    listService: { ...crud(), duplicate: jest.fn(), move: jest.fn() },
+    keywordService: { list: jest.fn(), add: jest.fn(), update: jest.fn(), remove: jest.fn() },
   };
 }
 
@@ -808,7 +1021,11 @@ describe('Unit::Mcp::McpToolsE2E', () => {
     });
 
     it('should cover every org-scoped tool of the phase with a call', (): void => {
-      const covered: string[] = ['get-status', ...TOOL_CASES.map((toolCase: ToolCase): string => toolCase.tool)];
+      const covered: string[] = [
+        'get-status',
+        'get-targeting-dimensions',
+        ...TOOL_CASES.map((toolCase: ToolCase): string => toolCase.tool),
+      ];
 
       expect(covered.sort()).toEqual([...EXPECTED_TOOLS].sort());
     });
@@ -836,6 +1053,22 @@ describe('Unit::Mcp::McpToolsE2E', () => {
         expect(services[service][method]).toHaveBeenCalledWith(JANE, IDS.organization, ...expected);
       }
     );
+
+    it('should answer the registry of dimensions without naming an Organization', async (): Promise<void> => {
+      // It reads nothing and belongs to no Organization: a model may read it before it knows where it
+      // works (`backend/docs/phase-5.md` § 2).
+      const result: ToolCallResult = await connection.client.callTool({
+        name: 'get-targeting-dimensions',
+        arguments: {},
+      });
+
+      expect(result.isError).toBeFalsy();
+      const catalog = result.structuredContent as { dimensions: { dimension: string; family: string }[] };
+      expect(catalog.dimensions.length).toBeGreaterThan(0);
+      expect(catalog.dimensions).toEqual(
+        expect.arrayContaining([expect.objectContaining({ dimension: 'country', family: 'include_exclude' })])
+      );
+    });
 
     it('should prefer the Organization the model names to the one of the connection', async (): Promise<void> => {
       services.labelService.list.mockResolvedValue({ items: [], total: 0, page: 1, limit: 50 });
