@@ -37,7 +37,7 @@ Ce que le socle livre :
 ```sh
 pnpm install
 cp .env.example .env                      # puis remplir les valeurs Auth0 (ci-dessous)
-docker compose up -d postgres rustfs moto # PostgreSQL sur 5441, S3 (RustFS) sur 9012, Secrets Manager (moto) sur 9022
+docker compose up -d postgres rustfs moto # PostgreSQL sur 5442, S3 (RustFS) sur 9012, Secrets Manager (moto) sur 9022
 pnpm migration:run                        # crée le schéma (aucune migration encore : la table `migrations` seule)
 pnpm start:dev                            # API sur http://localhost:3000 (Swagger : /documentation)
 pnpm start:worker                         # optionnel : le worker de jobs, dans un autre terminal
