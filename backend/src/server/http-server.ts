@@ -14,8 +14,10 @@ import RateLimitPlugin from '@src/plugins/rate-limit.plugin';
 import SwaggerPlugin from '@src/plugins/swagger.plugin';
 import ValidationPlugin from '@src/plugins/validation.plugin';
 import AccessServicePlugin from '@src/services/access.service';
+import AdvertiserServicePlugin from '@src/services/advertiser.service';
 import HealthServicePlugin from '@src/services/health.service';
 import JobQueuePlugin from '@src/services/job-queue.service';
+import LabelServicePlugin from '@src/services/label.service';
 import SecretStorePlugin from '@src/services/secret-store.service';
 import StatusServicePlugin from '@src/services/status.service';
 import StorageServicePlugin from '@src/services/storage.service';
@@ -107,6 +109,10 @@ export class HttpServer extends Server {
     // handlers; the domain services of each phase are registered after it, since every one of them
     // checks a role, and the auth plugin calls its `resolve`.
     await this.fastify.register(AccessServicePlugin);
+
+    // The domain services, in dependency order: a worker registers them too, since its jobs call them.
+    await this.fastify.register(LabelServicePlugin);
+    await this.fastify.register(AdvertiserServicePlugin);
 
     if (!isApi) {
       await this.fastify.register(ProbeControllers);

@@ -17,7 +17,8 @@ type Failure = { path: PropertyKey[]; rule: string; message: string };
  *
  * The body is parsed by Zod, as an MCP tool's arguments are: `trim`, lowercase/uppercase and defaults apply,
  * no type is coerced (`"25"` is not a number, `0` is not `null`), lengths count UTF-16 code units (an emoji
- * counts 2), refinements and URL protocols are checked, and unknown fields are dropped. The parsed value
+ * counts 2), refinements and URL protocols are checked, and an unknown field is **refused** — every body
+ * schema of the API is a strict Zod object (`backend/CLAUDE.md`). The parsed value
  * replaces `request.body`. A refused body gives its first issue in the shape of an AJV error, so the error
  * handler answers `validation_failed` with the same `field`, `rule` and `location` as for the other parts.
  *
@@ -97,7 +98,8 @@ function failureOf(issue: z.core.$ZodIssue, prefix: PropertyKey[]): Failure {
     case 'invalid_value':
       return failure(issue.input === undefined ? 'required' : 'enum');
     case 'unrecognized_keys':
-      return failure('additionalProperties');
+      // The issue sits on the object, so the unknown key is appended: `field` names what to remove.
+      return { path: [...path, issue.keys[0]], rule: 'additionalProperties', message: issue.message };
     case 'invalid_union':
       return unionFailure(issue, path);
     case 'invalid_key':

@@ -48,10 +48,15 @@ export const MAX_PAGE = 10_000;
 /**
  * Zod schema for the pagination querystring shared by every list route.
  *
+ * **Strict**, as every input of the API is: a parameter the route does not declare is refused with
+ * `validation_failed`, never ignored (`backend/CLAUDE.md`). `?sort=name` instead of `?sortBy=name`
+ * must not answer a list silently sorted by default. Strictness survives `.extend()` and `.omit()`,
+ * so every schema built from this one keeps it.
+ *
  * @property page - 1-based page number, at most {@link MAX_PAGE}
  * @property limit - Number of items per page, at most {@link MAX_PAGE_SIZE}
  */
-export const paginationQuerySchema = z.object({
+export const paginationQuerySchema = z.strictObject({
   page: z.number().int().min(1).max(MAX_PAGE).default(1),
   limit: z.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
 });

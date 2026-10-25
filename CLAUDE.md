@@ -103,6 +103,11 @@ They come from `CADRAGE.md` §19 and from `~/OmniAd/multi-search/backend/CLAUDE.
 
 - **Zod is the single source of truth** of every request and response shape, in
   `src/types/<resource>.types.ts`, turned into JSON Schema by `toJsonSchema(...)`.
+- **Every input schema is strict** — `z.strictObject`, never `z.object` — for a body, a querystring,
+  a param and an MCP tool's arguments. A field the route does not declare answers
+  `validation_failed` (rule `additionalProperties`) rather than being dropped in silence:
+  `?sort=name` instead of `?sortBy=name` would otherwise return a list sorted by default, a bug
+  nobody sees. The exception is a **headers** schema, since a request carries many headers of its own.
 - **controller / handler / schema**, for HTTP **and** for MCP. Never collapsed, never another kind of
   file.
 - **One error shape**, built in one place, with a **stable code** and the values of its message.

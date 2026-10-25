@@ -106,8 +106,10 @@ function codeOf(error: FastifyError, statusCode: number): ErrorCode {
     const path: string[] = String(failed.instancePath ?? '')
       .split('/')
       .filter((part: string): boolean => part.length > 0);
-    const missing: unknown = (failed.params as { missingProperty?: unknown } | undefined)?.missingProperty;
-    if (typeof missing === 'string') path.push(missing);
+    // AJV names the field at fault in `params`: the one that is missing, or the one that is not allowed.
+    const named = failed.params as { missingProperty?: unknown; additionalProperty?: unknown } | undefined;
+    const field: unknown = named?.missingProperty ?? named?.additionalProperty;
+    if (typeof field === 'string') path.push(field);
     return {
       code: 'validation_failed',
       params: {

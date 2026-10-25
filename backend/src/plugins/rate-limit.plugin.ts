@@ -19,6 +19,12 @@ export type RateLimit = { max: number; windowMs: number };
 export const DEFAULT_RATE_LIMIT: RateLimit = { max: 600, windowMs: MINUTE };
 
 /**
+ * What a bulk route allows: a tenth of the default, each request carrying up to
+ * `MAX_BULK_ITEMS` items in one transaction. Every bulk route of every phase uses it.
+ */
+export const BULK_RATE_LIMIT: RateLimit = { max: 60, windowMs: MINUTE };
+
+/**
  * The routes with their own limit, by `METHOD /pattern` (`false`: never limited). Each has its own counter; the
  * other routes share one, {@link DEFAULT_RATE_LIMIT}.
  *
@@ -35,6 +41,16 @@ export const ROUTE_RATE_LIMITS: Readonly<Record<string, RateLimit | false>> = {
   'GET /status': { max: 60, windowMs: MINUTE },
   // MCP: one request per tool call of an assistant.
   [`POST ${mcpServerConfig.endpoint}`]: { max: 120, windowMs: MINUTE },
+  // Bulk writes: one request holds a connection and a transaction for up to 200 items, so a tenth of
+  // the default. The MCP tools that mirror them are counted on the same limits (`mcpToolRateLimiter`).
+  'POST /advertisers/bulk': BULK_RATE_LIMIT,
+  'PATCH /advertisers/bulk': BULK_RATE_LIMIT,
+  'DELETE /advertisers/bulk': BULK_RATE_LIMIT,
+  'POST /advertisers/bulk/restore': BULK_RATE_LIMIT,
+  'POST /labels/bulk': BULK_RATE_LIMIT,
+  'PATCH /labels/bulk': BULK_RATE_LIMIT,
+  'DELETE /labels/bulk': BULK_RATE_LIMIT,
+  'POST /labels/bulk/restore': BULK_RATE_LIMIT,
 };
 
 /**

@@ -6,12 +6,20 @@ import { RouteSchemaDefinition, RouteValidator, zodBodyValidator } from '@utils'
 
 /**
  * Options of the AJV validating querystrings, params and headers: Fastify's own (types coerced from strings,
- * defaults filled), but lengths counted in UTF-16 code units as Zod counts them (an emoji counts 2) rather
- * than in code points. AJV 8 still honours `unicode: false` but warns that it is deprecated when its
- * constructor is given it, hence set once the instance exists.
+ * defaults filled), with two changes.
+ *
+ * - `removeAdditional: false` — a querystring parameter the route does not declare is **refused**
+ *   (`validation_failed`, rule `additionalProperties`), where Fastify's default silently deletes it.
+ *   `?sort=name` instead of `?sortBy=name` must not answer a list sorted by default: a parameter
+ *   quietly ignored is a bug nobody sees. Only a schema that says `additionalProperties: false` is
+ *   concerned — every input schema of the API does, being built from a strict Zod object
+ *   (`backend/CLAUDE.md`); the headers schemas do not, since a request carries many headers of its own.
+ * - lengths counted in UTF-16 code units as Zod counts them (an emoji counts 2) rather than in code
+ *   points. AJV 8 still honours `unicode: false` but warns that it is deprecated when its constructor
+ *   is given it, hence set once the instance exists.
  */
 const AJV_OPTIONS = {
-  customOptions: {},
+  customOptions: { removeAdditional: false },
   plugins: [],
   onCreate: (ajv: { opts: { unicode?: boolean } }): void => {
     ajv.opts.unicode = false;
@@ -25,7 +33,8 @@ const AJV_OPTIONS = {
  *   exactly as an MCP tool's arguments: `trim` and defaults apply, nothing is coerced, refinements are checked.
  *   A body declared any other way makes the route fail to build. See `zodBodyValidator`.
  * - Querystrings, params and headers stay with AJV on the JSON Schema: they arrive as strings, and AJV turns
- *   them into the numbers, booleans and lists their schemas describe.
+ *   them into the numbers, booleans and lists their schemas describe. A parameter the route does not
+ *   declare is refused, not dropped (see {@link AJV_OPTIONS}).
  *
  * Either way a refused request answers `validation_failed` (`src/plugins/error-handler.plugin.ts`).
  * Registered with `fastify-plugin` before any route, so it applies to every route.

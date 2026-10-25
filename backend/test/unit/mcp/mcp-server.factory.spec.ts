@@ -12,6 +12,7 @@ import { createMcpServer, MCP_INSTRUCTIONS } from '@src/mcp';
 import { StatusService } from '@services';
 import { McpContext } from '@src/types';
 import { actor } from '@test/unit/mocks/auth.fixtures';
+import { EXPECTED_TOOLS } from '@test/unit/mocks/mcp-tools.fixtures';
 
 describe('Unit::Mcp::McpServerFactory', () => {
   const context: McpContext = {
@@ -61,9 +62,9 @@ describe('Unit::Mcp::McpServerFactory', () => {
       createMcpServer(mockFastify, context);
 
       const names: string[] = registerToolMock().mock.calls.map((call: unknown[]): string => call[0] as string);
-      // The socle registers the status only; each phase adds its resource to `src/mcp/tools/index.ts`
-      // and the tools it names to the lists of this spec.
-      expect(names).toEqual(['get-status']);
+      // Each phase registers its resource in `src/mcp/tools/index.ts` and adds its tools to
+      // `EXPECTED_TOOLS`, which the end-to-end spec exercises one by one.
+      expect(names).toEqual(EXPECTED_TOOLS);
       expect(new Set(names).size).toBe(names.length);
     });
 

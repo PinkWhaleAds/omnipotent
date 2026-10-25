@@ -6,10 +6,10 @@ import { connectIntegrationDatabase, truncateAll } from './database.utils';
 /**
  * Tables the migrations must create, besides TypeORM's own `migrations` table.
  *
- * Empty in the socle: each phase adds the tables of its migration here, so a migration that forgets
- * one — or creates one nobody declared — fails this suite.
+ * Each phase adds the tables of its migration here, so a migration that forgets one — or creates one
+ * nobody declared — fails this suite.
  */
-const APPLICATION_TABLES: string[] = [];
+const APPLICATION_TABLES: string[] = ['advertisers', 'label_assignments', 'labels'];
 
 /**
  * List the tables of the public schema.

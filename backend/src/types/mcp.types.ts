@@ -15,20 +15,6 @@ export type McpContext = {
 };
 
 /**
- * Zod schema of the result of a tool that deletes something.
- *
- * @property deleted - Always `true` (a failure is reported as a tool error)
- * @property id - Id of what was deleted
- */
-export const deletedResultSchema = z.object({
-  deleted: z.literal(true),
-  id: z.uuid(),
-});
-
-/** TypeScript type inferred from {@link deletedResultSchema}. */
-export type DeletedResult = z.infer<typeof deletedResultSchema>;
-
-/**
  * Optional `organizationId` argument of org-scoped tools. Falls back to the
  * `X-Organization-Id` header of the MCP connection.
  */

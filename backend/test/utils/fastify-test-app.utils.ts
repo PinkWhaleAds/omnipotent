@@ -1,4 +1,8 @@
-import Fastify, { FastifyInstance, FastifyPluginAsync } from 'fastify';
+import Fastify, { FastifyInstance, FastifyPluginAsync, FastifyRequest } from 'fastify';
+
+import ErrorHandlerPlugin from '@src/plugins/error-handler.plugin';
+import ValidationPlugin from '@src/plugins/validation.plugin';
+import type { AuthContext } from '@src/types';
 
 /**
  * Set up a Fastify application for testing purposes.
@@ -66,4 +70,40 @@ export async function createFastifyAppWithRegistration(
  */
 export async function closeTestApp(app: FastifyInstance): Promise<void> {
   await app.close();
+}
+
+/**
+ * Set up an application serving one HTTP controller, with its services mocked and the authentication
+ * stood in for by a hook putting the given caller on every request.
+ *
+ * The error handler and the validator compiler are registered, so a spec sees the real answer of a
+ * route: its status code, its validation refusals and the single error shape.
+ *
+ * @param controller - The controller under test
+ * @param services - What to decorate the instance with, by decorator name (`advertiserService`…)
+ * @param actor - The caller every request is authenticated as
+ * @returns The ready instance
+ *
+ * @example
+ * ```typescript
+ * const app = await setupRouteAppForTest(AdvertiserController, { advertiserService: service }, JANE);
+ * await app.inject({ method: 'GET', url: '/advertisers', headers: { 'x-organization-id': IDS.organization } });
+ * ```
+ */
+export async function setupRouteAppForTest(
+  controller: FastifyPluginAsync,
+  services: Record<string, unknown>,
+  actor: AuthContext
+): Promise<FastifyInstance> {
+  const app: FastifyInstance = Fastify();
+  app.decorateRequest('auth', undefined);
+  app.addHook('onRequest', async (request: FastifyRequest): Promise<void> => {
+    request.auth = actor;
+  });
+  for (const [name, service] of Object.entries(services)) app.decorate(name, service);
+  await app.register(ErrorHandlerPlugin);
+  await app.register(ValidationPlugin);
+  await app.register(controller);
+  await app.ready();
+  return app;
 }

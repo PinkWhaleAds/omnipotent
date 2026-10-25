@@ -3,8 +3,10 @@ import type { DataSource } from 'typeorm';
 
 import type {
   AccessService,
+  AdvertiserService,
   HealthService,
   JobQueueService,
+  LabelService,
   SecretStore,
   StatusService,
   StorageService,
@@ -58,6 +60,10 @@ declare module 'fastify' {
     tokenVerifier: TokenVerifier;
     /** Permission checks, and the only door to omnipass. */
     accessService: AccessService;
+    /** Labels, and the posting of Labels on any resource. */
+    labelService: LabelService;
+    /** Advertisers: the brands campaigns are run for. */
+    advertiserService: AdvertiserService;
     /** Object storage (S3). */
     storageService: StorageService;
     /** Credentials the application needs (AWS Secrets Manager). */

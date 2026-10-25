@@ -9,6 +9,30 @@ import { zodSchemaOf } from '@utils';
 /** A route, by method and URL pattern. */
 type RouteKey = { method: HTTPMethods; url: string };
 
+/**
+ * The routes of the reference CRUD of one resource (`backend/docs/phase-2.md` § 2).
+ *
+ * Every resource of every phase serves these eleven, so a phase that forgets one — a `restore`, a
+ * mode of bulk — fails this suite.
+ *
+ * @param resource - Plural name of the resource, as its URLs carry it
+ * @returns Its routes, by method and URL pattern
+ */
+function crudRoutes(resource: string): RouteKey[] {
+  return [
+    { method: 'GET', url: `/${resource}` },
+    { method: 'POST', url: `/${resource}` },
+    { method: 'GET', url: `/${resource}/:id` },
+    { method: 'PATCH', url: `/${resource}/:id` },
+    { method: 'DELETE', url: `/${resource}/:id` },
+    { method: 'POST', url: `/${resource}/:id/restore` },
+    { method: 'POST', url: `/${resource}/bulk` },
+    { method: 'PATCH', url: `/${resource}/bulk` },
+    { method: 'DELETE', url: `/${resource}/bulk` },
+    { method: 'POST', url: `/${resource}/bulk/restore` },
+  ];
+}
+
 /** The probe and status routes, the only ones a worker serves. */
 const PROBE_ROUTES: RouteKey[] = [
   { method: 'GET', url: '/livez' },
@@ -20,12 +44,17 @@ const PROBE_ROUTES: RouteKey[] = [
 /**
  * The API routes, served by an `api` process only.
  *
- * Empty in the socle: each phase adds the routes of its resource here, next to its controller, and
- * {@link PROBE_ROUTES} stays what a worker answers.
+ * Each phase adds the routes of its resource here, next to its controller, and {@link PROBE_ROUTES}
+ * stays what a worker answers.
  */
 const API_ROUTES: RouteKey[] = [
   { method: 'GET', url: '/.well-known/oauth-protected-resource/mcp' },
   { method: 'GET', url: '/.well-known/oauth-protected-resource' },
+  // Phase 2: the reference CRUD, on both resources.
+  ...crudRoutes('labels'),
+  { method: 'GET', url: '/labels/:id/resources' },
+  ...crudRoutes('advertisers'),
+  { method: 'PUT', url: '/advertisers/:id/labels' },
 ];
 
 describe('Unit::Modules::Controllers', () => {

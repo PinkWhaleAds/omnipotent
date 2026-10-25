@@ -54,6 +54,10 @@ Une requête refusée par le schéma de sa route répond **400** avec le code `v
 | `rule`     | Le mot-clé JSON Schema non respecté : `required`, `type`, `enum`, `pattern`, `format`, `minLength`, `maxLength`, `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `minItems`, `maxItems`, `multipleOf`, `additionalProperties`, `oneOf`, `propertyNames`, `items`, `custom` |
 | `location` | La partie de la requête : `body`, `querystring`, `params` ou `headers`                                                                                                                                                                                                                   |
 
+Un champ que la route **ne déclare pas** est refusé, pas ignoré : la règle est `additionalProperties`
+et `field` nomme le champ fautif. Vrai d'un corps, d'une querystring et des arguments d'un tool MCP ;
+les en-têtes, eux, restent souples (une requête porte les siens).
+
 Les corps sont validés par leur schéma Zod lui-même (`src/plugins/validation.plugin.ts`), les querystrings, paramètres d'URL et en-têtes par AJV sur leur JSON Schema. Dans les deux cas la réponse a la forme ci-dessus, et la correspondance entre les deux est faite par `src/utils/validation.utils.ts`. Les longueurs se comptent en unités de code UTF-16 : un emoji compte 2.
 
 ## Authentification
@@ -113,6 +117,38 @@ Trois autres codes d'omnipass ne sont **jamais** la faute d'un utilisateur, seul
 | ----------------------------- | ------ | ---------------------------------------------------------------------------------------------------- | -------- |
 | `organization_header_missing` | 400    | L'en-tête `X-Organization-Id` manque sur une route qui agit sur une Organization                     | `header` |
 | `organization_id_required`    | 400    | Un tool MCP n'a reçu ni l'argument `organizationId` ni l'en-tête `X-Organization-Id` de la connexion | `{}`     |
+
+## Le CRUD de référence
+
+Partagé par toute ressource du domaine (`docs/phase-2.md` § 2, `src/types/crud.types.ts`).
+
+| Code                  | Statut | Quand                                                              | `params` |
+| --------------------- | ------ | ------------------------------------------------------------------ | -------- |
+| `bulk_ids_duplicated` | 400    | Le même id apparaît deux fois dans un lot : la liste est mal bâtie | `id`     |
+
+En mode `partial`, un échec **par élément** n'est pas une erreur de la requête : la réponse est 200,
+et chaque élément refusé est une entrée de `failed` portant son `index`, son `code` et ses `params`
+— les mêmes que la route unitaire aurait répondus. Un droit refusé, lui, refuse le lot entier.
+
+Un échec sans code stable (une 5xx, une panne) n'est jamais rapporté par élément : il fait échouer
+toute la requête, parce que l'appelant n'a rien à en corriger.
+
+## Advertisers et labels
+
+`src/services/advertiser.service.ts`, `src/services/label.service.ts`.
+
+| Code                     | Statut | Quand                                                                | `params` |
+| ------------------------ | ------ | -------------------------------------------------------------------- | -------- |
+| `advertiser_not_found`   | 404    | Absent, supprimé, ou d'une autre Organization                        | `{}`     |
+| `advertiser_name_taken`  | 409    | Une marque vivante porte déjà ce nom dans l'Organization             | `name`   |
+| `advertiser_not_deleted` | 409    | `restore` sur un advertiser vivant                                   | `{}`     |
+| `label_not_found`        | 404    | Absent, supprimé, d'une autre Organization, ou posé depuis une autre | `{}`     |
+| `label_name_taken`       | 409    | Un label vivant porte déjà ce nom dans l'Organization                | `name`   |
+| `label_not_deleted`      | 409    | `restore` sur un label vivant                                        | `{}`     |
+
+L'unicité du nom ne regarde que les **vivants** : supprimer libère le nom, et une restauration dont
+le nom a été repris entre-temps répond `*_name_taken`. Les deux codes de nom portent le nom demandé,
+pour que le front puisse l'écrire dans son message.
 
 ## Limite de débit
 

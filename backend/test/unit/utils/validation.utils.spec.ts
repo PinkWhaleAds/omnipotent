@@ -124,11 +124,18 @@ describe('Unit::Utils::Validation', () => {
       ['a missing option', z.object({ a: z.enum(['x', 'y']) }), {}, 'required', '/a'],
       ['a missing literal', z.object({ a: z.literal('x') }), {}, 'required', '/a'],
       [
-        'an unknown field of a strict object',
+        'an unknown field of a strict object, naming it',
         z.strictObject({ a: z.object({}).strict() }),
         { a: { b: 1 } },
         'additionalProperties',
-        '/a',
+        '/a/b',
+      ],
+      [
+        'an unknown field at the root, naming it',
+        z.strictObject({ a: z.string() }),
+        { a: 'x', nope: 1 },
+        'additionalProperties',
+        '/nope',
       ],
       ['a record key breaking its rule', z.record(z.string().min(2), z.string()), { a: 'x' }, 'propertyNames', '/a'],
       [
