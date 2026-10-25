@@ -9,11 +9,12 @@
  * repeating it, and each keeps what belongs to its own resource: its name, its own columns, its API
  * shape (`docs/phase-3.md` § 9.5).
  */
-import { EntityManager, Not, ObjectLiteral } from 'typeorm';
+import { DataSource, EntityManager, Not, ObjectLiteral, SelectQueryBuilder } from 'typeorm';
 
 import { assertFieldAllowedForLevers, assertVolumeUnitPermitted, carriesBudget } from '@src/levers/lever-profiles';
-import { BudgetVolume, Capping, DeletionResult, Lever, TreeLevel } from '@src/types';
-import { httpError } from '@utils';
+import { BudgetVolume, Capping, DeletionResult, Lever, ListQuery, TreeLevel } from '@src/types';
+import { escapeLike, httpError, toSkipTake, withoutAccents, withoutAccentsSql } from '@utils';
+import { applyLabelFilter, toOrder } from './crud.helpers';
 import { assertWithinParent, volumeToCents } from './budget.helpers';
 import {
   cascadeDelete,
@@ -359,4 +360,58 @@ export async function restoreNode(
   await manager.update(descriptorOf(level).entity, { id: node.id }, { deletedAt: null });
   await cascadeRestore(manager, level, node.id, deletedAt);
   return { id: node.id, deletedAt: null };
+}
+
+/**
+ * Read a page of nodes of one level, with everything a list route asks for: the Organization, the
+ * parent, the text search, the label filter, the sort and the deleted ones.
+ *
+ * The four lower levels list the same way; what differs is the shape each service maps the rows to,
+ * which stays its own business.
+ *
+ * @param dataSource - Application database
+ * @param level - The level to list
+ * @param scope - The Organization, and the parent whose children are listed
+ * @param scope.organizationId - The Organization every row must belong to
+ * @param scope.parentId - The parent, left out at the root
+ * @param query - Page, sort, search, label filter, and whether the deleted ones are listed
+ * @param searchColumn - The column a text search applies to, `null` for a level with no name
+ * @returns The rows of the page, and how many there are in all
+ *
+ * @example
+ * ```typescript
+ * const [rows, total] = await listNodes(this.dataSource, 'ad_group', { organizationId, parentId: leverId }, query, 'name');
+ * ```
+ */
+export async function listNodes(
+  dataSource: DataSource,
+  level: TreeLevel,
+  scope: { organizationId: string; parentId?: string },
+  query: ListQuery,
+  searchColumn: string | null
+): Promise<[TreeNodeRow[], number]> {
+  const descriptor: NodeDescriptor = descriptorOf(level);
+  const builder: SelectQueryBuilder<ObjectLiteral> = dataSource
+    .getRepository(descriptor.entity)
+    .createQueryBuilder(level)
+    .withDeleted()
+    .where(`${level}.organization_id = :organizationId`, { organizationId: scope.organizationId });
+
+  if (scope.parentId !== undefined) {
+    builder.andWhere(`${level}.${descriptor.parentColumnSql} = :parentId`, { parentId: scope.parentId });
+  }
+  if (!query.includeDeleted) builder.andWhere(`${level}.deleted_at IS NULL`);
+  if (query.search && searchColumn) {
+    builder.andWhere(`${withoutAccentsSql(`${level}.${searchColumn}`)} ILIKE :search`, {
+      search: `%${escapeLike(withoutAccents(query.search))}%`,
+    });
+  }
+  applyLabelFilter(builder, level, query.labelIds, query.labelMode);
+
+  const { skip, take } = toSkipTake(query);
+  for (const [field, direction] of Object.entries(toOrder(query.sortBy, query.sortOrder))) {
+    builder.addOrderBy(`${level}.${field}`, direction);
+  }
+  const [rows, total]: [ObjectLiteral[], number] = await builder.skip(skip).take(take).getManyAndCount();
+  return [rows as TreeNodeRow[], total];
 }

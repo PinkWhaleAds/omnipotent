@@ -91,6 +91,7 @@ export function assertWindowOrdered(window: DeliveryWindow): void {
  * @property entity - Its TypeORM entity
  * @property parentLevel - The level above, `null` for the campaign
  * @property parentIdColumn - The property holding its parent's id, `null` for the campaign
+ * @property parentColumnSql - The same column as SQL names it, for a raw `where`
  * @property notFoundCode - The stable code of a 404 on this level
  * @property notDeletedCode - The stable code of a `restore` on a live node
  */
@@ -99,6 +100,7 @@ export type NodeDescriptor = {
   entity: EntityTarget<ObjectLiteral>;
   parentLevel: TreeLevel | null;
   parentIdColumn: string | null;
+  parentColumnSql: string | null;
   notFoundCode: string;
   notDeletedCode: string;
 };
@@ -127,6 +129,7 @@ export const NODE_DESCRIPTORS: Readonly<Record<TreeLevel, NodeDescriptor>> = {
     entity: CampaignEntity,
     parentLevel: null,
     parentIdColumn: null,
+    parentColumnSql: null,
     notFoundCode: 'campaign_not_found',
     notDeletedCode: 'campaign_not_deleted',
   },
@@ -135,6 +138,7 @@ export const NODE_DESCRIPTORS: Readonly<Record<TreeLevel, NodeDescriptor>> = {
     entity: LeverEntity,
     parentLevel: 'campaign',
     parentIdColumn: 'campaignId',
+    parentColumnSql: 'campaign_id',
     notFoundCode: 'lever_not_found',
     notDeletedCode: 'lever_not_deleted',
   },
@@ -143,6 +147,7 @@ export const NODE_DESCRIPTORS: Readonly<Record<TreeLevel, NodeDescriptor>> = {
     entity: AdGroupEntity,
     parentLevel: 'lever',
     parentIdColumn: 'leverId',
+    parentColumnSql: 'lever_id',
     notFoundCode: 'ad_group_not_found',
     notDeletedCode: 'ad_group_not_deleted',
   },
@@ -151,6 +156,7 @@ export const NODE_DESCRIPTORS: Readonly<Record<TreeLevel, NodeDescriptor>> = {
     entity: TargetingGroupEntity,
     parentLevel: 'ad_group',
     parentIdColumn: 'adGroupId',
+    parentColumnSql: 'ad_group_id',
     notFoundCode: 'targeting_group_not_found',
     notDeletedCode: 'targeting_group_not_deleted',
   },
@@ -159,6 +165,7 @@ export const NODE_DESCRIPTORS: Readonly<Record<TreeLevel, NodeDescriptor>> = {
     entity: LineEntity,
     parentLevel: 'targeting_group',
     parentIdColumn: 'targetingGroupId',
+    parentColumnSql: 'targeting_group_id',
     notFoundCode: 'line_not_found',
     notDeletedCode: 'line_not_deleted',
   },

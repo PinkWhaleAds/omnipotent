@@ -14,13 +14,18 @@ import RateLimitPlugin from '@src/plugins/rate-limit.plugin';
 import SwaggerPlugin from '@src/plugins/swagger.plugin';
 import ValidationPlugin from '@src/plugins/validation.plugin';
 import AccessServicePlugin from '@src/services/access.service';
+import AdGroupServicePlugin from '@src/services/ad-group.service';
 import AdvertiserServicePlugin from '@src/services/advertiser.service';
+import CampaignServicePlugin from '@src/services/campaign.service';
 import HealthServicePlugin from '@src/services/health.service';
 import JobQueuePlugin from '@src/services/job-queue.service';
 import LabelServicePlugin from '@src/services/label.service';
+import LeverServicePlugin from '@src/services/lever.service';
+import LineServicePlugin from '@src/services/line.service';
 import SecretStorePlugin from '@src/services/secret-store.service';
 import StatusServicePlugin from '@src/services/status.service';
 import StorageServicePlugin from '@src/services/storage.service';
+import TargetingGroupServicePlugin from '@src/services/targeting-group.service';
 import TokenVerifierPlugin from '@src/services/token-verifier.service';
 import { Opt, Callback } from '@src/types';
 import { callCallback, LoggerBuilder, Logger, trustNearestProxies } from '@utils';
@@ -113,6 +118,12 @@ export class HttpServer extends Server {
     // The domain services, in dependency order: a worker registers them too, since its jobs call them.
     await this.fastify.register(LabelServicePlugin);
     await this.fastify.register(AdvertiserServicePlugin);
+    // The five levels of the campaign tree, parents before children.
+    await this.fastify.register(CampaignServicePlugin);
+    await this.fastify.register(LeverServicePlugin);
+    await this.fastify.register(AdGroupServicePlugin);
+    await this.fastify.register(TargetingGroupServicePlugin);
+    await this.fastify.register(LineServicePlugin);
 
     if (!isApi) {
       await this.fastify.register(ProbeControllers);

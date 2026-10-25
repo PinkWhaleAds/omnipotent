@@ -105,3 +105,45 @@ export const windowSchema = z.object({
  * an empty list when it explicitly has none, a stack otherwise (L5).
  */
 export const nodeCappingSchema = cappingSchema.nullable();
+
+export { cappingSchema };
+
+/**
+ * The fields of a node every level writes the same way, as Zod fields to spread into a body.
+ *
+ * Spread rather than extended from a base object so each resource keeps a **strict** body of its own
+ * (`CLAUDE.md`) and takes only what its level accepts: the TargetingGroup leaves the two days out,
+ * having no window of its own.
+ *
+ * @example
+ * ```typescript
+ * export const createAdGroupBodySchema = z.strictObject({ name: nameSchema, ...nodeWriteFields });
+ * ```
+ */
+export const nodeWriteFields = {
+  budgetCents: z.number().int().min(0).nullable().optional(),
+  budgetVolume: budgetVolumeSchema.nullable().optional(),
+  startsOn: z.iso.date().nullable().optional(),
+  endsOn: z.iso.date().nullable().optional(),
+  capping: cappingSchema.nullable().optional(),
+};
+
+/**
+ * The same fields, without the volume entry: what a level with no bid CPM of its own accepts.
+ *
+ * A volume converts through a CPM (L25), and the CPM lives on the AdGroup and the TargetingGroup. A
+ * Line has none, so the field would be a promise it could never keep.
+ */
+export const nodeWriteFieldsWithoutVolume = {
+  budgetCents: nodeWriteFields.budgetCents,
+  startsOn: nodeWriteFields.startsOn,
+  endsOn: nodeWriteFields.endsOn,
+  capping: nodeWriteFields.capping,
+};
+
+/** The same fields, without the window: what a TargetingGroup accepts. */
+export const nodeWriteFieldsWithoutWindow = {
+  budgetCents: nodeWriteFields.budgetCents,
+  budgetVolume: nodeWriteFields.budgetVolume,
+  capping: nodeWriteFields.capping,
+};

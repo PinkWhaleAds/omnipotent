@@ -3,11 +3,15 @@ import type { DataSource } from 'typeorm';
 
 import type {
   AccessService,
+  AdGroupService,
   AdvertiserService,
   CampaignService,
   HealthService,
   JobQueueService,
   LabelService,
+  LeverService,
+  LineService,
+  TargetingGroupService,
   SecretStore,
   StatusService,
   StorageService,
@@ -67,6 +71,14 @@ declare module 'fastify' {
     advertiserService: AdvertiserService;
     /** Campaigns: the root of the tree. */
     campaignService: CampaignService;
+    /** Levers: one channel of a campaign, and the platforms it buys on. */
+    leverService: LeverService;
+    /** AdGroups: the level the platforms carry a budget on. */
+    adGroupService: AdGroupService;
+    /** TargetingGroups: all the targeting, and the real bidding object. */
+    targetingGroupService: TargetingGroupService;
+    /** Lines: the leaf, which a creative will hang from. */
+    lineService: LineService;
     /** Object storage (S3). */
     storageService: StorageService;
     /** Credentials the application needs (AWS Secrets Manager). */
