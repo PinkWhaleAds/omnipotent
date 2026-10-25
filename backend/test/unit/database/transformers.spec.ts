@@ -1,4 +1,4 @@
-import { numericTransformer } from '@src/database/transformers';
+import { centsTransformer, numericTransformer } from '@src/database/transformers';
 
 describe('Unit::Database::Transformers', () => {
   describe('numericTransformer', () => {
@@ -15,6 +15,24 @@ describe('Unit::Database::Transformers', () => {
 
     it('should read null as null', (): void => {
       expect(numericTransformer.from(null)).toBeNull();
+    });
+  });
+
+  describe('centsTransformer', () => {
+    it('should write cent amounts, null and undefined unchanged', (): void => {
+      expect(centsTransformer.to(225_000)).toBe(225_000);
+      expect(centsTransformer.to(null)).toBeNull();
+      expect(centsTransformer.to(undefined)).toBeUndefined();
+    });
+
+    it('should read the bigint strings of the driver as numbers', (): void => {
+      expect(centsTransformer.from('225000')).toBe(225_000);
+      // Far above what an `integer` column would hold, which is why the column is a `bigint`.
+      expect(centsTransformer.from('9007199254740')).toBe(9_007_199_254_740);
+    });
+
+    it('should read null as null, which is how a node says it inherits', (): void => {
+      expect(centsTransformer.from(null)).toBeNull();
     });
   });
 });

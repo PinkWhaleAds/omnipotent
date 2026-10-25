@@ -20,3 +20,4 @@ export * from './mcp.types';
 export * from './oauth.types';
 export * from './platform.types';
 export * from './status.types';
+export * from './tree.types';

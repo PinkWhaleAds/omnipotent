@@ -11,5 +11,6 @@
  * entities and the migrated schema disagree.
  */
 import { AdvertisersAndLabels1792936887388 } from './1792936887388-AdvertisersAndLabels';
+import { CampaignTree1792952658715 } from './1792952658715-CampaignTree';
 
-export const MIGRATIONS: (new () => unknown)[] = [AdvertisersAndLabels1792936887388];
+export const MIGRATIONS: (new () => unknown)[] = [AdvertisersAndLabels1792936887388, CampaignTree1792952658715];

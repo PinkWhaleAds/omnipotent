@@ -9,7 +9,16 @@ import { connectIntegrationDatabase, truncateAll } from './database.utils';
  * Each phase adds the tables of its migration here, so a migration that forgets one — or creates one
  * nobody declared — fails this suite.
  */
-const APPLICATION_TABLES: string[] = ['advertisers', 'label_assignments', 'labels'];
+const APPLICATION_TABLES: string[] = [
+  'ad_groups',
+  'advertisers',
+  'campaigns',
+  'label_assignments',
+  'labels',
+  'levers',
+  'lines',
+  'targeting_groups',
+];
 
 /**
  * List the tables of the public schema.

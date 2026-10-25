@@ -23,7 +23,14 @@ const labelColorSchema = z
  * as text, so adding a kind costs no migration (D39). A phase making a resource labelable adds its
  * kind here and nowhere else.
  */
-export const labelResourceTypeSchema = z.enum(['advertiser']);
+export const labelResourceTypeSchema = z.enum([
+  'advertiser',
+  'campaign',
+  'lever',
+  'ad_group',
+  'targeting_group',
+  'line',
+]);
 
 /** TypeScript type inferred from {@link labelResourceTypeSchema}. */
 export type LabelResourceType = z.infer<typeof labelResourceTypeSchema>;
