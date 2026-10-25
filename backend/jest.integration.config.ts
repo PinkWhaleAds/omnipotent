@@ -1,10 +1,17 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import type { Config } from 'jest';
 import { pathsToModuleNameMapper } from 'ts-jest';
 
-// No import attribute: ts-node compiles this file with `module: CommonJS` (tsconfig.json), which TypeScript
-// refuses them on, and `resolveJsonModule` already makes the plain import work.
-import tsconfig from './tsconfig.json';
-const { compilerOptions } = tsconfig;
+// The tsconfig is read, not imported: jest loads this file as ESM on a recent Node (which then demands
+// `with { type: 'json' }`) and through ts-node in CommonJS on an older one (which refuses that attribute).
+// Reading the file is the only form that works under both, and it keeps tsconfig.json the single source of
+// truth for the path aliases. The path is relative to the working directory, which is this package's root:
+// every script of package.json runs there.
+const { compilerOptions }: { compilerOptions: { paths: Record<string, string[]> } } = JSON.parse(
+  readFileSync(join(process.cwd(), 'tsconfig.json'), 'utf8')
+) as { compilerOptions: { paths: Record<string, string[]> } };
 
 /**
  * Integration suite: runs against a real PostgreSQL (the `postgres` service of
