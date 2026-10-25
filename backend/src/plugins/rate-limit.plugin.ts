@@ -51,6 +51,23 @@ export const ROUTE_RATE_LIMITS: Readonly<Record<string, RateLimit | false>> = {
   'PATCH /labels/bulk': BULK_RATE_LIMIT,
   'DELETE /labels/bulk': BULK_RATE_LIMIT,
   'POST /labels/bulk/restore': BULK_RATE_LIMIT,
+  // The campaign tree: a creation hangs from its parent, the rest is flat (`docs/phase-3.md` § 7).
+  'POST /advertisers/:id/campaigns/bulk': BULK_RATE_LIMIT,
+  'PATCH /campaigns/bulk': BULK_RATE_LIMIT,
+  'DELETE /campaigns/bulk': BULK_RATE_LIMIT,
+  'POST /campaigns/bulk/restore': BULK_RATE_LIMIT,
+  'POST /levers/:id/ad-groups/bulk': BULK_RATE_LIMIT,
+  'PATCH /ad-groups/bulk': BULK_RATE_LIMIT,
+  'DELETE /ad-groups/bulk': BULK_RATE_LIMIT,
+  'POST /ad-groups/bulk/restore': BULK_RATE_LIMIT,
+  'POST /ad-groups/:id/targeting-groups/bulk': BULK_RATE_LIMIT,
+  'PATCH /targeting-groups/bulk': BULK_RATE_LIMIT,
+  'DELETE /targeting-groups/bulk': BULK_RATE_LIMIT,
+  'POST /targeting-groups/bulk/restore': BULK_RATE_LIMIT,
+  'POST /targeting-groups/:id/lines/bulk': BULK_RATE_LIMIT,
+  'PATCH /lines/bulk': BULK_RATE_LIMIT,
+  'DELETE /lines/bulk': BULK_RATE_LIMIT,
+  'POST /lines/bulk/restore': BULK_RATE_LIMIT,
 };
 
 /**

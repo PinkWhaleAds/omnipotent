@@ -14,6 +14,13 @@ export const MCP_INSTRUCTIONS: string = [
   'Omnipotent runs advertising campaigns across media buying platforms on six levers: search, dooh,',
   'audio, social, ctv_tvs and dac (display and video on the web and in apps), from one interface.',
   'Data is organized as Seat (client company) > Organization (workspace) > Advertiser (brand).',
+  'A campaign hangs from an advertiser: Campaign > Lever (one channel) > AdGroup > TargetingGroup > Line.',
+  'The campaign carries the budget, in integer cents, and the window; below, null inherits — a budget',
+  'is divided equally between siblings, explicit amounts being served first. A read gives both what a',
+  'node carries and what it may actually spend, so never add budgets up yourself.',
+  'A lever chooses the platforms and their shares; what each lever accepts is its profile, which',
+  'refuses at once rather than at launch: a budget on a Search line, a capping on Search, a platform',
+  'the channel does not serve.',
   'Org-scoped tools take an organizationId; ask the user which Organization to use when there are several.',
   'Roles: viewer reads, manager edits, admin also manages members.',
 ].join(' ');

@@ -29,7 +29,15 @@ type ToolCallResult = Awaited<ReturnType<Client['callTool']>>;
  *
  * Each phase adds the services of its tools here.
  */
-type ServiceName = 'statusService' | 'labelService' | 'advertiserService';
+type ServiceName =
+  | 'statusService'
+  | 'labelService'
+  | 'advertiserService'
+  | 'campaignService'
+  | 'leverService'
+  | 'adGroupService'
+  | 'targetingGroupService'
+  | 'lineService';
 
 /** A fake Fastify instance: every service method is a jest mock. */
 type FakeServices = Record<ServiceName, Record<string, jest.Mock>>;
@@ -88,6 +96,271 @@ const LABEL_QUERY = { page: 1, limit: 50, sortBy: 'name', sortOrder: 'asc', incl
 
 /** The query a list of Advertisers receives once the defaults of its schema apply. */
 const ADVERTISER_QUERY = { ...LABEL_QUERY, labelMode: 'any' };
+
+/** The budget block every level of the tree answers. */
+const BUDGET = {
+  explicitCents: null,
+  effectiveCents: 100_000,
+  source: 'inherited',
+  volume: null,
+  perPlatform: [{ platform: 'hawk', shareBasisPoints: 10_000, cents: 100_000 }],
+};
+
+/** What every node of the tree carries, whatever its level. */
+const NODE = {
+  id: 'f9000000-0000-4000-8000-000000000001',
+  organizationId: IDS.organization,
+  budget: BUDGET,
+  capping: null,
+  labels: [],
+  createdAt: NOW.toISOString(),
+  updatedAt: NOW.toISOString(),
+  deletedAt: null,
+};
+
+/** The id of a parent, and the id of a node: the services are mocked, so any uuid will do. */
+const PARENT_ID: string = IDS.advertiser;
+const NODE_ID: string = NODE.id;
+
+/**
+ * One level of the campaign tree, and what its tools send and answer.
+ *
+ * The five levels serve the same CRUD, so their tools are generated from this table rather than
+ * written out one by one: fifty-one rows by hand would be fifty-one chances to mistype an argument,
+ * and the generated ones are checked against the real output schemas by the protocol itself.
+ *
+ * @property singular - The resource in a tool name (`campaign` in `get-campaign`)
+ * @property plural - The resource in a plural tool name (`campaigns` in `list-campaigns`)
+ * @property service - The service its tools reach
+ * @property parentArg - The argument naming its parent, on the tools that take one
+ * @property ownArg - The argument naming the node itself
+ * @property createBody - A body its creation accepts
+ * @property updateBody - A body its update accepts
+ * @property resource - The node as the API answers it, which its output schema must accept
+ * @property bulk - Whether it serves the bulk tools
+ */
+type TreeLevelCase = {
+  singular: string;
+  plural: string;
+  service: ServiceName;
+  parentArg: string;
+  ownArg: string;
+  createBody: Record<string, unknown>;
+  updateBody: Record<string, unknown>;
+  resource: Record<string, unknown>;
+  bulk: boolean;
+};
+
+/** The five levels, in the order the server registers their tools. */
+const TREE_LEVELS: TreeLevelCase[] = [
+  {
+    singular: 'campaign',
+    plural: 'campaigns',
+    service: 'campaignService',
+    parentArg: 'advertiserId',
+    ownArg: 'campaignId',
+    createBody: {
+      name: 'Herbéa — Automne',
+      currency: 'EUR',
+      startsOn: '2026-11-05',
+      endsOn: '2026-11-20',
+      budgetCents: 100_000,
+    },
+    updateBody: { name: 'Herbéa — Hiver' },
+    resource: {
+      ...NODE,
+      advertiserId: PARENT_ID,
+      name: 'Herbéa — Automne',
+      status: 'draft',
+      currency: 'EUR',
+      timezone: null,
+      startsOn: '2026-11-05',
+      endsOn: '2026-11-20',
+      capping: [],
+      insertionOrderNumber: null,
+      budget: { ...BUDGET, source: 'explicit', explicitCents: 100_000, perPlatform: [] },
+    },
+    bulk: true,
+  },
+  {
+    singular: 'lever',
+    plural: 'levers',
+    service: 'leverService',
+    parentArg: 'campaignId',
+    ownArg: 'leverId',
+    createBody: { lever: 'dac', platformShares: [{ platform: 'hawk', shareBasisPoints: 10_000 }] },
+    updateBody: { productsMode: false },
+    resource: {
+      ...NODE,
+      campaignId: PARENT_ID,
+      lever: 'dac',
+      status: 'active',
+      productsMode: false,
+      platformShares: [{ platform: 'hawk', shareBasisPoints: 10_000 }],
+      startsOn: null,
+      endsOn: null,
+    },
+    bulk: false,
+  },
+  {
+    singular: 'ad-group',
+    plural: 'ad-groups',
+    service: 'adGroupService',
+    parentArg: 'leverId',
+    ownArg: 'adGroupId',
+    createBody: { name: 'Prospection' },
+    updateBody: { name: 'Retargeting' },
+    resource: {
+      ...NODE,
+      campaignId: 'f1000000-0000-4000-8000-000000000001',
+      leverId: PARENT_ID,
+      lever: 'dac',
+      name: 'Prospection',
+      status: 'active',
+      objective: 'awareness',
+      bidStrategy: 'fixed_cpm',
+      bidAmountCents: 450,
+      platformShares: null,
+      startsOn: null,
+      endsOn: null,
+    },
+    bulk: true,
+  },
+  {
+    singular: 'targeting-group',
+    plural: 'targeting-groups',
+    service: 'targetingGroupService',
+    parentArg: 'adGroupId',
+    ownArg: 'targetingGroupId',
+    createBody: { name: 'Île-de-France' },
+    updateBody: { bidAmountCents: 300 },
+    resource: {
+      ...NODE,
+      campaignId: 'f1000000-0000-4000-8000-000000000001',
+      adGroupId: PARENT_ID,
+      lever: 'dac',
+      name: 'Île-de-France',
+      status: 'active',
+      bidAmountCents: null,
+    },
+    bulk: true,
+  },
+  {
+    singular: 'line',
+    plural: 'lines',
+    service: 'lineService',
+    parentArg: 'targetingGroupId',
+    ownArg: 'lineId',
+    createBody: { name: 'Bannière 300x250' },
+    updateBody: { landingPageUrl: 'https://herbea.test/automne' },
+    resource: {
+      ...NODE,
+      campaignId: 'f1000000-0000-4000-8000-000000000001',
+      targetingGroupId: PARENT_ID,
+      lever: 'dac',
+      name: 'Bannière 300x250',
+      status: 'active',
+      landingPageUrl: null,
+      startsOn: null,
+      endsOn: null,
+    },
+    bulk: true,
+  },
+];
+
+/**
+ * The tool calls of one level of the tree.
+ *
+ * @param level - The level
+ * @returns One case per tool it serves
+ */
+function treeLevelCases(level: TreeLevelCase): ToolCase[] {
+  const { singular, plural, service, parentArg, ownArg, resource } = level;
+  const parent: Record<string, string> = { [parentArg]: PARENT_ID };
+  const own: Record<string, string> = { [ownArg]: NODE_ID };
+  const deletion = { id: NODE_ID, deletedAt: NOW.toISOString() };
+  const page = { items: [resource], total: 1, page: 1, limit: 50 };
+  const cases: ToolCase[] = [
+    {
+      tool: `list-${plural}`,
+      args: parent,
+      service,
+      method: 'list',
+      answer: page,
+      expected: [PARENT_ID, expect.objectContaining({ page: 1, limit: 50 })],
+    },
+    { tool: `get-${singular}`, args: own, service, method: 'get', answer: resource, expected: [NODE_ID] },
+    {
+      tool: `create-${singular}`,
+      args: { ...parent, ...level.createBody },
+      service,
+      method: 'create',
+      answer: resource,
+      expected: [PARENT_ID, expect.objectContaining(level.createBody)],
+    },
+    {
+      tool: `update-${singular}`,
+      args: { ...own, ...level.updateBody },
+      service,
+      method: 'update',
+      answer: resource,
+      expected: [NODE_ID, expect.objectContaining(level.updateBody)],
+    },
+    { tool: `delete-${singular}`, args: own, service, method: 'delete', answer: deletion, expected: [NODE_ID] },
+    {
+      tool: `restore-${singular}`,
+      args: own,
+      service,
+      method: 'restore',
+      answer: { id: NODE_ID, deletedAt: null },
+      expected: [NODE_ID],
+    },
+    {
+      tool: `set-${singular}-labels`,
+      args: { ...own, labelIds: [] },
+      service,
+      method: 'setLabels',
+      answer: resource,
+      expected: [NODE_ID, { labelIds: [] }],
+    },
+  ];
+  if (!level.bulk) return cases;
+  return [
+    ...cases,
+    {
+      tool: `bulk-create-${plural}`,
+      args: { ...parent, items: [level.createBody] },
+      service,
+      method: 'bulkCreate',
+      answer: { items: [resource], failed: [] },
+      expected: [PARENT_ID, expect.objectContaining({ mode: 'atomic' })],
+    },
+    {
+      tool: `bulk-update-${plural}`,
+      args: { items: [{ id: NODE_ID, ...level.updateBody }] },
+      service,
+      method: 'bulkUpdate',
+      answer: { items: [resource], failed: [] },
+      expected: [expect.objectContaining({ mode: 'atomic' })],
+    },
+    {
+      tool: `bulk-delete-${plural}`,
+      args: { ids: [NODE_ID] },
+      service,
+      method: 'bulkDelete',
+      answer: { items: [deletion], failed: [] },
+      expected: [{ mode: 'atomic', ids: [NODE_ID] }],
+    },
+    {
+      tool: `bulk-restore-${plural}`,
+      args: { ids: [NODE_ID] },
+      service,
+      method: 'bulkRestore',
+      answer: { items: [{ id: NODE_ID, deletedAt: null }], failed: [] },
+      expected: [{ mode: 'atomic', ids: [NODE_ID] }],
+    },
+  ];
+}
 
 /**
  * One tool call: what an assistant sends, and what the service behind it must receive.
@@ -286,6 +559,7 @@ const TOOL_CASES: ToolCase[] = [
     answer: BULK_DELETIONS,
     expected: [{ mode: 'atomic', ids: [IDS.advertiser] }],
   },
+  ...TREE_LEVELS.flatMap(treeLevelCases),
 ];
 
 /** The bulk tools, with the route whose limit they are counted on. */
@@ -298,7 +572,35 @@ const BULK_TOOL_ROUTES: [string, Record<string, unknown>, string][] = [
   ['bulk-update-advertisers', { items: [{ id: IDS.advertiser, name: 'H' }] }, 'PATCH /advertisers/bulk'],
   ['bulk-delete-advertisers', { ids: [IDS.advertiser] }, 'DELETE /advertisers/bulk'],
   ['bulk-restore-advertisers', { ids: [IDS.advertiser] }, 'POST /advertisers/bulk/restore'],
+  ...TREE_LEVELS.filter((level: TreeLevelCase): boolean => level.bulk).flatMap(
+    (level: TreeLevelCase): [string, Record<string, unknown>, string][] => [
+      [
+        `bulk-create-${level.plural}`,
+        { [level.parentArg]: PARENT_ID, items: [level.createBody] },
+        `POST /${parentUrlOf(level)}/:id/${level.plural}/bulk`,
+      ],
+      [`bulk-update-${level.plural}`, { items: [{ id: NODE_ID, ...level.updateBody }] }, `PATCH /${level.plural}/bulk`],
+      [`bulk-delete-${level.plural}`, { ids: [NODE_ID] }, `DELETE /${level.plural}/bulk`],
+      [`bulk-restore-${level.plural}`, { ids: [NODE_ID] }, `POST /${level.plural}/bulk/restore`],
+    ]
+  ),
 ];
+
+/**
+ * The URL of the parent a level hangs from, as the rate limits name it.
+ *
+ * @param level - The level
+ * @returns The plural of its parent in a URL
+ */
+function parentUrlOf(level: TreeLevelCase): string {
+  return {
+    advertiserId: 'advertisers',
+    campaignId: 'campaigns',
+    leverId: 'levers',
+    adGroupId: 'ad-groups',
+    targetingGroupId: 'targeting-groups',
+  }[level.parentArg] as string;
+}
 
 /**
  * Build the fake services the tools reach.
@@ -324,6 +626,11 @@ function fakeServices(): FakeServices {
     statusService: { getStatus: jest.fn().mockReturnValue(STATUS) },
     labelService: crud(),
     advertiserService: crud(),
+    campaignService: crud(),
+    leverService: crud(),
+    adGroupService: crud(),
+    targetingGroupService: crud(),
+    lineService: crud(),
   };
 }
 

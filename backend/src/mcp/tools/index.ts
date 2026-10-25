@@ -8,9 +8,14 @@ import type { FastifyInstance } from 'fastify';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 import { McpContext } from '@src/types';
+import AdGroupToolsController from './ad-group/ad-group.controller';
 import AdvertiserToolsController from './advertiser/advertiser.controller';
+import CampaignToolsController from './campaign/campaign.controller';
 import LabelToolsController from './label/label.controller';
+import LeverToolsController from './lever/lever.controller';
+import LineToolsController from './line/line.controller';
 import StatusToolsController from './status/status.controller';
+import TargetingGroupToolsController from './targeting-group/targeting-group.controller';
 
 /**
  * Register every MCP tool controller on the given MCP server.
@@ -26,4 +31,10 @@ export function registerToolControllers(server: McpServer, fastify: FastifyInsta
   StatusToolsController(server, fastify);
   LabelToolsController(server, fastify, context);
   AdvertiserToolsController(server, fastify, context);
+  // The campaign tree, from its root down to its leaf.
+  CampaignToolsController(server, fastify, context);
+  LeverToolsController(server, fastify, context);
+  AdGroupToolsController(server, fastify, context);
+  TargetingGroupToolsController(server, fastify, context);
+  LineToolsController(server, fastify, context);
 }
