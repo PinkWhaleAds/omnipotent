@@ -8,24 +8,24 @@ Mis à jour le **2026-10-25** : l'étude de faisabilité du point 11 est faite (
 
 ## En bref
 
-| #   | Quoi                                                        | Ce que ça débloque                                | Urgence                          |
-| --- | ----------------------------------------------------------- | ------------------------------------------------- | -------------------------------- |
-| 1   | Comptes et credentials des 12 plateformes (13 avec Pinterest) | Chaque adapter, au fil des phases                 | Au fil des phases                |
-| 1b  | Qui développe omnipass, et quand le lancer                   | Le socle d'identité                               | **Avant la mise en production**  |
-| 2   | Confirmer la réutilisation des accès de multi-search        | Les 4 premiers adapters (phase Search)            | **Avant la phase 1**             |
-| 3   | omnipass — qui le développe, et quand                       | Le socle d'identité de tous les projets           | **Avant la phase 1**             |
-| 4   | Accès **Standard** à l'API Google Ads                       | Lève le plafond de 15 000 opérations/jour         | Avant les tests Search réels     |
-| 5   | Vérifier les limites d'objets Google par compte             | Le garde-fou de l'éclatement par TargetingGroup   | Avant les tests Search réels     |
-| 6   | Amazon Ads — accès API **Partner** + un compte vendeur réel  | Levier Search, puis Audio et CTV                  | Avant la phase Amazon            |
-| 7   | DV360 — accès partenaire + API                              | Leviers Audio, CTV & TVS, DAC                     | Avant la phase DV360             |
-| 8   | Meta / TikTok / Snap — comptes business + apps approuvées   | Levier Social                                     | Avant la phase Social            |
-| 8b  | **Pinterest** — compte business + app (libre-service)        | Leviers Search **et** Social                      | **Première des trois nouvelles** |
-| 8c  | **TikTok Search Ads** — demande d'allowlist auprès de TikTok | Le levier Search sur TikTok                       | **Maintenant** (délai subi)      |
-| 10  | AWS — bucket d'état, variables GitHub OIDC, **2 API Auth0** | Déploiement d'Omnipotent (le Terraform est écrit)  | Avant la première mise en ligne  |
-| 11  | Études Amazon Search / TikTok Search / Pinterest             | Périmètre définitif du levier Search              | **Faite** — 16 points à valider  |
-| 12  | Étude : fonctionnalités transverses vs propres au Search     | Périmètre fonctionnel (conversions, catalogues…)  | Avant la phase conversions       |
-| 13  | Étude reporting et capacités, une par plateforme             | Les rapports, la fraîcheur, les formats de créa   | Dans la phase de chaque plateforme |
-| 14  | GitHub — dépôts créés                                        | Pousser le code, faire tourner la CI              | Fait (vides)                     |
+| #   | Quoi                                                                                   | Ce que ça débloque                                | Urgence                            |
+| --- | -------------------------------------------------------------------------------------- | ------------------------------------------------- | ---------------------------------- |
+| 1   | Comptes et credentials des plateformes du périmètre (Pinterest comprise, si F14 passe) | Chaque adapter, au fil des phases                 | Au fil des phases                  |
+| 1b  | Qui développe omnipass, et quand le lancer                                             | Le socle d'identité                               | **Avant la mise en production**    |
+| 2   | Confirmer la réutilisation des accès de multi-search                                   | Les 4 premiers adapters (phase Search)            | **Avant la phase 1**               |
+| 3   | omnipass — qui le développe, et quand                                                  | Le socle d'identité de tous les projets           | **Avant la phase 1**               |
+| 4   | Accès **Standard** à l'API Google Ads                                                  | Lève le plafond de 15 000 opérations/jour         | Avant les tests Search réels       |
+| 5   | Vérifier les limites d'objets Google par compte                                        | Le garde-fou de l'éclatement par TargetingGroup   | Avant les tests Search réels       |
+| 6   | Amazon Ads — accès API **Partner** + un compte vendeur réel                            | Levier Search, puis Audio et CTV                  | Avant la phase Amazon              |
+| 7   | DV360 — accès partenaire + API                                                         | Leviers Audio, CTV & TVS, DAC                     | Avant la phase DV360               |
+| 8   | Meta / TikTok / Snap — comptes business + apps approuvées                              | Levier Social                                     | Avant la phase Social              |
+| 8b  | **Pinterest** — compte business + app (libre-service)                                  | Leviers Search **et** Social                      | **Première des trois nouvelles**   |
+| 8c  | **TikTok Search Ads** — demande d'allowlist auprès de TikTok                           | Le levier Search sur TikTok                       | **Maintenant** (délai subi)        |
+| 10  | AWS — bucket d'état, variables GitHub OIDC, **2 API Auth0**                            | Déploiement d'Omnipotent (le Terraform est écrit) | Avant la première mise en ligne    |
+| 11  | Études Amazon Search / TikTok Search / Pinterest                                       | Périmètre définitif du levier Search              | **Faite** — 16 points à valider    |
+| 12  | Étude : fonctionnalités transverses vs propres au Search                               | Périmètre fonctionnel (conversions, catalogues…)  | Avant la phase conversions         |
+| 13  | Étude reporting et capacités, une par plateforme                                       | Les rapports, la fraîcheur, les formats de créa   | Dans la phase de chaque plateforme |
+| 14  | GitHub — dépôts créés                                                                  | Pousser le code, faire tourner la CI              | Fait (vides)                       |
 
 ---
 
@@ -85,14 +85,14 @@ L'étude de faisabilité est faite : **verdict « on intègre, en deuxième, sou
 **L'accès à l'API — libre-service, gratuit, revue annoncée à 1 jour ouvré.** Trois étapes, dans l'ordre :
 
 - [ ] S'inscrire comme développeur sur `developer.amazon.com` et créer une **application Login with Amazon**. Gratuit, aucune approbation. Donne le `client_id` et le `client_secret` (le secret ne passe pas par le chat).
-- [ ] S'inscrire à l'**Amazon Ads Partner Network**, puis y demander l'accès API : console → *API Applications* → *Request API Access*. C'est la voie **Partner** (« entreprises qui construisent des solutions logicielles pour le compte d'autrui »), **pas** la voie Direct Advertiser — déduction **F3** de l'étude, à confirmer. Le formulaire demande les usages prévus et fait accepter l'**Amazon Ads API License Agreement** et la **Data Protection Policy** : à lire avant de signer.
+- [ ] S'inscrire à l'**Amazon Ads Partner Network**, puis y demander l'accès API : console → _API Applications_ → _Request API Access_. C'est la voie **Partner** (« entreprises qui construisent des solutions logicielles pour le compte d'autrui »), **pas** la voie Direct Advertiser — déduction **F3** de l'étude, à confirmer. Le formulaire demande les usages prévus et fait accepter l'**Amazon Ads API License Agreement** et la **Data Protection Policy** : à lire avant de signer.
 - [ ] Assigner l'accès API à l'application LwA depuis le lien reçu par mail. Vérifier qu'on obtient bien les **deux** scopes : `advertising::campaign_management` et `advertising::test:create_account` (le second crée les comptes de test).
 - [ ] Me donner le `client_id` et l'identifiant du manager account (non secrets).
 
 **La condition qui décide de la phase.** Le type de compte n'est pas négociable : un profil Amazon est `vendor`, `seller` ou `agency`, et un compte **`agency` n'ouvre que le DSP** — il ne peut pas acheter de Sponsored Products. Pour Sponsored Brands, un compte marchand doit en plus être inscrit au **Brand Registry**.
 
 - [ ] **Trancher : y a-t-il, parmi les clients visés, des annonceurs qui vendent sur Amazon** (Seller Central ou Vendor Central, avec des ASIN actifs) ? Si non, le levier Amazon Search n'a pas d'utilisateur et la phase attend, quelle que soit la qualité de l'API.
-- [ ] Si oui : identifier un annonceur pilote et obtenir l'accès à son compte publicitaire via un **manager account** en permission *Editor* (la permission *Viewer* renvoie 401 sur toute écriture).
+- [ ] Si oui : identifier un annonceur pilote et obtenir l'accès à son compte publicitaire via un **manager account** en permission _Editor_ (la permission _Viewer_ renvoie 401 sur toute écriture).
 
 **Il n'y a pas de sandbox.** Celui d'Amazon (`advertising-api-test.amazon.com`) a été coupé le 2022-06-28. Le remplacement, les **comptes de test** (`POST /testAccounts`, type `VENDOR` ou `AUTHOR`), ne diffuse aucune publicité : donc **aucune** donnée de performance — ni clics, ni impressions, ni dépense.
 
@@ -127,9 +127,9 @@ Pour chacune, il faut un compte business, une application, et une revue de l'app
 - [ ] Créer (ou me confirmer l'existence d') un **compte Pinterest business** pour Omnilor.
 - [ ] Créer une **app** sur `developers.pinterest.com`. L'approbation donne le palier **Trial**, qui autorise déjà la lecture **et l'écriture** de publicités : seuls les Pins et boards créés restent invisibles des autres. Limites Trial : 1 000 requêtes/jour par app, dont **300/jour** en écriture publicitaire — assez pour développer.
 - [ ] Me donner le `client_id` de l'app (non secret) ; le secret va dans `backend/.env`.
-- [ ] Générer un **jeton de sandbox** (*My Apps* → *Manage* → *Configure* → *Generate Access Token* → *Sandbox*). Il dure **30 jours**, donc il faudra le régénérer — ou passer par le flux OAuth sur l'hôte `api-sandbox` pour pouvoir le rafraîchir.
+- [ ] Générer un **jeton de sandbox** (_My Apps_ → _Manage_ → _Configure_ → _Generate Access Token_ → _Sandbox_). Il dure **30 jours**, donc il faudra le régénérer — ou passer par le flux OAuth sur l'hôte `api-sandbox` pour pouvoir le rafraîchir.
 - [ ] Prévoir la **démonstration vidéo** exigée pour passer en **Standard access** (400 écritures/minute au lieu de 300/jour). Elle doit montrer notre application réalisant une action réelle via l'API, **flux OAuth inclus** ; un enregistrement de terminal est accepté. Ce n'est pas une formalité : les refus listés par Pinterest portent précisément sur l'absence du flux d'authentification. À faire quand l'adapter marche, pas avant.
-- [ ] Pour prouver l'**accès agence** (API *Business Access*, le pendant de nos liens Google/Microsoft) : il faut un **compte client réel**, c'est la seule chose que le sandbox ne sait pas simuler. Identifier un annonceur pilote.
+- [ ] Pour prouver l'**accès agence** (API _Business Access_, le pendant de nos liens Google/Microsoft) : il faut un **compte client réel**, c'est la seule chose que le sandbox ne sait pas simuler. Identifier un annonceur pilote.
 - [ ] Me dire si un annonceur pilote a déjà un compte Pinterest business **avec des Pins** : la créa Pinterest **est** un Pin organique, qui doit exister avant d'être promu (**F15**).
 
 ## 8c. TikTok Search Ads — la demande d'allowlist
@@ -172,11 +172,11 @@ Le Terraform existe : `infra/` reprend les modules de multi-search, sans son mod
 
 - [x] **Faite le 2026-10-25** : `backend/docs/plateformes/faisabilite-search.md`. Les trois questions sont tranchées.
 
-| Plateforme | Verdict | Rang | Levier(s) |
-| --- | --- | --- | --- |
-| **Pinterest** | ✅ on intègre | **1er** | `search` **et** `social`, séparés par `placement_group` |
-| **Amazon retail search** | ✅ on intègre, **sous condition** d'un annonceur qui vend sur Amazon | **2e** | `search` |
-| **TikTok Search Ads** | ⏸️ on reporte, à rattacher à la **phase Social** | 3e | `search` (en plus de `social`) |
+| Plateforme               | Verdict                                                              | Rang    | Levier(s)                                               |
+| ------------------------ | -------------------------------------------------------------------- | ------- | ------------------------------------------------------- |
+| **Pinterest**            | ✅ on intègre                                                        | **1er** | `search` **et** `social`, séparés par `placement_group` |
+| **Amazon retail search** | ✅ on intègre, **sous condition** d'un annonceur qui vend sur Amazon | **2e**  | `search`                                                |
+| **TikTok Search Ads**    | ⏸️ on reporte, à rattacher à la **phase Social**                     | 3e      | `search` (en plus de `social`)                          |
 
 Réponses aux trois questions qui étaient posées :
 
@@ -204,7 +204,7 @@ Tes intuitions de départ sont confirmées sur six lignes sur sept. Les deux ré
 
 ## 13. Reporting et capacités — une étude par plateforme
 
-Les plateformes ne remontent **pas** les mêmes informations, ni à la même fraîcheur, ni par le même mécanisme. Constat corrigé le 2026-10-25, après lecture du code : les 4 plateformes Search de multi-search ont un pull qui tourne, et le **`reporting-worker` de MBP porte bien son code de domaine** — 191 fichiers, un fait canonique et huit adapters de reporting, Meta, TikTok et Snap compris. **Il existe donc une référence lisible pour dix de nos onze plateformes** ; seule Amazon Search n'a rien. *(La version précédente de cette section affirmait l'inverse, sur la foi du README de `mbp-api`, qui est périmé.)*
+Les plateformes ne remontent **pas** les mêmes informations, ni à la même fraîcheur, ni par le même mécanisme. Constat corrigé le 2026-10-25, après lecture du code : les 4 plateformes Search de multi-search ont un pull qui tourne, et le **`reporting-worker` de MBP porte bien son code de domaine** — 191 fichiers, un fait canonique et huit adapters de reporting, Meta, TikTok et Snap compris. **Il existe donc une référence lisible pour dix de nos onze plateformes** ; seule Amazon Search n'a rien. _(La version précédente de cette section affirmait l'inverse, sur la foi du README de `mbp-api`, qui est périmé.)_
 
 Le cadrage complet d'une plateforme est dans **`docs/cadrage-plateforme.md`** (projection, ciblage, créas, enchères, reporting, quotas, idempotence, authentification). Dans sa phase, à constater sur un compte réel et à m'écrire :
 
