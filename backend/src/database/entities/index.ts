@@ -9,6 +9,7 @@
  */
 import { AdGroupEntity } from './ad-group.entity';
 import { AdvertiserEntity } from './advertiser.entity';
+import { BudgetDayEntity } from './budget-day.entity';
 import { CampaignEntity } from './campaign.entity';
 import { LabelAssignmentEntity } from './label-assignment.entity';
 import { LabelEntity } from './label.entity';
@@ -19,6 +20,7 @@ import { TargetingGroupEntity } from './targeting-group.entity';
 export * from './ad-group.entity';
 export * from './advertiser.entity';
 export * from './base.entity';
+export * from './budget-day.entity';
 export * from './campaign.entity';
 export * from './label-assignment.entity';
 export * from './label.entity';
@@ -36,4 +38,5 @@ export const ENTITIES: (new () => unknown)[] = [
   AdGroupEntity,
   TargetingGroupEntity,
   LineEntity,
+  BudgetDayEntity,
 ];

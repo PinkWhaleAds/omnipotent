@@ -303,32 +303,50 @@ export function rebalance(
 }
 
 /**
- * Rebuild a curve for a new period: the days already past and the locked days still inside it keep
- * their amount, every other day shares the rest evenly.
+ * Complete a stored curve over the window of its node, and make it add up to the budget again.
  *
- * @param previous - The curve as it stands
- * @param days - The days of the new period
- * @param totalCents - The budget of the period
+ * What is stored **wins**: a day the store knows keeps its amount and its lock, which is the whole
+ * point of having shaped a curve. A day the store has never seen — the window grew, or nobody has
+ * shaped anything yet — comes in as an **average day**: the average of the stored days, or the even
+ * share of the budget when nothing is stored at all. So it takes the share of a normal day and the
+ * others make room for it in proportion.
+ *
+ * That placeholder has to be the right amount, not a mere weight: a past day is **frozen at what the
+ * curve says it carried**, so a node nobody ever shaped would otherwise freeze its past days at a
+ * token cent and pile its whole budget on the days left.
+ *
+ * Then {@link rebalance} makes the days add up to the budget, so a curve read after its budget
+ * changed answers the same shape for the new amount, without anything being written.
+ *
+ * @param stored - The days the node has stored, in any order
+ * @param days - The days of its window
+ * @param totalCents - Its effective budget
  * @param today - See {@link isPast}
- * @returns The new curve
+ * @returns The curve to answer, adding up to `totalCents`
  * @throws Error with status 400 when the past days exceed the budget, or no day can take the rest
  *
  * @example
  * ```typescript
- * rebuildCurve(curve, listDays('2027-01-01', '2027-01-31'), 310_000, null);
+ * completeCurve(rows, listDays('2027-01-01', '2027-01-07'), 70_000, null);
  * ```
  */
-export function rebuildCurve(
-  previous: CurveDay[],
+export function completeCurve(
+  stored: CurveDay[],
   days: string[],
   totalCents: number,
   today: string | null = null
 ): CurveDay[] {
-  const before = new Map<string, CurveDay>(previous.map((day: CurveDay): [string, CurveDay] => [day.day, day]));
+  const known = new Map<string, CurveDay>(stored.map((day: CurveDay): [string, CurveDay] => [day.day, day]));
+  const inside: CurveDay[] = days
+    .map((day: string): CurveDay | undefined => known.get(day))
+    .filter((day: CurveDay | undefined): day is CurveDay => day !== undefined);
+  const average: number = Math.max(
+    1,
+    Math.round(inside.length > 0 ? sumCents(inside) / inside.length : totalCents / days.length)
+  );
   const curve: CurveDay[] = days.map((day: string): CurveDay => {
-    const kept: CurveDay | undefined = before.get(day);
-    if (isPast(day, today)) return kept ? { ...kept } : { day, cents: 0, locked: false };
-    return kept?.locked ? { ...kept } : { day, cents: 1, locked: false };
+    const kept: CurveDay | undefined = known.get(day);
+    return kept ? { ...kept } : { day, cents: average, locked: false };
   });
   return rebalance(curve, totalCents, new Set<string>(), today);
 }

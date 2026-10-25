@@ -199,6 +199,32 @@ devise de campagne, et une lecture donne à la fois ce qu'un nœud porte (`expli
 peut dépenser (`effectiveCents`), avec la raison (`source` ∈ `explicit | inherited | forbidden`) —
 donc il n'a jamais à refaire la division lui-même.
 
+## La courbe journalière et le pacing
+
+`src/services/budget-curve.{service,helpers}.ts`, `src/services/pacing.helpers.ts` (phase 4,
+`docs/phase-4.md` § 7).
+
+Un nœud dont le budget est hérité n'a pas de courbe à lui : il **lit** celle de son parent à son
+échelle, et toute écriture sur lui est refusée. Les cinq niveaux partagent ces codes, le niveau
+voyageant en `params` quand il explique le refus.
+
+| Code                        | Statut | Quand                                                                     | `params`                    |
+| --------------------------- | ------ | ------------------------------------------------------------------------- | --------------------------- |
+| `budget_curve_not_allowed`  | 400    | Écrire sur un nœud sans budget explicite : il suit la forme de son parent | `level`                     |
+| `budget_day_outside_window` | 400    | Un jour édité est hors de la fenêtre du nœud                              | `day`                       |
+| `budget_day_past`           | 400    | Un jour déjà passé : son montant et son verrou ne changent plus           | `day`                       |
+| `budget_below_past_days`    | 400    | Les jours déjà passés portent à eux seuls plus que le budget demandé      | `pastCents`, `budgetCents`  |
+| `budget_fixed_days_exceed`  | 400    | Verrouillés, édités et passés réunis dépassent le budget                  | `fixedCents`, `budgetCents` |
+| `budget_no_free_day`        | 400    | Il reste quelque chose à répartir et aucun jour ne peut l'absorber        | `remainingCents`            |
+| `budget_period_too_long`    | 400    | La fenêtre du nœud dépasse le maximum de jours d'une courbe               | `days`, `max`               |
+
+Reposter sur un jour passé **le montant qu'il porte déjà** n'est pas un refus : c'est ce qui permet
+de renvoyer une courbe entière telle quelle. Seul un changement — de montant ou de verrou — est
+refusé.
+
+Deux choses que le front peut compter sur : les jours d'une courbe somment **exactement** au budget
+du nœud, et un jour à `0` est une intention, pas un vide — il met le nœud en pause ce jour-là.
+
 ## Limite de débit
 
 `src/plugins/rate-limit.plugin.ts` (routes HTTP) et `src/mcp/tool-rate-limit.ts` (tools MCP, sur la limite de la route qu'ils reflètent).

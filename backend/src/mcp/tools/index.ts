@@ -10,6 +10,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpContext } from '@src/types';
 import AdGroupToolsController from './ad-group/ad-group.controller';
 import AdvertiserToolsController from './advertiser/advertiser.controller';
+import BudgetDayToolsController from './budget-day/budget-day.controller';
 import CampaignToolsController from './campaign/campaign.controller';
 import LabelToolsController from './label/label.controller';
 import LeverToolsController from './lever/lever.controller';
@@ -37,4 +38,6 @@ export function registerToolControllers(server: McpServer, fastify: FastifyInsta
   AdGroupToolsController(server, fastify, context);
   TargetingGroupToolsController(server, fastify, context);
   LineToolsController(server, fastify, context);
+  // The daily curve and the pacing of every level, over one table and one service.
+  BudgetDayToolsController(server, fastify, context);
 }

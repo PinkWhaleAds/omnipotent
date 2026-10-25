@@ -8,8 +8,9 @@ import { EntityManager, EntityTarget, FindOperator, ObjectLiteral } from 'typeor
  * ended up right. This fake holds rows per entity and answers the few operations those mechanics
  * use, so a spec states the tree it starts from and reads the tree it ends with.
  *
- * It implements only what is needed: `find`, `findOne`, `update` and `transaction`. Anything else
- * belongs in `data-source.mock.ts`, which mocks calls rather than behaviour.
+ * It implements only what is needed: `find`, `findOne`, `insert`, `delete`, `update` and
+ * `transaction`. Anything else belongs in `data-source.mock.ts`, which mocks calls rather than
+ * behaviour.
  */
 export type TreeStore = {
   /** Pass this where an `EntityManager` is expected. */
@@ -85,6 +86,29 @@ export function createTreeStore(): TreeStore {
     findOne: jest.fn(
       async (entity: EntityTarget<ObjectLiteral>, options?: ObjectLiteral): Promise<ObjectLiteral | null> =>
         copies(select(entity, options))[0] ?? null
+    ),
+    insert: jest.fn(
+      async (
+        entity: EntityTarget<ObjectLiteral>,
+        inserted: ObjectLiteral | ObjectLiteral[]
+      ): Promise<ObjectLiteral> => {
+        const added: ObjectLiteral[] = Array.isArray(inserted) ? inserted : [inserted];
+        rows(entity).push(...added.map((row: ObjectLiteral): ObjectLiteral => ({ ...row })));
+        return { identifiers: added.map((): ObjectLiteral => ({})) };
+      }
+    ),
+    delete: jest.fn(
+      async (entity: EntityTarget<ObjectLiteral>, where: ObjectLiteral): Promise<{ affected: number }> => {
+        const kept: ObjectLiteral[] = rows(entity).filter(
+          (row: ObjectLiteral): boolean =>
+            !Object.entries(where).every(([column, condition]: [string, unknown]): boolean =>
+              matches(row[column], condition)
+            )
+        );
+        const removed: number = rows(entity).length - kept.length;
+        tables.set(entity, kept);
+        return { affected: removed };
+      }
     ),
     update: jest.fn(
       async (

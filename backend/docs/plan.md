@@ -166,6 +166,7 @@ Chaque phase livre les endpoints HTTP, les tools MCP correspondants et **100 % d
 | 1. Accès et tenancy      | en attente de la **phase 2 d'omnipass** et de son paquet ; le bouchon du socle tient d'ici là (D43 interdit la production)                                                  |
 | 2. Advertisers et labels | ✅ **livrée** — le CRUD de référence que les phases suivantes recopient, et la table polymorphe des labels                                                                  |
 | 3. L'arbre de campagne   | ✅ **livrée** — les cinq niveaux, les profils de levier, l'algèbre du budget, la cascade, les routes et les tools. Menée avant la phase 1, que le bouchon permet d'attendre |
-| 4 → 32                   | à faire                                                                                                                                                                     |
+| 4. Courbes et pacing     | ✅ **livrée** — la courbe journalière sur les cinq niveaux, les presets, les jours exclus, le pacing comme fonction pure et le prorata entre fuseaux                        |
+| 5 → 32                   | à faire                                                                                                                                                                     |
 
 Cadrages : **reporting mené** (`reporting.md`), **leviers mené** (`leviers.md`), **faisabilité Search menée** (`plateformes/faisabilite-search.md`), **plateformes** une fois par phase.

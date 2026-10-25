@@ -1,6 +1,13 @@
 import { ObjectLiteral } from 'typeorm';
 
-import { AdGroupEntity, CampaignEntity, LeverEntity, LineEntity, TargetingGroupEntity } from '@src/database/entities';
+import {
+  AdGroupEntity,
+  BudgetDayEntity,
+  CampaignEntity,
+  LeverEntity,
+  LineEntity,
+  TargetingGroupEntity,
+} from '@src/database/entities';
 import {
   assertExplicitBudgetFits,
   deleteNode,
@@ -239,7 +246,12 @@ describe('Unit::Services::NodeHelpers', () => {
       expect(columns).toEqual({ budgetCents: 30_000, budgetVolume: null, budgetVolumeUnit: null });
     });
 
-    it('should let a node give its budget back', async (): Promise<void> => {
+    it('should let a node give its budget back, and forget the curve it no longer explains', async (): Promise<void> => {
+      store.seed(BudgetDayEntity, [
+        { level: 'ad_group', nodeId: 'g1', day: '2027-01-01', cents: 30_000, locked: false },
+        { level: 'ad_group', nodeId: 'g2', day: '2027-01-01', cents: 30_000, locked: false },
+      ]);
+
       const columns: ObjectLiteral = await normalizeNodeWrite(
         store.manager,
         { level: 'ad_group', levers: ['dac'], parentId: 'l1', nodeId: 'g1' },
@@ -247,6 +259,21 @@ describe('Unit::Services::NodeHelpers', () => {
       );
 
       expect(columns).toEqual({ budgetCents: null, budgetVolume: null, budgetVolumeUnit: null });
+      expect(store.rows(BudgetDayEntity).map((row: ObjectLiteral): string => row.nodeId as string)).toEqual(['g2']);
+    });
+
+    it('should leave the curve of a node that keeps its budget alone', async (): Promise<void> => {
+      store.seed(BudgetDayEntity, [
+        { level: 'ad_group', nodeId: 'g1', day: '2027-01-01', cents: 30_000, locked: false },
+      ]);
+
+      await normalizeNodeWrite(
+        store.manager,
+        { level: 'ad_group', levers: ['dac'], parentId: 'l1', nodeId: 'g1' },
+        { budgetCents: 30_000 }
+      );
+
+      expect(store.rows(BudgetDayEntity)).toHaveLength(1);
     });
 
     it('should refuse an amount that overflows the parent', async (): Promise<void> => {

@@ -104,8 +104,12 @@ montant, parce qu'un preset est une forme, pas un effacement.
 ### 3.4 La période
 
 Au plus **731 jours** (deux ans), comme multi-search. Une campagne qui change de fenêtre garde les
-montants de ses jours passés et de ses jours verrouillés encore dans la fenêtre ; les jours nouveaux
-se partagent le reste à parts égales.
+montants de tous ses jours encore dans la fenêtre — pas seulement les passés et les verrouillés : ce
+qui est stocké gagne, sinon façonner une courbe ne servirait à rien. Un jour **nouveau** entre comme
+un **jour moyen** (la moyenne des jours stockés, ou la part égale du budget quand rien n'est stocké),
+et les autres lui font de la place au prorata. La forme survit donc à un changement de fenêtre comme
+à un changement de budget, et rien n'est réécrit en base pour cela : la complétion se fait à la
+lecture.
 
 ## 4. Le pacing
 
@@ -154,14 +158,15 @@ sur la ressource, puisqu'un id porte ses parents.
 
 ## 7. Les codes d'erreur de la phase
 
-| Code                        | Statut | Quand                                                         | `params`                    |
-| --------------------------- | ------ | ------------------------------------------------------------- | --------------------------- |
-| `budget_below_past_days`    | 400    | Les jours passés portent plus que le budget                   | `pastCents`, `budgetCents`  |
-| `budget_fixed_days_exceed`  | 400    | Verrouillés, édités et passés dépassent le budget             | `fixedCents`, `budgetCents` |
-| `budget_no_free_day`        | 400    | Rien ne peut absorber le reste                                | `remainingCents`            |
-| `budget_day_outside_window` | 400    | Un jour édité est hors de la fenêtre du nœud                  | `day`, `startsOn`, `endsOn` |
-| `budget_curve_not_allowed`  | 400    | Le nœud n'a pas de budget explicite, donc pas de courbe à lui | `level`                     |
-| `budget_period_too_long`    | 400    | La fenêtre dépasse 731 jours                                  | `days`, `max`               |
+| Code                        | Statut | Quand                                                           | `params`                    |
+| --------------------------- | ------ | --------------------------------------------------------------- | --------------------------- |
+| `budget_below_past_days`    | 400    | Les jours passés portent plus que le budget                     | `pastCents`, `budgetCents`  |
+| `budget_fixed_days_exceed`  | 400    | Verrouillés, édités et passés dépassent le budget               | `fixedCents`, `budgetCents` |
+| `budget_no_free_day`        | 400    | Rien ne peut absorber le reste                                  | `remainingCents`            |
+| `budget_day_outside_window` | 400    | Un jour édité est hors de la fenêtre du nœud                    | `day`                       |
+| `budget_day_past`           | 400    | Un jour déjà passé : son montant et son verrou ne changent plus | `day`                       |
+| `budget_curve_not_allowed`  | 400    | Le nœud n'a pas de budget explicite, donc pas de courbe à lui   | `level`                     |
+| `budget_period_too_long`    | 400    | La fenêtre dépasse 731 jours                                    | `days`, `max`               |
 
 ## 8. Les quatre points, tranchés
 
@@ -192,3 +197,24 @@ Tranchés par Lorin le 2026-10-25.
   `budget_reached`.
 - **MCP** : les mêmes opérations par les tools.
 - **Les tests** : 100 % de couverture, et l'intégration prouve l'unicité `(level, nodeId, day)`.
+
+## 10. Ce que l'écriture a changé
+
+Trois choses que seule l'écriture a montrées. Elles sont **tranchées et faites**, notées ici pour que
+la décision ne se reprenne pas.
+
+1. **La lecture ne reconstruit pas, elle complète.** La fonction transcrite de multi-search qui
+   répartissait à parts égales les jours libres (`rebuildCurve`) est juste quand la **période**
+   change, et fausse quand on **relit** une courbe : elle effaçait la forme stockée à chaque lecture.
+   Elle est remplacée par `completeCurve`, qui garde ce qui est stocké, fait entrer un jour nouveau
+   comme un jour moyen, et rééquilibre (§ 3.4). Le défaut se voyait deux fois : une courbe façonnée
+   répondait plate, et un nœud que personne n'avait façonné figeait ses jours passés à un centime —
+   donc entassait tout son budget sur les jours restants.
+2. **Un seul module pour les cinq niveaux.** La courbe est **une** ressource — une table, un service
+   dont les méthodes prennent le niveau en argument —, donc `src/modules/budget-day` et
+   `src/mcp/tools/budget-day` servent les vingt-cinq routes et les vingt-cinq tools depuis une
+   table des niveaux, au lieu de cinq modules qui répéteraient la même ligne. Les **entrées** des
+   tools restent niveau par niveau (`adGroupId` pour un AdGroup), comme la phase 3 l'a appris au
+   modèle.
+3. **Reposter un jour passé à l'identique passe.** Seul un changement de montant ou de verrou sur un
+   jour passé est refusé : c'est ce qui rend un `PUT` de la courbe entière rejouable.

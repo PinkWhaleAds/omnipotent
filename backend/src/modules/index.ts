@@ -10,6 +10,7 @@ import fastifyPlugin from 'fastify-plugin';
 
 import AdGroupController from './ad-group/ad-group.controller';
 import AdvertiserController from './advertiser/advertiser.controller';
+import BudgetDayController from './budget-day/budget-day.controller';
 import CampaignController from './campaign/campaign.controller';
 import HealthController from './health/health.controller';
 import LabelController from './label/label.controller';
@@ -57,6 +58,8 @@ async function registerControllers(fastify: FastifyInstance): Promise<void> {
   await fastify.register(AdGroupController);
   await fastify.register(TargetingGroupController);
   await fastify.register(LineController);
+  // The daily curve and the pacing of every level, over one table and one service.
+  await fastify.register(BudgetDayController);
 }
 
 /**

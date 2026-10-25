@@ -21,6 +21,11 @@ export const MCP_INSTRUCTIONS: string = [
   'A lever chooses the platforms and their shares; what each lever accepts is its profile, which',
   'refuses at once rather than at launch: a budget on a Search line, a capping on Search, a platform',
   'the channel does not serve.',
+  'Every node carrying an explicit budget has a daily curve, which always adds up to that budget: shape',
+  'it with a preset, edit single days, lock the ones that must not move, and exclude the days that must',
+  'not deliver. A day at 0 pauses the node that day. A node with an inherited budget has no curve of its',
+  'own: it follows the shape of its parent at its scale. The pacing says what to spend today; the spend',
+  'it compares against is 0 until the reporting phase exists, so it answers a plan.',
   'Org-scoped tools take an organizationId; ask the user which Organization to use when there are several.',
   'Roles: viewer reads, manager edits, admin also manages members.',
 ].join(' ');

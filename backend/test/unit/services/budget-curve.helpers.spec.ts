@@ -11,7 +11,7 @@ import {
   presetCurve,
   presetWeights,
   rebalance,
-  rebuildCurve,
+  completeCurve,
   sumCents,
   toBudgetDays,
   weekdayOf,
@@ -229,23 +229,76 @@ describe('Unit::Services::BudgetCurveHelpers', () => {
     });
   });
 
-  describe('rebuildCurve', () => {
-    it('should keep the past and the locked days, and spread the rest evenly', (): void => {
-      const previous: CurveDay[] = curve([3_000, 1_000, 5_000, 1_000, 1_000, 1_000, 1_000], ['2027-01-03']);
+  describe('completeCurve', () => {
+    it('should spread a budget evenly when nothing is stored', (): void => {
+      const completed: CurveDay[] = completeCurve([], listDays('2027-01-01', '2027-01-07'), 70_000);
 
-      const rebuilt: CurveDay[] = rebuildCurve(previous, listDays('2027-01-01', '2027-01-05'), 20_000, '2027-01-02');
-
-      expect(rebuilt[0].cents).toBe(3_000);
-      expect(rebuilt[2].cents).toBe(5_000);
-      expect(rebuilt[1].cents).toBe(rebuilt[3].cents);
-      expect(sumCents(rebuilt)).toBe(20_000);
+      expect(amounts(completed)).toEqual([10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000]);
     });
 
-    it('should give nothing to a past day the previous curve did not have', (): void => {
-      const rebuilt: CurveDay[] = rebuildCurve([], listDays('2027-01-01', '2027-01-03'), 10_000, '2027-01-02');
+    it('should keep the shape that was stored, which is the point of having shaped it', (): void => {
+      const stored: CurveDay[] = curve([40_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000], ['2027-01-01']);
 
-      expect(rebuilt[0]).toEqual({ day: '2027-01-01', cents: 0, locked: false });
-      expect(sumCents(rebuilt)).toBe(10_000);
+      const completed: CurveDay[] = completeCurve(stored, WEEK, 70_000);
+
+      expect(amounts(completed)).toEqual([40_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000]);
+      expect(completed[0].locked).toBe(true);
+    });
+
+    it('should answer the same shape for a budget that changed, without writing anything', (): void => {
+      const stored: CurveDay[] = curve([2_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000]);
+
+      const completed: CurveDay[] = completeCurve(stored, WEEK, 16_000);
+
+      expect(amounts(completed)).toEqual([4_000, 2_000, 2_000, 2_000, 2_000, 2_000, 2_000]);
+    });
+
+    it('should let a day that appeared in the window enter as an average day', (): void => {
+      const stored: CurveDay[] = [{ day: '2027-01-01', cents: 2_000, locked: false }];
+
+      const completed: CurveDay[] = completeCurve(stored, listDays('2027-01-01', '2027-01-02'), 2_000);
+
+      expect(amounts(completed)).toEqual([1_000, 1_000]);
+    });
+
+    it('should make room for a day that appeared without flattening the shape', (): void => {
+      const stored: CurveDay[] = curve([40_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000]);
+
+      const completed: CurveDay[] = completeCurve(stored, listDays('2027-01-01', '2027-01-08'), 70_000);
+
+      expect(amounts(completed)).toEqual([35_000, 4_375, 4_375, 4_375, 4_375, 4_375, 4_375, 8_750]);
+      expect(sumCents(completed)).toBe(70_000);
+    });
+
+    it('should drop the days the window no longer covers', (): void => {
+      const completed: CurveDay[] = completeCurve(
+        curve([1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000]),
+        listDays('2027-01-01', '2027-01-02'),
+        4_000
+      );
+
+      expect(completed).toHaveLength(2);
+      expect(sumCents(completed)).toBe(4_000);
+    });
+
+    it('should spread a budget evenly over a window whose days are already past', (): void => {
+      // A past day is frozen at what the curve says it carried: a node nobody ever shaped must not
+      // freeze its past days at a token amount and pile its budget on the days left.
+      const completed: CurveDay[] = completeCurve([], WEEK, 70_000, '2027-01-06');
+
+      expect(amounts(completed)).toEqual([10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000]);
+    });
+
+    it('should keep a day already past at what it spent', (): void => {
+      const completed: CurveDay[] = completeCurve(
+        curve([3_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000]),
+        WEEK,
+        15_000,
+        '2027-01-02'
+      );
+
+      expect(completed[0].cents).toBe(3_000);
+      expect(sumCents(completed)).toBe(15_000);
     });
   });
 

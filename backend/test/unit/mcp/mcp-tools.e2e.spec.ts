@@ -37,7 +37,8 @@ type ServiceName =
   | 'leverService'
   | 'adGroupService'
   | 'targetingGroupService'
-  | 'lineService';
+  | 'lineService'
+  | 'budgetCurveService';
 
 /** A fake Fastify instance: every service method is a jest mock. */
 type FakeServices = Record<ServiceName, Record<string, jest.Mock>>;
@@ -267,6 +268,84 @@ const TREE_LEVELS: TreeLevelCase[] = [
     bulk: true,
   },
 ];
+
+/** What the curve tools answer, whatever the level: a week at 100 € a day. */
+const CURVE = {
+  level: 'campaign',
+  nodeId: NODE_ID,
+  source: 'own',
+  totalCents: 70_000,
+  days: [{ day: '2027-01-01', cents: 10_000, locked: false, weekend: false }],
+};
+
+/** What the pacing tools answer. */
+const PACING = {
+  plannedCents: 70_000,
+  plannedToDateCents: 50_000,
+  remainingCents: 70_000,
+  todayCents: 35_000,
+  budgetReached: false,
+  status: 'underspending',
+};
+
+/**
+ * The tool calls one level serves on its curve and on its pacing (`backend/docs/phase-4.md` § 6).
+ *
+ * The level the service receives is the singular of the URLs with an underscore, as the
+ * `budget_days` rows spell it.
+ *
+ * @param level - The level
+ * @returns One case per curve tool it serves
+ */
+function curveCases(level: TreeLevelCase): ToolCase[] {
+  const { singular, ownArg } = level;
+  const own: Record<string, string> = { [ownArg]: NODE_ID };
+  const name: string = singular.replace('-', '_');
+  const curve = { ...CURVE, level: name };
+  const days = [{ day: '2027-01-01', cents: 10_000 }];
+  return [
+    {
+      tool: `get-${singular}-budget-days`,
+      args: own,
+      service: 'budgetCurveService',
+      method: 'get',
+      answer: curve,
+      expected: [name, NODE_ID],
+    },
+    {
+      tool: `update-${singular}-budget-days`,
+      args: { ...own, days },
+      service: 'budgetCurveService',
+      method: 'update',
+      answer: curve,
+      expected: [name, NODE_ID, { days }],
+    },
+    {
+      tool: `apply-${singular}-budget-preset`,
+      args: { ...own, preset: 'weekend_boost', factor: 2 },
+      service: 'budgetCurveService',
+      method: 'applyPreset',
+      answer: curve,
+      expected: [name, NODE_ID, { preset: 'weekend_boost', factor: 2 }],
+    },
+    {
+      tool: `reset-${singular}-budget-days`,
+      args: own,
+      service: 'budgetCurveService',
+      method: 'reset',
+      answer: curve,
+      expected: [name, NODE_ID],
+    },
+    {
+      tool: `get-${singular}-pacing`,
+      args: own,
+      service: 'budgetCurveService',
+      method: 'pacing',
+      answer: PACING,
+      expected: [name, NODE_ID],
+    },
+  ];
+}
 
 /**
  * The tool calls of one level of the tree.
@@ -560,6 +639,7 @@ const TOOL_CASES: ToolCase[] = [
     expected: [{ mode: 'atomic', ids: [IDS.advertiser] }],
   },
   ...TREE_LEVELS.flatMap(treeLevelCases),
+  ...TREE_LEVELS.flatMap(curveCases),
 ];
 
 /** The bulk tools, with the route whose limit they are counted on. */
@@ -631,6 +711,13 @@ function fakeServices(): FakeServices {
     adGroupService: crud(),
     targetingGroupService: crud(),
     lineService: crud(),
+    budgetCurveService: {
+      get: jest.fn(),
+      update: jest.fn(),
+      applyPreset: jest.fn(),
+      reset: jest.fn(),
+      pacing: jest.fn(),
+    },
   };
 }
 

@@ -77,6 +77,25 @@ function flatCrudRoutes(resource: string, options: CrudOptions = {}): RouteKey[]
   ];
 }
 
+/**
+ * The routes one level serves on its budget curve (`backend/docs/phase-4.md` § 6).
+ *
+ * The five levels serve the same five, over one table and one service: a level that forgets one
+ * fails this suite.
+ *
+ * @param resource - Plural name of the level, as its URLs carry it
+ * @returns Its curve routes, by method and URL pattern
+ */
+function curveRoutes(resource: string): RouteKey[] {
+  return [
+    { method: 'GET', url: `/${resource}/:id/budget-days` },
+    { method: 'PUT', url: `/${resource}/:id/budget-days` },
+    { method: 'POST', url: `/${resource}/:id/budget-days/preset` },
+    { method: 'DELETE', url: `/${resource}/:id/budget-days` },
+    { method: 'GET', url: `/${resource}/:id/pacing` },
+  ];
+}
+
 /** The probe and status routes, the only ones a worker serves. */
 const PROBE_ROUTES: RouteKey[] = [
   { method: 'GET', url: '/livez' },
@@ -104,6 +123,12 @@ const API_ROUTES: RouteKey[] = [
   ...nestedCrudRoutes('/levers/:id', 'ad-groups'),
   ...nestedCrudRoutes('/ad-groups/:id', 'targeting-groups'),
   ...nestedCrudRoutes('/targeting-groups/:id', 'lines'),
+  // Phase 4: the daily curve and the pacing, on each level of the tree.
+  ...curveRoutes('campaigns'),
+  ...curveRoutes('levers'),
+  ...curveRoutes('ad-groups'),
+  ...curveRoutes('targeting-groups'),
+  ...curveRoutes('lines'),
 ];
 
 describe('Unit::Modules::Controllers', () => {

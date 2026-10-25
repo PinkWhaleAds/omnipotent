@@ -463,3 +463,81 @@ export async function budgetBlockOf(manager: EntityManager, level: TreeLevel, no
     perPlatform: splitByPlatform(resolved.effectiveCents, shares),
   };
 }
+
+/**
+ * Load a node of an Organization, or answer the 404 of its level.
+ *
+ * 404 and not 403: a caller who cannot see a node must not learn that it exists
+ * (`CLAUDE.md`).
+ *
+ * @param manager - Where to read
+ * @param level - The level of the node
+ * @param organizationId - The Organization it must belong to
+ * @param id - The node
+ * @param options - Whether a deleted node is accepted
+ * @param options.deleted - `true` to also find a soft-deleted one
+ * @returns The row
+ * @throws Error with status 404 coded `<level>_not_found`
+ *
+ * @example
+ * ```typescript
+ * const campaign = await findNodeOrFail(manager, 'campaign', organizationId, id);
+ * ```
+ */
+export async function findNodeOrFail(
+  manager: EntityManager,
+  level: TreeLevel,
+  organizationId: string,
+  id: string,
+  options: { deleted?: boolean } = {}
+): Promise<TreeNodeRow> {
+  const descriptor: NodeDescriptor = descriptorOf(level);
+  const node: TreeNodeRow | null = (await manager.findOne(descriptor.entity, {
+    where: { id, organizationId },
+    withDeleted: options.deleted === true,
+  })) as TreeNodeRow | null;
+  if (!node) {
+    throw httpError(404, `No ${level.replace('_', ' ')} of this Organization has this id`, {
+      code: descriptor.notFoundCode,
+    });
+  }
+  return node;
+}
+
+/**
+ * The window a node actually delivers on: its own when it overrides, else its parent's, resolved up
+ * to the campaign (`../../CADRAGE.md` § 4).
+ *
+ * @param manager - Where to read
+ * @param level - The level of the node
+ * @param id - The node
+ * @returns Its window
+ * @throws Error with status 404 when the node is gone
+ *
+ * @example
+ * ```typescript
+ * await effectiveWindowOf(manager, 'ad_group', adGroupId); // { startsOn: '2026-11-05', endsOn: '2026-11-20' }
+ * ```
+ */
+export async function effectiveWindowOf(manager: EntityManager, level: TreeLevel, id: string): Promise<DeliveryWindow> {
+  const descriptor: NodeDescriptor = descriptorOf(level);
+  const node: TreeNodeRow | null = (await manager.findOne(descriptor.entity, { where: { id } })) as TreeNodeRow | null;
+  if (!node) {
+    throw httpError(404, `The ${level.replace('_', ' ')} this node hangs from is gone`, {
+      code: descriptor.notFoundCode,
+    });
+  }
+  if (descriptor.parentLevel === null) {
+    return { startsOn: node.startsOn as string, endsOn: node.endsOn as string };
+  }
+
+  const parent: DeliveryWindow = await effectiveWindowOf(
+    manager,
+    descriptor.parentLevel,
+    node[descriptor.parentIdColumn as string] as string
+  );
+  return {
+    startsOn: (node.startsOn as string | null) ?? parent.startsOn,
+    endsOn: (node.endsOn as string | null) ?? parent.endsOn,
+  };
+}

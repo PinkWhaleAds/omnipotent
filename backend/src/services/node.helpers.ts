@@ -15,18 +15,26 @@ import { assertFieldAllowedForLevers, assertVolumeUnitPermitted, carriesBudget }
 import { BudgetVolume, Capping, DeletionResult, Lever, ListQuery, TreeLevel } from '@src/types';
 import { escapeLike, httpError, toSkipTake, withoutAccents, withoutAccentsSql } from '@utils';
 import { applyLabelFilter, toOrder } from './crud.helpers';
+import { dropCurve } from './budget-curve.service';
 import { assertWithinParent, volumeToCents } from './budget.helpers';
 import {
-  cascadeDelete,
-  cascadeRestore,
-  DeliveryWindow,
-  descriptorOf,
-  effectiveBudgetOf,
-  NodeDescriptor,
-  TreeNodeRow,
   assertWindowOrdered,
   assertWindowWithinParent,
+  cascadeDelete,
+  cascadeRestore,
+  descriptorOf,
+  effectiveBudgetOf,
+  effectiveWindowOf,
+  findNodeOrFail,
+  NodeDescriptor,
+  TreeNodeRow,
 } from './tree.helpers';
+
+/**
+ * Reading a node and resolving its window live with the descriptors, in `tree.helpers.ts`; they are
+ * re-exported here because every write starts by reading the node it changes.
+ */
+export { effectiveWindowOf, findNodeOrFail } from './tree.helpers';
 
 /** The fields of a node every level shares, as a request sends them. */
 export type NodeWriteInput = {
@@ -56,84 +64,6 @@ export type NodeWriteContext = {
   bidAmountCents?: number | null;
   current?: TreeNodeRow;
 };
-
-/**
- * Load a node of an Organization, or answer the 404 of its level.
- *
- * 404 and not 403: a caller who cannot see a node must not learn that it exists
- * (`CLAUDE.md`).
- *
- * @param manager - Where to read
- * @param level - The level of the node
- * @param organizationId - The Organization it must belong to
- * @param id - The node
- * @param options - Whether a deleted node is accepted
- * @param options.deleted - `true` to also find a soft-deleted one
- * @returns The row
- * @throws Error with status 404 coded `<level>_not_found`
- *
- * @example
- * ```typescript
- * const campaign = await findNodeOrFail(manager, 'campaign', organizationId, id);
- * ```
- */
-export async function findNodeOrFail(
-  manager: EntityManager,
-  level: TreeLevel,
-  organizationId: string,
-  id: string,
-  options: { deleted?: boolean } = {}
-): Promise<TreeNodeRow> {
-  const descriptor: NodeDescriptor = descriptorOf(level);
-  const node: TreeNodeRow | null = (await manager.findOne(descriptor.entity, {
-    where: { id, organizationId },
-    withDeleted: options.deleted === true,
-  })) as TreeNodeRow | null;
-  if (!node) {
-    throw httpError(404, `No ${level.replace('_', ' ')} of this Organization has this id`, {
-      code: descriptor.notFoundCode,
-    });
-  }
-  return node;
-}
-
-/**
- * The window a node actually delivers on: its own when it overrides, else its parent's, resolved up
- * to the campaign (`../../CADRAGE.md` § 4).
- *
- * @param manager - Where to read
- * @param level - The level of the node
- * @param id - The node
- * @returns Its window
- * @throws Error with status 404 when the node is gone
- *
- * @example
- * ```typescript
- * await effectiveWindowOf(manager, 'ad_group', adGroupId); // { startsOn: '2026-11-05', endsOn: '2026-11-20' }
- * ```
- */
-export async function effectiveWindowOf(manager: EntityManager, level: TreeLevel, id: string): Promise<DeliveryWindow> {
-  const descriptor: NodeDescriptor = descriptorOf(level);
-  const node: TreeNodeRow | null = (await manager.findOne(descriptor.entity, { where: { id } })) as TreeNodeRow | null;
-  if (!node) {
-    throw httpError(404, `The ${level.replace('_', ' ')} this node hangs from is gone`, {
-      code: descriptor.notFoundCode,
-    });
-  }
-  if (descriptor.parentLevel === null) {
-    return { startsOn: node.startsOn as string, endsOn: node.endsOn as string };
-  }
-
-  const parent: DeliveryWindow = await effectiveWindowOf(
-    manager,
-    descriptor.parentLevel,
-    node[descriptor.parentIdColumn as string] as string
-  );
-  return {
-    startsOn: (node.startsOn as string | null) ?? parent.startsOn,
-    endsOn: (node.endsOn as string | null) ?? parent.endsOn,
-  };
-}
 
 /**
  * Refuse an explicit amount that would make the siblings overflow their parent (D8).
@@ -257,6 +187,12 @@ async function budgetColumns(
     columns.budgetCents = input.budgetCents;
     columns.budgetVolume = null;
     columns.budgetVolumeUnit = null;
+  }
+
+  // A node that gives its budget back has nothing left to spread over days, so its curve goes with
+  // it (`docs/phase-4.md` § 8, point 1). Written here, once, for the five levels.
+  if (columns.budgetCents === null && context.nodeId !== null) {
+    await dropCurve(manager, context.level, context.nodeId);
   }
 
   const wanted: number | null | undefined = columns.budgetCents as number | null | undefined;

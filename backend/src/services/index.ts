@@ -8,6 +8,7 @@ export * from './access.service';
 export * from './ad-group.service';
 export * from './advertiser.service';
 export * from './budget-curve.helpers';
+export * from './budget-curve.service';
 export * from './budget.helpers';
 export * from './campaign.service';
 export * from './crud.helpers';

@@ -5,6 +5,7 @@ import type {
   AccessService,
   AdGroupService,
   AdvertiserService,
+  BudgetCurveService,
   CampaignService,
   HealthService,
   JobQueueService,
@@ -79,6 +80,8 @@ declare module 'fastify' {
     targetingGroupService: TargetingGroupService;
     /** Lines: the leaf, which a creative will hang from. */
     lineService: LineService;
+    /** The daily curve of any node of the tree, and its pacing. */
+    budgetCurveService: BudgetCurveService;
     /** Object storage (S3). */
     storageService: StorageService;
     /** Credentials the application needs (AWS Secrets Manager). */
