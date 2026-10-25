@@ -34,6 +34,7 @@ function matches(value: unknown, condition: unknown): boolean {
     const expected: unknown = condition.value;
     if (condition.type === 'in') return (expected as unknown[]).some((one: unknown): boolean => matches(value, one));
     if (condition.type === 'isNull') return value === null || value === undefined;
+    if (condition.type === 'not') return !matches(value, expected);
     return matches(value, expected);
   }
   if (condition instanceof Date) return value instanceof Date && value.getTime() === condition.getTime();
@@ -72,13 +73,18 @@ export function createTreeStore(): TreeStore {
     });
   };
 
+  // Copies, like TypeORM hydrating rows: a service that mutates what it read must not reach into the
+  // table, or a spec would pass on an aliasing the real driver does not have.
+  const copies = (rows: ObjectLiteral[]): ObjectLiteral[] =>
+    rows.map((row: ObjectLiteral): ObjectLiteral => ({ ...row }));
+
   const manager = {
     find: jest.fn(async (entity: EntityTarget<ObjectLiteral>, options?: ObjectLiteral): Promise<ObjectLiteral[]> =>
-      select(entity, options)
+      copies(select(entity, options))
     ),
     findOne: jest.fn(
       async (entity: EntityTarget<ObjectLiteral>, options?: ObjectLiteral): Promise<ObjectLiteral | null> =>
-        select(entity, options)[0] ?? null
+        copies(select(entity, options))[0] ?? null
     ),
     update: jest.fn(
       async (

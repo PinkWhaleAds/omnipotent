@@ -4,6 +4,7 @@ import type { DataSource } from 'typeorm';
 import type {
   AccessService,
   AdvertiserService,
+  CampaignService,
   HealthService,
   JobQueueService,
   LabelService,
@@ -64,6 +65,8 @@ declare module 'fastify' {
     labelService: LabelService;
     /** Advertisers: the brands campaigns are run for. */
     advertiserService: AdvertiserService;
+    /** Campaigns: the root of the tree. */
+    campaignService: CampaignService;
     /** Object storage (S3). */
     storageService: StorageService;
     /** Credentials the application needs (AWS Secrets Manager). */

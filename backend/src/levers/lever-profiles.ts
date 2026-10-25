@@ -395,3 +395,34 @@ export function defaultBidStrategyOf(lever: Lever): BidStrategy {
 export function defaultObjectiveOf(lever: Lever): Objective {
   return LEVER_PROFILES[lever].objectives[0];
 }
+
+/**
+ * Refuse a field that **any** of several levers forbids at that level.
+ *
+ * The campaign sits above the channels, so a value written on it applies to every lever it carries:
+ * a capping on a campaign that also runs `search` would be a value no Search platform can express
+ * (L6). The rule is therefore the union — the first lever that forbids it refuses the write, naming
+ * itself, so the user knows which channel to move the value to.
+ *
+ * A campaign with no lever yet forbids nothing: there is nothing it cannot express.
+ *
+ * @param levers - The levers the node spans
+ * @param level - The level being written
+ * @param field - The field being written
+ * @param present - Whether the caller sent a value for it
+ * @returns Nothing
+ * @throws Error with status 400 coded `lever_field_forbidden`
+ *
+ * @example
+ * ```typescript
+ * assertFieldAllowedForLevers(['dac', 'search'], 'campaign', 'capping', true); // throws, naming search
+ * ```
+ */
+export function assertFieldAllowedForLevers(
+  levers: Lever[],
+  level: TreeLevel,
+  field: RuledField,
+  present: boolean
+): void {
+  for (const lever of levers) assertFieldAllowed(lever, level, field, present);
+}

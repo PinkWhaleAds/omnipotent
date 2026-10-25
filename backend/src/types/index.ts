@@ -8,6 +8,7 @@
 export * from './advertiser.types';
 export * from './api.types';
 export * from './auth.types';
+export * from './campaign.types';
 export * from './common.types';
 export * from './crud.types';
 export * from './error.types';
