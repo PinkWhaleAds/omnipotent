@@ -179,7 +179,7 @@ export type PlatformBudget = PlatformShare & { cents: number };
  *
  * @param cents - The node's effective budget
  * @param shares - Its distribution key, which {@link assertSharesComplete} has accepted
- * @returns What each platform gets, in the order the shares were given
+ * @returns What each platform gets, in the order the shares were given; nothing for an empty key
  *
  * @example
  * ```typescript
@@ -192,6 +192,9 @@ export type PlatformBudget = PlatformShare & { cents: number };
  * ```
  */
 export function splitByPlatform(cents: number, shares: PlatformShare[]): PlatformBudget[] {
+  // No key at all — a campaign, whose levers each have their own: there is nothing to split.
+  if (shares.length === 0) return [];
+
   const exact: { index: number; floor: number; remainder: number }[] = shares.map(
     (share: PlatformShare, index: number) => {
       const scaled: number = cents * share.shareBasisPoints;

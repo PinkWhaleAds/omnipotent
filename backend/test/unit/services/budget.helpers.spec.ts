@@ -211,6 +211,11 @@ describe('Unit::Services::BudgetHelpers', () => {
       expect(split.map((budget: PlatformBudget): number => budget.cents)).toEqual([1, 5, 4]);
     });
 
+    it('should split nothing when the node has no key', (): void => {
+      // A campaign: each of its levers carries its own key, so the campaign itself has none.
+      expect(splitByPlatform(100_000, [])).toEqual([]);
+    });
+
     it('should total exactly the budget it was given', (): void => {
       const shares: PlatformShare[] = [
         { platform: 'hawk', shareBasisPoints: 1_667 },
