@@ -76,14 +76,27 @@ changement de budget. Un jour à 0 reste à 0 : c'est une intention, pas un vide
 Les trois sont des **400** : ce sont des états impossibles, pas des incomplétudes — la même frontière
 qu'en phase 3 (§ 6 de `phase-3.md`).
 
-### 3.3 Les presets
+### 3.3 Les presets, et les jours qui ne diffusent pas
 
-Trois formes, transcrites de multi-search :
+Trois formes transcrites de multi-search, plus une quatrième :
 
 - **`flat`** — tous les jours égaux, le défaut ;
 - **`weekend_boost`** — un samedi et un dimanche pèsent `factor` fois un jour de semaine (1,5 par
   défaut) ;
-- **`ramp_up`** — le premier quart de la période monte en pente, le reste est plat.
+- **`ramp_up`** — le premier quart de la période monte en pente, le reste est plat ;
+- **`selected_days`** — seuls les jours de semaine nommés diffusent, les autres passent à 0.
+
+Et **deux façons de dire qu'un jour ne diffuse pas**, qui se combinent :
+
+| Ce qu'on veut dire    | Comment                                                             |
+| --------------------- | ------------------------------------------------------------------- |
+| « Pas le samedi »     | `selected_days` avec les jours de semaine qui diffusent             |
+| « Pas le 26 octobre » | `excludedDays: ['2026-10-26']`, **avec n'importe quelle forme**     |
+| Les deux à la fois    | Les deux champs ensemble : du lundi au vendredi, sauf un jour férié |
+
+Les deux mettent le jour à **0**, et un jour à 0 met le nœud en pause ce jour-là. Un jour peut aussi
+être mis à 0 à la main par `PUT`, et il y reste — mais un preset le réécrirait, alors que
+`excludedDays` tient.
 
 Un preset **recalcule les jours libres seulement** : les verrouillés et les passés gardent leur
 montant, parce qu'un preset est une forme, pas un effacement.
@@ -150,19 +163,22 @@ sur la ressource, puisqu'un id porte ses parents.
 | `budget_curve_not_allowed`  | 400    | Le nœud n'a pas de budget explicite, donc pas de courbe à lui | `level`                     |
 | `budget_period_too_long`    | 400    | La fenêtre dépasse 731 jours                                  | `days`, `max`               |
 
-## 8. Ce que je te demande de valider
+## 8. Les quatre points, tranchés
 
-1. **Une courbe disparaît quand son nœud rend son budget.** C'est la conséquence logique de « tout
-   niveau portant un budget explicite peut avoir la sienne », mais ça veut dire qu'un utilisateur qui
-   bascule un nœud en héritage perd la forme qu'il avait dessinée. Je propose de l'assumer et de le
-   dire dans la réponse plutôt que de garder une courbe orpheline que personne ne lira.
-2. **La dépense est un paramètre jusqu'à la phase 15.** Donc `GET /pacing` répondra, d'ici là, un
-   pacing calculé avec une dépense nulle — honnête, puisque rien n'a diffusé, mais à savoir.
-3. **Le prorata entre fuseaux est écrit maintenant, inutilisé jusqu'à la phase des plateformes.**
-   J'écris la fonction pure et ses tests ; si tu préfères attendre, je la sors du périmètre.
-4. **Les trois presets de multi-search suffisent-ils** (`flat`, `weekend_boost`, `ramp_up`) ? Le DOOH
-   et la CTV achètent souvent sur des créneaux, ce qui pourrait appeler une forme « jours choisis ».
-   Je propose de garder les trois et d'attendre un vrai besoin.
+Tranchés par Lorin le 2026-10-25.
+
+1. **Une courbe disparaît quand son nœud rend son budget.** Un nœud qui repasse en héritage n'a plus
+   de montant à lui, donc plus rien à répartir : ses jours sont supprimés, la réponse le dit, et le
+   nœud suit désormais la forme de son parent au prorata.
+2. **La dépense est un paramètre jusqu'à la phase 15**, et c'est ainsi que multi-search fonctionne
+   aussi : son `pacingOf` lit les lignes de `stats_daily` déjà chargées dans l'instantané de la
+   synchro, les convertit au taux figé de l'unité de diffusion, et appelle `paceDay` — rien n'est
+   stocké, rien n'est poussé par un job. D'ici la phase 15, `GET /pacing` répond donc un **plan**, pas
+   un diagnostic.
+3. **Le prorata entre fuseaux est écrit maintenant**, bien que personne ne l'appelle avant la phase
+   des plateformes.
+4. **Les quatre formes, et les jours nommés** (§ 3.3) : « pas le samedi » **et** « pas le
+   26 octobre », qui se combinent.
 
 ## 9. Comment la phase se teste
 

@@ -7,6 +7,7 @@
 export * from './access.service';
 export * from './ad-group.service';
 export * from './advertiser.service';
+export * from './budget-curve.helpers';
 export * from './budget.helpers';
 export * from './campaign.service';
 export * from './crud.helpers';
@@ -16,6 +17,7 @@ export * from './label.service';
 export * from './line.service';
 export * from './lever.service';
 export * from './node.helpers';
+export * from './pacing.helpers';
 export * from './secret-store.service';
 export * from './status.service';
 export * from './storage.service';

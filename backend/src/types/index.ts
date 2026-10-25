@@ -9,6 +9,7 @@ export * from './advertiser.types';
 export * from './ad-group.types';
 export * from './api.types';
 export * from './auth.types';
+export * from './budget-day.types';
 export * from './campaign-lever.types';
 export * from './campaign.types';
 export * from './common.types';
