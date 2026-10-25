@@ -1,0 +1,58 @@
+# Dependabot: weekly update pull requests, grouped so that a week brings a handful of PRs, not dozens.
+# Minor and patch updates are grouped per folder and dependency type. Major versions of npm packages and of the
+# Node image are not proposed: they need code changes and are planned as phases (e.g. Node 26);
+# the weekly `audit` workflow still flags a vulnerability whose fix needs one. Major versions of the GitHub
+# actions are proposed (the CI exercises them). A release is only proposed once it is a week old (cooldown: time
+# for a compromised or broken release to be pulled); security updates are not delayed. CI runs on every PR.
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 10
+    ignore:
+      # zod 4.5+ counts string lengths in code points, not in UTF-16 code units as the API documents
+      # (backend/CLAUDE.md): moving past 4.4 is a deliberate change of the validation, not a routine update.
+      - dependency-name: zod
+        update-types: ["version-update:semver-minor"]
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      backend-production:
+        dependency-type: production
+        update-types: [minor, patch]
+      backend-development:
+        dependency-type: development
+        update-types: [minor, patch]
+
+  # The base image of backend/Dockerfile (Docker Hub's node, pinned by tag and digest: Dependabot proposes the new
+  # tag and digest). Not public.ecr.aws: Dependabot cannot read it (anonymous requests refused or throttled, and its
+  # registry credentials do not work there: dependabot-core#11921, dependabot/proxy#157).
+  - package-ecosystem: docker
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    ignore:
+      # Node 22 is the version tested everywhere (CI, local); a new major is a deliberate change.
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
+
+  # The actions of .github/workflows (pinned by commit, with the version in a comment).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns: ["*"]

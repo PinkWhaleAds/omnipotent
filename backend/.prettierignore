@@ -1,0 +1,20 @@
+bruno/
+
+# pnpm's store when CI points it at the project directory, and build/test output.
+.pnpm-store/
+dist/
+coverage/
+coverage-unit/
+junit.xml
+
+# Grafana owns the formatting of exported dashboards; reformatting them here
+# would fight every copy-back from the UI's JSON model.
+compose-deps/grafana/dashboards/
+
+.dockerignore.yaml
+.gitignore
+.gitlab-ci.yml
+.prettierrc.json
+
+package-lock.json
+pnpm-lock.yaml

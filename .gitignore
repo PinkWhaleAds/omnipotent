@@ -1,0 +1,32 @@
+# OS / editors
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Dependencies and local environment (each app keeps its own .gitignore too)
+node_modules/
+.env
+.env.*
+!.env.example
+
+# Local MCP tool artifacts
+.playwright-mcp/
+
+# Self-contained copy of the Claude Design mockups (same content as design/design_handoff_multi_search/)
+design/*(autonome).html
+
+# Terraform (infra/): local working directories, state files and real variable values.
+# The provider lock files (.terraform.lock.hcl) are committed.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+crash.log
+crash.*.log
+*.tfplan
+
+# Screenshots shared during manual tests (never committed)
+screenshots/

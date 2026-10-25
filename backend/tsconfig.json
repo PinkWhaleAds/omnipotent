@@ -1,0 +1,40 @@
+{
+  "compilerOptions": {
+    "module": "CommonJS",
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ESNext",
+    "moduleResolution": "bundler",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "incremental": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "paths": {
+      "@src/*": ["./src/*"],
+      "@configs": ["./src/configs/index"],
+      "@configs/*": ["./src/configs/*"],
+      "@constants": ["./src/constants/index"],
+      "@constants/*": ["./src/constants/*"],
+      "@modules": ["./src/modules/index"],
+      "@modules/*": ["./src/modules/*"],
+      "@services": ["./src/services/index"],
+      "@services/*": ["./src/services/*"],
+      "@utils": ["./src/utils/index"],
+      "@utils/*": ["./src/utils/*"],
+      "@test/*": ["./test/*"]
+    },
+    "types": ["node", "jest"]
+  },
+  "include": ["src/**/*", "test/**/*"]
+}

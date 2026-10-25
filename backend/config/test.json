@@ -1,0 +1,9 @@
+{
+  "Auth": {
+    "domain": "tenant.test.auth0.com",
+    "audience": "https://api.omnipotent.test"
+  },
+  "McpServer": {
+    "resourceUrl": "https://api.omnipotent.test/mcp"
+  }
+}

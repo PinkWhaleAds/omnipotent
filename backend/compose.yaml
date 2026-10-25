@@ -1,0 +1,181 @@
+# Local stack for Omnipotent.
+#
+# - Development: `docker compose up -d postgres rustfs moto`, then `pnpm migration:run` and
+#   `pnpm start:dev` on the host (reads `.env`).
+# - Full stack in containers: `docker compose up --build` (reads `.env` too).
+#
+# The published ports are those of multi-search shifted by one, so both stacks can run side by side
+# on the same machine: Postgres on 5441, the object storage on 9012, the secret store on 9022,
+# Grafana on 3012. The API keeps 3000, which multi-search's never holds while it is frozen (D30).
+#
+# The project name is explicit: the default (the folder name, "backend")
+# collides with other local projects living in a "backend" folder.
+name: omnipotent
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: omnipotent
+      POSTGRES_PASSWORD: omnipotent
+      POSTGRES_DB: omnipotent
+    ports:
+      - '5441:5432'
+    volumes:
+      - 'postgres-data:/var/lib/postgresql/data'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U omnipotent -d omnipotent']
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  # S3-compatible object storage for the files the application keeps (AWS S3 in production).
+  # The API creates the bucket on startup in development (Storage.createBucket).
+  # @see https://github.com/rustfs/rustfs
+  rustfs:
+    image: rustfs/rustfs:1.0.0
+    environment:
+      RUSTFS_ACCESS_KEY: local-access-key
+      RUSTFS_SECRET_KEY: local-secret-key
+    ports:
+      - '9012:9000' # S3 API
+      - '9013:9001' # web console
+    volumes:
+      - 'rustfs-data:/data'
+    healthcheck:
+      test: ['CMD', 'curl', '-sf', 'http://localhost:9000/health']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # AWS Secrets Manager emulator for the credentials the application needs (AWS Secrets Manager in
+  # production). LocalStack now needs an auth token, moto does not.
+  # @see https://github.com/getmoto/moto
+  moto:
+    image: motoserver/moto:5.2.2
+    ports:
+      - '9022:5000'
+    healthcheck:
+      test: ['CMD', 'python', '-c', "import urllib.request; urllib.request.urlopen('http://localhost:5000/moto-api/')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # One-shot step applying pending migrations before the app starts, so the
+  # replicas never race each other to migrate the schema.
+  migrate:
+    build:
+      context: .
+    command: ['node', './dist/database/migrate.js']
+    environment: &app-environment
+      # The production settings, but locally — except the tenancy, which production refuses to serve
+      # without omnipass (D43): ACCESS_PROVIDER stays the local implementation, so NODE_ENV cannot be
+      # `prod` here. `dev` with the production log level and no Swagger is as close as it gets.
+      NODE_ENV: dev
+      ACCESS_PROVIDER: local
+      APP_LOG_LEVEL: info
+      # The Swagger UI and /documentation/json stay served, to read the contract of the API locally.
+      APP_DOCS_ENABLED: true
+      APP_HOSTNAME: 0.0.0.0
+      DB_HOST: postgres
+      DB_PORT: 5432
+      S3_ENDPOINT: 'http://rustfs:9000'
+      S3_ACCESS_KEY_ID: local-access-key
+      S3_SECRET_ACCESS_KEY: local-secret-key
+      S3_FORCE_PATH_STYLE: true
+      S3_CREATE_BUCKET: true
+      SECRETS_ENDPOINT: 'http://moto:5000'
+      SECRETS_ACCESS_KEY_ID: local
+      SECRETS_SECRET_ACCESS_KEY: local
+      OTEL_EXPORTER_OTLP_ENDPOINT: 'http://otel-lgtm:4318'
+      APP_TELEMETRY_ENABLED: true
+      OTEL_TRACE_SAMPLER_PERCENTAGE: 1
+    env_file:
+      - path: .env
+        required: false
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+
+  api:
+    build:
+      context: .
+    environment:
+      <<: *app-environment
+      APP_MODE: api
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      - 3000:3000
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      rustfs:
+        condition: service_healthy
+      moto:
+        condition: service_healthy
+      otel-lgtm:
+        condition: service_started
+    # The image has no wget or curl (slim base): Node itself calls the probe.
+    healthcheck: &probe
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://localhost:3000/readyz').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 5s
+      timeout: 30s
+      retries: 10
+      start_period: 2s
+
+  # Same image, running the job workers. It serves only the probe and status
+  # routes, which are not published on the host.
+  worker:
+    build:
+      context: .
+    environment:
+      <<: *app-environment
+      APP_MODE: worker
+    env_file:
+      - path: .env
+        required: false
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      rustfs:
+        condition: service_healthy
+      moto:
+        condition: service_healthy
+      otel-lgtm:
+        condition: service_started
+    healthcheck: *probe
+
+  # Single all-in-one observability backend: OpenTelemetry Collector + Loki
+  # (logs) + Grafana (UI) + Tempo (traces) + Prometheus (metrics).
+  # @see https://github.com/grafana/docker-otel-lgtm
+  otel-lgtm:
+    image: grafana/otel-lgtm:latest
+    environment:
+      # Grafana stores its state under the mounted /data volume.
+      GF_PATHS_DATA: /data/grafana
+      # Local-only convenience: browse the UI without logging in.
+      GF_AUTH_ANONYMOUS_ENABLED: true
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: true
+    volumes:
+      - 'otel-lgtm-grafana:/data/grafana'
+      - 'otel-lgtm-prometheus:/data/prometheus'
+      - 'otel-lgtm-loki:/data/loki'
+    ports:
+      - '3012:3000' # Grafana UI (3000 is taken by the app)
+      - '4327:4317' # OTLP gRPC receiver
+      - '4328:4318' # OTLP HTTP receiver
+
+volumes:
+  postgres-data:
+  rustfs-data:
+  otel-lgtm-grafana:
+  otel-lgtm-prometheus:
+  otel-lgtm-loki:

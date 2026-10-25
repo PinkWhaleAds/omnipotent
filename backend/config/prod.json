@@ -1,0 +1,29 @@
+{
+  "App": {
+    "drainDelay": 5000
+  },
+  "Logger": {
+    "level": "warn"
+  },
+  "HttpServer": {
+    "trustProxyHops": 2
+  },
+  "Docs": {
+    "enabled": false
+  },
+  "Access": {
+    "provider": "omnipass"
+  },
+  "Storage": {
+    "endpoint": "",
+    "accessKeyId": "",
+    "secretAccessKey": "",
+    "forcePathStyle": false,
+    "createBucket": false
+  },
+  "Secrets": {
+    "endpoint": "",
+    "accessKeyId": "",
+    "secretAccessKey": ""
+  }
+}

@@ -1,0 +1,81 @@
+# Copy to terraform.tfvars (git-ignored) and fill in. No secret goes here: the secret values are put
+# in Secrets Manager by hand after the first apply (infra/README.md, step 4).
+
+# --- Required -------------------------------------------------------------------------------------
+
+# Auth0 tenant, REST API identifier and the client id of the Single Page Application (public values).
+# The tenant is shared with multi-search (D42); Omnipotent has its own audiences in it.
+auth0_domain        = "your-tenant.eu.auth0.com"
+auth0_audience      = "https://api.omnipotent.app"
+auth0_spa_client_id = "SPA-client-id"
+
+# Get the super-admin flag on their first verified sign-in.
+super_admin_emails = ["you@example.com"]
+
+# --- Recommended ----------------------------------------------------------------------------------
+
+alarm_email        = "ops@example.com"
+monthly_budget_usd = 250
+
+# --- Web front ends allowed to call the API from a browser ----------------------------------------
+
+# Omnipotent serves no front of its own yet: after the switch it is multi-search's (CADRAGE §18). Also the
+# URLs set on the Auth0 SPA application (terraform output auth0_settings). Empty: server-to-server and MCP only.
+# cors_origins = ["https://app.omnilor.com"]
+
+# --- Identity and rights --------------------------------------------------------------------------
+
+# omnipass is the only provider production accepts (D43), and the default. The backend refuses to start with
+# the local implementation under NODE_ENV=prod, so a production deploy without omnipass fails loudly.
+# access_provider = "omnipass"
+# node_env        = "prod"
+
+# --- AI assistants --------------------------------------------------------------------------------
+
+# mcp_claude_client_id = ""            # client id of the Auth0 Native app the Claude connectors sign in with
+
+# --- Custom domain (infra/README.md, "Custom domain (Cloudflare)") --------------------------------
+
+# Stage 1: request the certificate, then add the records of `terraform output dns_records` in Cloudflare.
+# domain_name = "omnilor.com"
+# Stage 2, once the certificate is ISSUED: the hostname and every public URL move to the domain.
+# domain_certificates_validated = true
+# domain_subdomains             = { api = "api" }   # the default
+
+# --- Defaults you may change ----------------------------------------------------------------------
+
+# allowed_account_ids    = ["<production account id>"]   # the provider then refuses any other account
+
+# region                 = "eu-north-1"
+# log_level              = "info"     # "warn" once things are stable
+# api_max_count          = 4
+# db_instance_class      = "db.t4g.small"
+# db_multi_az            = false
+# nat_gateway_per_az     = false
+# task_egress            = "nat"    # "public-ip": no NAT gateway, tasks in the public subnets (the test environment)
+# github_deploy_role_enabled = true # false: no GitHub OIDC, deploy with infra/scripts/deploy.sh
+# db_backup_retention_days   = 7
+# create_audit_trail     = true   # false only if the account already has a CloudTrail trail
+# create_github_oidc_provider = true
+
+# --- Security -------------------------------------------------------------------------------------
+
+# db_iam_auth                 = true    # false: the API and the worker use the master user again (rollback)
+# waf_rate_limit              = 3000    # requests per IP and 5 minutes, every distribution
+# waf_public_rate_limit       = 600     # same, on the probes, /status and the OAuth metadata
+# waf_common_rules_count_only = ["SizeRestrictions_BODY", "SizeRestrictions_QUERYSTRING", "CrossSiteScripting_BODY"]
+# waf_logging_enabled         = false   # true: blocked and counted requests to CloudWatch Logs (paid)
+# waf_enabled                 = true    # the web ACL itself (about 10 USD a month)
+# edge_access_logs_enabled    = true    # CloudFront and load balancer access logs
+# access_logs_retention_days  = 90
+
+# --- Threat detection and API documentation -------------------------------------------------------
+
+# guardduty_enabled                      = true     # false only if another stack owns the region's GuardDuty detector
+# guardduty_s3_protection                = true
+# guardduty_rds_protection               = true     # login activity, $1 per vCPU and month
+# guardduty_runtime_monitoring           = false    # agent in every Fargate task, $2.40 per vCPU and month; redeploy after
+# guardduty_alert_min_severity           = 4        # e-mailed findings: 4 medium, 7 high, 9 critical
+# guardduty_finding_publishing_frequency = "SIX_HOURS"
+# enable_flow_logs                       = true     # VPC flow logs to the access logs bucket (vpc-flow/)
+# docs_enabled                           = false    # Swagger UI on <api_url>/documentation (Auth0 callback: README step 6)

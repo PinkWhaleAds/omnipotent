@@ -1,0 +1,235 @@
+# Production deploy, started by hand: backend image (ARM64) → database migrations → API and worker.
+# AWS access through OIDC (no stored key): the deploy role only trusts the `production` environment on
+# `main` (infra/README.md). Every resource name comes from the SSM parameters Terraform writes under
+# DEPLOY_PARAMETERS_PATH; the repository only holds the role ARN and the region (environment variables
+# AWS_DEPLOY_ROLE_ARN and AWS_REGION).
+#
+# Only the job that calls AWS gets an OIDC token (id-token: write). Every action is pinned to a commit
+# (Dependabot updates them). Omnipotent serves no front end of its own (CADRAGE §21): after the switch,
+# multi-search's front is deployed from its own repository.
+name: deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Commit of main to deploy (empty: the head of main). An older commit rolls back."
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  DEPLOY_PARAMETERS_PATH: /omnipotent/prod/deploy
+
+jobs:
+  backend:
+    name: Image, migrations, services
+    runs-on: ubuntu-24.04-arm
+    environment: production
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      # Optional Docker Hub login for the base image (infra/README.md, "CI and dependencies"): only whether it is
+      # configured reaches the steps, not the token.
+      DOCKERHUB_LOGIN: ${{ vars.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve the commit to deploy
+        id: commit
+        env:
+          INPUT_REF: ${{ inputs.ref }}
+        run: |
+          sha="$(git rev-parse --verify "${INPUT_REF:-$GITHUB_SHA}^{commit}")"
+          if ! git merge-base --is-ancestor "$sha" origin/main; then
+            echo "::error::$sha is not on main: only commits of main are deployed"
+            exit 1
+          fi
+          git checkout --quiet "$sha"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "SHA=$sha" >> "$GITHUB_ENV"
+          echo "Deploying $sha: $(git log -1 --format=%s "$sha")"
+
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: deploy-backend-${{ github.run_id }}
+
+      - name: Read the deploy parameters
+        run: |
+          # /omnipotent/prod/deploy/api-task-family -> API_TASK_FAMILY, and so on.
+          aws ssm get-parameters-by-path --path "$DEPLOY_PARAMETERS_PATH" --output json |
+            jq -r '.Parameters[] | "\(.Name | split("/") | last | ascii_upcase | gsub("-"; "_"))=\(.Value)"' \
+            >> "$GITHUB_ENV"
+
+      - name: Check the parameters
+        run: |
+          for name in ECR_REPOSITORY_NAME ECR_REPOSITORY_URL CLUSTER API_SERVICE WORKER_SERVICE \
+            API_TASK_FAMILY WORKER_TASK_FAMILY MIGRATE_TASK_FAMILY CONTAINER_NAME MIGRATE_LOG_GROUP \
+            MIGRATE_SUBNETS MIGRATE_SECURITY_GROUP; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Parameter $name is missing under $DEPLOY_PARAMETERS_PATH (terraform apply done?)"
+              exit 1
+            fi
+          done
+          echo "IMAGE=${ECR_REPOSITORY_URL}:${SHA}" >> "$GITHUB_ENV"
+
+      - uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2.1.7
+
+      # Tags are immutable: a commit already built (a re-run, a rollback) reuses its image.
+      - name: Look for the image of this commit
+        id: image
+        run: |
+          if output="$(aws ecr describe-images --repository-name "$ECR_REPOSITORY_NAME" \
+            --image-ids imageTag="$SHA" 2>&1)"; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Image $IMAGE already exists: not rebuilt"
+          elif grep -q ImageNotFoundException <<< "$output"; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "$output"
+            exit 1
+          fi
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        if: steps.image.outputs.exists == 'false'
+
+      # The base image comes from Docker Hub; GitHub-hosted runners pull public images without its limits, so the
+      # login is optional and skipped when DOCKERHUB_USERNAME / DOCKERHUB_TOKEN are not set.
+      - name: Log in to Docker Hub (optional)
+        if: steps.image.outputs.exists == 'false' && env.DOCKERHUB_LOGIN == 'true'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # No build cache: the production image is built from the pinned base image and the lockfile only,
+      # never from layers another workflow could have written to the shared Actions cache.
+      - name: Build and push the image (linux/arm64)
+        if: steps.image.outputs.exists == 'false'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: backend
+          platforms: linux/arm64
+          push: true
+          provenance: false
+          no-cache: true
+          tags: ${{ env.IMAGE }}
+          build-args: COMMIT_SHA=${{ env.SHA }}
+
+      # Terraform owns the task definitions (environment, secrets, roles, sizes); the deploy registers a
+      # copy of the latest revision of each family with only the image changed.
+      - name: Prepare the revision helper
+        run: |
+          cat > "$RUNNER_TEMP/register.sh" <<'EOF'
+          #!/usr/bin/env bash
+          # register.sh <family>: register a copy of the family's latest revision running $IMAGE and
+          # print the ARN of the new revision.
+          set -euo pipefail
+          family="$1"
+          aws ecs describe-task-definition --task-definition "$family" --query taskDefinition --output json |
+            jq --arg image "$IMAGE" --arg container "$CONTAINER_NAME" '
+              .containerDefinitions |= map(if .name == $container then .image = $image else . end)
+              | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities,
+                    .registeredAt, .registeredBy, .deregisteredAt)' > "$RUNNER_TEMP/$family.json"
+          aws ecs register-task-definition --cli-input-json "file://$RUNNER_TEMP/$family.json" \
+            --query taskDefinition.taskDefinitionArn --output text
+          EOF
+          chmod +x "$RUNNER_TEMP/register.sh"
+
+      - name: Register the migration task
+        run: echo "MIGRATE_TASK_DEFINITION=$("$RUNNER_TEMP/register.sh" "$MIGRATE_TASK_FAMILY")" >> "$GITHUB_ENV"
+
+      # MIGRATE_ASSIGN_PUBLIC_IP: ENABLED when the tasks run in the public subnets without NAT gateway (task_egress in
+      # infra/); DISABLED, the private subnets, when the parameter is absent.
+      - name: Run the migrations
+        run: |
+          output="$(aws ecs run-task \
+            --cluster "$CLUSTER" \
+            --task-definition "$MIGRATE_TASK_DEFINITION" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[$MIGRATE_SUBNETS],securityGroups=[$MIGRATE_SECURITY_GROUP],assignPublicIp=${MIGRATE_ASSIGN_PUBLIC_IP:-DISABLED}}" \
+            --started-by "deploy-${GITHUB_RUN_ID}" \
+            --output json)"
+          task_arn="$(jq -r '.tasks[0].taskArn // empty' <<< "$output")"
+          if [ -z "$task_arn" ]; then
+            echo "::error::The migration task did not start"
+            jq '.failures' <<< "$output"
+            exit 1
+          fi
+          echo "Migration task: $task_arn"
+
+          # The waiter gives up after 10 minutes: allow up to 30.
+          for attempt in 1 2 3; do
+            if aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$task_arn"; then break; fi
+            echo "Still running after attempt $attempt"
+          done
+
+          task="$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$task_arn" --output json)"
+          status="$(jq -r '.tasks[0].lastStatus' <<< "$task")"
+          exit_code="$(jq -r --arg c "$CONTAINER_NAME" '.tasks[0].containers[] | select(.name == $c) | .exitCode // "none"' <<< "$task")"
+          reason="$(jq -r '.tasks[0].stoppedReason // ""' <<< "$task")"
+
+          echo "::group::Migration logs"
+          aws logs get-log-events --log-group-name "$MIGRATE_LOG_GROUP" \
+            --log-stream-name "migrate/${CONTAINER_NAME}/${task_arn##*/}" --start-from-head --output json |
+            jq -r '.events[].message' || echo "(no logs)"
+          echo "::endgroup::"
+
+          if [ "$status" != "STOPPED" ]; then
+            echo "::error::The migration task is still $status after 30 minutes: services not updated"
+            exit 1
+          fi
+          if [ "$exit_code" != "0" ]; then
+            echo "::error::The migrations failed (exit code $exit_code${reason:+, $reason}): services not updated"
+            exit 1
+          fi
+          echo "Migrations applied"
+
+      - name: Register the API and worker revisions
+        run: |
+          echo "API_TASK_DEFINITION=$("$RUNNER_TEMP/register.sh" "$API_TASK_FAMILY")" >> "$GITHUB_ENV"
+          echo "WORKER_TASK_DEFINITION=$("$RUNNER_TEMP/register.sh" "$WORKER_TASK_FAMILY")" >> "$GITHUB_ENV"
+
+      - name: Update the services
+        run: |
+          aws ecs update-service --cluster "$CLUSTER" --service "$API_SERVICE" \
+            --task-definition "$API_TASK_DEFINITION" --query 'service.serviceName' --output text
+          aws ecs update-service --cluster "$CLUSTER" --service "$WORKER_SERVICE" \
+            --task-definition "$WORKER_TASK_DEFINITION" --query 'service.serviceName' --output text
+
+      - name: Wait for the services to be stable
+        run: |
+          # The waiter gives up after 10 minutes: allow up to 30.
+          for attempt in 1 2 3; do
+            if aws ecs wait services-stable --cluster "$CLUSTER" --services "$API_SERVICE" "$WORKER_SERVICE"; then break; fi
+            echo "Not stable after attempt $attempt"
+          done
+
+          # A deployment rolled back by the circuit breaker also ends stable, on the previous revision.
+          check() {
+            local service="$1" expected="$2" current state
+            read -r current state < <(aws ecs describe-services --cluster "$CLUSTER" --services "$service" \
+              --query "services[0].deployments[?status=='PRIMARY'] | [0].[taskDefinition, rolloutState]" --output text)
+            if [ "$current" != "$expected" ] || [ "$state" != "COMPLETED" ]; then
+              echo "::error::$service runs $current ($state), not $expected: see the service events in the ECS console"
+              return 1
+            fi
+            echo "$service runs $expected"
+          }
+          check "$API_SERVICE" "$API_TASK_DEFINITION"
+          check "$WORKER_SERVICE" "$WORKER_TASK_DEFINITION"

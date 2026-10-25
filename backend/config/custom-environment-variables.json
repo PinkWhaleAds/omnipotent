@@ -1,0 +1,119 @@
+{
+  "App": {
+    "shutdownTimeout": {
+      "__name": "APP_SHUTDOWN_TIMEOUT",
+      "__format": "json"
+    },
+    "drainDelay": {
+      "__name": "APP_DRAIN_DELAY",
+      "__format": "json"
+    },
+    "mode": "APP_MODE"
+  },
+  "Logger": {
+    "level": "APP_LOG_LEVEL",
+    "accessLog": {
+      "__name": "APP_ACCESS_LOG",
+      "__format": "json"
+    }
+  },
+  "HttpServer": {
+    "host": "APP_HOSTNAME",
+    "port": "APP_PORT",
+    "corsOrigins": "APP_CORS_ORIGINS",
+    "trustProxyHops": {
+      "__name": "APP_TRUST_PROXY_HOPS",
+      "__format": "json"
+    },
+    "trustCloudFrontViewerAddress": {
+      "__name": "TRUST_CLOUDFRONT_VIEWER_ADDRESS",
+      "__format": "json"
+    }
+  },
+  "McpServer": {
+    "enabled": {
+      "__name": "APP_MCP_ENABLED",
+      "__format": "json"
+    },
+    "stateful": {
+      "__name": "APP_MCP_STATEFUL",
+      "__format": "json"
+    },
+    "resourceUrl": "MCP_RESOURCE_URL",
+    "claudeClientId": "MCP_CLAUDE_CLIENT_ID"
+  },
+  "Docs": {
+    "enabled": {
+      "__name": "APP_DOCS_ENABLED",
+      "__format": "json"
+    }
+  },
+  "Database": {
+    "host": "DB_HOST",
+    "port": {
+      "__name": "DB_PORT",
+      "__format": "json"
+    },
+    "user": "DB_USER",
+    "password": "DB_PASSWORD",
+    "name": "DB_NAME",
+    "ssl": {
+      "__name": "DB_SSL",
+      "__format": "json"
+    },
+    "poolSize": {
+      "__name": "DB_POOL_SIZE",
+      "__format": "json"
+    },
+    "logging": {
+      "__name": "DB_LOGGING",
+      "__format": "json"
+    },
+    "iamAuth": {
+      "__name": "DB_IAM_AUTH",
+      "__format": "json"
+    },
+    "region": "DB_REGION",
+    "appUser": "DB_APP_USER"
+  },
+  "Auth": {
+    "domain": "AUTH0_DOMAIN",
+    "audience": "AUTH0_AUDIENCE",
+    "swaggerClientId": "AUTH0_SWAGGER_CLIENT_ID"
+  },
+  "Access": {
+    "provider": "ACCESS_PROVIDER",
+    "cacheTtl": {
+      "__name": "ACCESS_CACHE_TTL",
+      "__format": "json"
+    },
+    "devActorUserId": "DEV_ACTOR_USER_ID",
+    "devActorEmail": "DEV_ACTOR_EMAIL",
+    "devActorSuperAdmin": {
+      "__name": "DEV_ACTOR_SUPER_ADMIN",
+      "__format": "json"
+    }
+  },
+  "Storage": {
+    "endpoint": "S3_ENDPOINT",
+    "region": "S3_REGION",
+    "bucket": "S3_BUCKET",
+    "accessKeyId": "S3_ACCESS_KEY_ID",
+    "secretAccessKey": "S3_SECRET_ACCESS_KEY",
+    "forcePathStyle": {
+      "__name": "S3_FORCE_PATH_STYLE",
+      "__format": "json"
+    },
+    "createBucket": {
+      "__name": "S3_CREATE_BUCKET",
+      "__format": "json"
+    }
+  },
+  "Secrets": {
+    "endpoint": "SECRETS_ENDPOINT",
+    "region": "SECRETS_REGION",
+    "prefix": "SECRETS_PREFIX",
+    "accessKeyId": "SECRETS_ACCESS_KEY_ID",
+    "secretAccessKey": "SECRETS_SECRET_ACCESS_KEY"
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "App": {
+    "shutdownTimeout": 10000,
+    "drainDelay": 0,
+    "mode": "api"
+  },
+  "Logger": {
+    "level": "debug",
+    "accessLog": true
+  },
+  "HttpServer": {
+    "host": "0.0.0.0",
+    "port": 3000,
+    "corsOrigins": "",
+    "trustProxyHops": 0,
+    "trustCloudFrontViewerAddress": false
+  },
+  "McpServer": {
+    "enabled": true,
+    "endpoint": "/mcp",
+    "stateful": false,
+    "sessionIdleTimeout": 300000,
+    "maxSessions": 100,
+    "resourceUrl": "http://localhost:3000/mcp",
+    "scopes": ["mcp:use"]
+  },
+  "Docs": {
+    "enabled": true
+  },
+  "Database": {
+    "host": "localhost",
+    "port": 5441,
+    "user": "omnipotent",
+    "password": "omnipotent",
+    "name": "omnipotent",
+    "ssl": false,
+    "poolSize": 10,
+    "logging": false
+  },
+  "Queue": {
+    "schema": "pgboss",
+    "poolSize": 4
+  },
+  "Auth": {
+    "domain": "",
+    "audience": "",
+    "jwksCacheTtl": 600000,
+    "swaggerClientId": ""
+  },
+  "Access": {
+    "provider": "local",
+    "cacheTtl": 60000,
+    "devActorUserId": "00000000-0000-4000-8000-000000000002",
+    "devActorEmail": "dev@omnipotent.local",
+    "devActorSuperAdmin": true
+  },
+  "Storage": {
+    "endpoint": "http://localhost:9012",
+    "region": "eu-north-1",
+    "bucket": "omnipotent-assets",
+    "accessKeyId": "local-access-key",
+    "secretAccessKey": "local-secret-key",
+    "forcePathStyle": true,
+    "createBucket": true,
+    "presignTtl": 3600,
+    "maxUploadBytes": 5242880
+  },
+  "Secrets": {
+    "endpoint": "http://localhost:9022",
+    "region": "eu-north-1",
+    "prefix": "omnipotent",
+    "accessKeyId": "local",
+    "secretAccessKey": "local",
+    "cacheTtl": 300000
+  }
+}

@@ -1,0 +1,56 @@
+# Weekly check of the Amazon RDS certificate authorities kept in backend/certs/rds-global-bundle.pem (copied into
+# the backend image; Node trusts them for the TLS connection to PostgreSQL). AWS adds the CAs of each new region to
+# its public bundle: this job fails when the file AWS serves differs from ours, lists the certificates that changed
+# and says how to update ours. The build itself never downloads the bundle, so it stays deterministic. No AWS
+# credentials: the bundle is public.
+name: rds-ca-bundle
+
+on:
+  schedule:
+    - cron: "17 6 * * 1" # Mondays, 06:17 UTC
+  workflow_dispatch:
+  pull_request:
+    paths: ["backend/certs/**", ".github/workflows/rds-ca-bundle.yml"]
+
+concurrency:
+  group: rds-ca-bundle-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  BUNDLE_URL: https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem
+  VENDORED: backend/certs/rds-global-bundle.pem
+
+jobs:
+  compare:
+    name: Compare with AWS's bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: backend/certs
+
+      - name: Download AWS's bundle
+        run: curl -fsSL --proto '=https' --tlsv1.2 --retry 3 -o "$RUNNER_TEMP/aws-bundle.pem" "$BUNDLE_URL"
+
+      - name: Compare
+        run: |
+          # The subject of every certificate of a bundle, sorted.
+          certificates() {
+            openssl crl2pkcs7 -nocrl -certfile "$1" | openssl pkcs7 -print_certs -noout | grep '^subject=' | sort
+          }
+          echo "Ours: $(sha256sum "$VENDORED" | cut -d' ' -f1) ($(grep -c 'BEGIN CERTIFICATE' "$VENDORED") certificates)"
+          echo "AWS:  $(sha256sum "$RUNNER_TEMP/aws-bundle.pem" | cut -d' ' -f1) ($(grep -c 'BEGIN CERTIFICATE' "$RUNNER_TEMP/aws-bundle.pem") certificates)"
+          if cmp -s "$VENDORED" "$RUNNER_TEMP/aws-bundle.pem"; then
+            echo "backend/certs/rds-global-bundle.pem is AWS's current bundle."
+            exit 0
+          fi
+          echo "::group::Certificates that changed (< ours, > AWS)"
+          diff <(certificates "$VENDORED") <(certificates "$RUNNER_TEMP/aws-bundle.pem") || true
+          echo "::endgroup::"
+          echo "::error file=$VENDORED::AWS published a new RDS CA bundle. Update ours: curl -fsSL $BUNDLE_URL -o $VENDORED, check the certificates that changed above (AWS normally only adds CAs), commit on main and deploy, so the tasks trust the new CAs."
+          exit 1
