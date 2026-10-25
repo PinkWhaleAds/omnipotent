@@ -10,26 +10,70 @@ import { zodSchemaOf } from '@utils';
 type RouteKey = { method: HTTPMethods; url: string };
 
 /**
+ * What a resource of the reference CRUD does **not** serve.
+ *
+ * @property bulk - `false` for a Lever: a campaign carries at most one of each channel
+ * @property labels - `false` for a Label: it is not labelled itself
+ */
+type CrudOptions = { bulk?: boolean; labels?: boolean };
+
+/**
  * The routes of the reference CRUD of one resource (`backend/docs/phase-2.md` § 2).
  *
- * Every resource of every phase serves these eleven, so a phase that forgets one — a `restore`, a
- * mode of bulk — fails this suite.
+ * Every resource of every phase serves these, so a phase that forgets one — a `restore`, a mode of
+ * bulk — fails this suite.
  *
  * @param resource - Plural name of the resource, as its URLs carry it
  * @returns Its routes, by method and URL pattern
  */
-function crudRoutes(resource: string): RouteKey[] {
+function crudRoutes(resource: string, options: CrudOptions = {}): RouteKey[] {
   return [
     { method: 'GET', url: `/${resource}` },
     { method: 'POST', url: `/${resource}` },
+    ...flatCrudRoutes(resource, options),
+    { method: 'POST', url: `/${resource}/bulk` },
+  ];
+}
+
+/**
+ * The routes of a resource whose parent names it: listing and creating live **under the parent**,
+ * the rest stays flat, since an id carries its own parents (`backend/docs/phase-3.md` § 7).
+ *
+ * @param parent - URL pattern of the parent, with its `:id`
+ * @param resource - Plural name of the resource
+ * @param options - What this resource does not serve
+ * @returns Its routes, by method and URL pattern
+ */
+function nestedCrudRoutes(parent: string, resource: string, options: CrudOptions = {}): RouteKey[] {
+  return [
+    { method: 'GET', url: `${parent}/${resource}` },
+    { method: 'POST', url: `${parent}/${resource}` },
+    ...(options.bulk === false ? [] : [{ method: 'POST' as HTTPMethods, url: `${parent}/${resource}/bulk` }]),
+    ...flatCrudRoutes(resource, options),
+  ];
+}
+
+/**
+ * What every resource serves flat on itself, whatever its parent.
+ *
+ * @param resource - Plural name of the resource
+ * @param options - What this resource does not serve
+ * @returns Its routes, by method and URL pattern
+ */
+function flatCrudRoutes(resource: string, options: CrudOptions = {}): RouteKey[] {
+  return [
     { method: 'GET', url: `/${resource}/:id` },
     { method: 'PATCH', url: `/${resource}/:id` },
     { method: 'DELETE', url: `/${resource}/:id` },
     { method: 'POST', url: `/${resource}/:id/restore` },
-    { method: 'POST', url: `/${resource}/bulk` },
-    { method: 'PATCH', url: `/${resource}/bulk` },
-    { method: 'DELETE', url: `/${resource}/bulk` },
-    { method: 'POST', url: `/${resource}/bulk/restore` },
+    ...(options.labels === false ? [] : [{ method: 'PUT' as HTTPMethods, url: `/${resource}/:id/labels` }]),
+    ...(options.bulk === false
+      ? []
+      : [
+          { method: 'PATCH' as HTTPMethods, url: `/${resource}/bulk` },
+          { method: 'DELETE' as HTTPMethods, url: `/${resource}/bulk` },
+          { method: 'POST' as HTTPMethods, url: `/${resource}/bulk/restore` },
+        ]),
   ];
 }
 
@@ -51,10 +95,15 @@ const API_ROUTES: RouteKey[] = [
   { method: 'GET', url: '/.well-known/oauth-protected-resource/mcp' },
   { method: 'GET', url: '/.well-known/oauth-protected-resource' },
   // Phase 2: the reference CRUD, on both resources.
-  ...crudRoutes('labels'),
+  ...crudRoutes('labels', { labels: false }),
   { method: 'GET', url: '/labels/:id/resources' },
   ...crudRoutes('advertisers'),
-  { method: 'PUT', url: '/advertisers/:id/labels' },
+  // Phase 3: the five levels of the campaign tree, each under its parent.
+  ...nestedCrudRoutes('/advertisers/:id', 'campaigns'),
+  ...nestedCrudRoutes('/campaigns/:id', 'levers', { bulk: false }),
+  ...nestedCrudRoutes('/levers/:id', 'ad-groups'),
+  ...nestedCrudRoutes('/ad-groups/:id', 'targeting-groups'),
+  ...nestedCrudRoutes('/targeting-groups/:id', 'lines'),
 ];
 
 describe('Unit::Modules::Controllers', () => {

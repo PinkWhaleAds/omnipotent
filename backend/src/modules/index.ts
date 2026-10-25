@@ -8,9 +8,14 @@
 import { FastifyInstance } from 'fastify';
 import fastifyPlugin from 'fastify-plugin';
 
+import AdGroupController from './ad-group/ad-group.controller';
 import AdvertiserController from './advertiser/advertiser.controller';
+import CampaignController from './campaign/campaign.controller';
 import HealthController from './health/health.controller';
 import LabelController from './label/label.controller';
+import LeverController from './lever/lever.controller';
+import LineController from './line/line.controller';
+import TargetingGroupController from './targeting-group/targeting-group.controller';
 import OAuthController from './oauth/oauth.controller';
 import StatusController from './status/status.controller';
 
@@ -46,6 +51,12 @@ async function registerControllers(fastify: FastifyInstance): Promise<void> {
   // The organizing tools first, then what they organize: the order the API documentation reads best.
   await fastify.register(LabelController);
   await fastify.register(AdvertiserController);
+  // The campaign tree, from its root down to its leaf.
+  await fastify.register(CampaignController);
+  await fastify.register(LeverController);
+  await fastify.register(AdGroupController);
+  await fastify.register(TargetingGroupController);
+  await fastify.register(LineController);
 }
 
 /**
