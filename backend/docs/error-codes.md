@@ -150,6 +150,55 @@ L'unicité du nom ne regarde que les **vivants** : supprimer libère le nom, et 
 le nom a été repris entre-temps répond `*_name_taken`. Les deux codes de nom portent le nom demandé,
 pour que le front puisse l'écrire dans son message.
 
+## L'arbre de campagne
+
+`src/services/{campaign,lever,ad-group,targeting-group,line}.service.ts`,
+`src/services/{budget,tree,node}.helpers.ts`, `src/levers/lever-profiles.ts` (phase 3,
+`docs/phase-3.md` § 8).
+
+### Les cinq niveaux
+
+Chaque niveau porte ses deux codes, construits sur son nom : `campaign`, `lever`, `ad_group`,
+`targeting_group`, `line`.
+
+| Code                   | Statut | Quand                                                                    | `params` |
+| ---------------------- | ------ | ------------------------------------------------------------------------ | -------- |
+| `<niveau>_not_found`   | 404    | Absent, supprimé, ou d'une autre Organization                            | `{}`     |
+| `<niveau>_not_deleted` | 409    | `restore` sur un nœud vivant                                             | `{}`     |
+| `lever_already_exists` | 409    | La campagne porte déjà ce canal — à la création comme à une restauration | `lever`  |
+
+### Ce que le modèle refuse d'exprimer
+
+Ces refus viennent du **profil de levier**, qui dit ce que le modèle permet. Ce qu'une **plateforme**
+n'accepte pas est l'affaire du registre de plateforme, et devient un avertissement de preview, pas
+une erreur (L2).
+
+| Code                          | Statut | Quand                                                                                                                                                                                    | `params`                  |
+| ----------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| `lever_field_forbidden`       | 400    | Le profil déclare ce champ `interdit` à ce niveau — un budget sur une Line Search (D12), un capping sur le Search (L6). Sur une campagne, la règle est l'union des leviers qu'elle porte | `lever`, `level`, `field` |
+| `platform_not_eligible`       | 400    | La plateforme ne sert pas ce levier (`../../CADRAGE.md` § 6)                                                                                                                             | `platform`, `lever`       |
+| `bid_strategy_not_permitted`  | 400    | Stratégie hors de celles que le profil du levier permet                                                                                                                                  | `strategy`, `lever`       |
+| `objective_not_permitted`     | 400    | Objectif hors de ceux que le profil du levier permet                                                                                                                                     | `objective`, `lever`      |
+| `products_mode_not_permitted` | 400    | Le levier n'a pas de mode Produits (L13, L14)                                                                                                                                            | `lever`                   |
+| `volume_not_permitted`        | 400    | Le levier n'accepte pas de saisie en volume dans cette unité (L25)                                                                                                                       | `unit`, `lever`           |
+
+### L'algèbre du budget et les fenêtres
+
+| Code                        | Statut | Quand                                                                               | `params`                       |
+| --------------------------- | ------ | ----------------------------------------------------------------------------------- | ------------------------------ |
+| `budget_exceeds_parent`     | 400    | `Σ enfants > parent` : l'invariant de D8, à tous les niveaux                        | `parentCents`, `childrenCents` |
+| `budget_entered_twice`      | 400    | Un montant **et** un volume dans la même requête : l'un des deux serait un mensonge | `unit`                         |
+| `volume_without_bid`        | 400    | Saisie en volume sans CPM d'enchère pour la convertir (L25)                         | `unit`                         |
+| `dates_outside_parent`      | 400    | La fenêtre sort de celle du parent                                                  | `parentStart`, `parentEnd`     |
+| `dates_reversed`            | 400    | La fenêtre se termine avant de commencer                                            | `startsOn`, `endsOn`           |
+| `platform_shares_invalid`   | 400    | Les parts ne somment pas à 100 % (10 000 points de base)                            | `total`                        |
+| `platform_share_duplicated` | 400    | La même plateforme apparaît deux fois dans une répartition                          | `platform`                     |
+
+Deux choses que le front peut compter sur : un budget est **toujours** en centimes entiers et en
+devise de campagne, et une lecture donne à la fois ce qu'un nœud porte (`explicitCents`) et ce qu'il
+peut dépenser (`effectiveCents`), avec la raison (`source` ∈ `explicit | inherited | forbidden`) —
+donc il n'a jamais à refaire la division lui-même.
+
 ## Limite de débit
 
 `src/plugins/rate-limit.plugin.ts` (routes HTTP) et `src/mcp/tool-rate-limit.ts` (tools MCP, sur la limite de la route qu'ils reflètent).

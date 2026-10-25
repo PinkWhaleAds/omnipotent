@@ -297,3 +297,29 @@ donc pas de classe de base, mais pas non plus cinq copies de l'algèbre.
   restaurer, voir revenir le sous-arbre.
 - **MCP** : les mêmes opérations par les tools.
 - **Les tests** : 100 % de couverture, et l'intégration prouve la cascade et les index.
+
+## 11. Ce que l'écriture a changé au contrat
+
+Livré le 2026-10-25. Cinq choses se sont décidées en écrivant, et elles valent plus que le contrat
+initial parce qu'elles sont prouvées par du code :
+
+1. **La saisie en volume vit où vit le CPM** — donc sur l'AdGroup et le TargetingGroup, pas sur la
+   campagne ni sur la Line, qui n'ont pas d'enchère. Un champ qui n'aurait jamais pu aboutir a été
+   retiré plutôt que documenté. Sur un TargetingGroup, la conversion prend son propre montant, sinon
+   celui de son AdGroup.
+2. **Le budget obligatoire d'une campagne est tenu par le schéma**, pas par un code d'erreur maison :
+   `budgetCents` est requis à la création et non nullable à la modification. `campaign_budget_required`
+   n'existe pas.
+3. **La vérification des leviers est symétrique.** La campagne vérifie ses champs contre les leviers
+   qu'elle porte, **et** un levier ajouté vérifie les champs que la campagne porte déjà. Sans le
+   second sens, on contournerait L6 en ajoutant le levier Search après le capping.
+4. **La cascade est datée.** Les descendants sont marqués au même instant que le nœud supprimé, et une
+   restauration ne ramène que ceux qui portent cet instant : un enfant supprimé avant son parent reste
+   supprimé.
+5. **Le canal est dénormalisé** sur les trois niveaux du bas, comme `campaignId` : chaque écriture
+   interroge le profil et chaque lecture de budget lui demande si le niveau porte un budget, donc sans
+   la colonne les deux remontaient l'arbre.
+
+Et un code d'erreur du § 8 n'a pas été écrit : `currency_unknown`. La devise est validée par sa forme
+(ISO 4217, trois lettres) et ce qu'une plateforme accepte d'acheter dans cette devise est l'affaire de
+son registre, donc un avertissement de preview — pas quelque chose que le modèle puisse savoir.
