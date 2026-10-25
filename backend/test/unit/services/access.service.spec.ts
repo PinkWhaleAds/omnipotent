@@ -60,9 +60,16 @@ describe('Unit::Services::LocalAccessService', () => {
       const second: Snapshot = await service.resolve('google-oauth2|999', 'another-token');
 
       expect(first).toEqual({
-        user: { id: 'a0000000-0000-4000-8000-0000000000ff', email: 'dev@omnipotent.local', isSuperAdmin: true },
+        user: {
+          id: 'a0000000-0000-4000-8000-0000000000ff',
+          email: 'dev@omnipotent.local',
+          name: null,
+          isSuperAdmin: true,
+          language: null,
+        },
         seats: [],
         organizations: [],
+        invitations: [],
       });
       expect(second).toEqual(first);
     });
@@ -89,7 +96,9 @@ describe('Unit::Services::LocalAccessService', () => {
       expect(snapshot.user).toEqual({
         id: '00000000-0000-4000-8000-000000000002',
         email: 'dev@omnipotent.local',
+        name: null,
         isSuperAdmin: true,
+        language: null,
       });
     });
   });

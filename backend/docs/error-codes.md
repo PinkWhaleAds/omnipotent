@@ -75,16 +75,35 @@ Sur `POST /mcp`, une 401 porte en plus l'en-tête `WWW-Authenticate`, qui pointe
 
 `src/services/access.service.ts`. Les droits sont vérifiés **dans les services**, jamais dans un handler.
 
-| Code                   | Statut | Quand                                                         | `params`             |
-| ---------------------- | ------ | ------------------------------------------------------------- | -------------------- |
-| `super_admin_required` | 403    | Action réservée aux administrateurs de la plateforme          | `{}`                 |
-| `role_required`        | 403    | Le rôle de l'appelant est inférieur à celui qu'exige l'action | `required`, `actual` |
+| Code                     | Statut | Quand                                                          | `params`             |
+| ------------------------ | ------ | -------------------------------------------------------------- | -------------------- |
+| `super_admin_required`   | 403    | Action réservée aux administrateurs de la plateforme           | `{}`                 |
+| `role_required`          | 403    | Le rôle de l'appelant est inférieur à celui qu'exige l'action  | `required`, `actual` |
+| `seat_not_found`         | 404    | Le Seat n'existe pas, ou l'appelant ne peut pas le voir        | `{}`                 |
+| `organization_not_found` | 404    | L'Organization n'existe pas, ou l'appelant ne peut pas la voir | `{}`                 |
 
-Les `assert*` sont du **calcul pur** sur l'instantané que `resolve` a rapporté : vérifier un droit ne coûte aucun appel réseau.
+Les `assert*` sont du **calcul pur** sur l'instantané que `resolve` a rapporté : vérifier un droit ne coûte aucun appel réseau — un refus de rôle ne dépend donc **pas** de la disponibilité d'omnipass.
 
-`role_required`, et les **404** `organization_not_found` et `seat_not_found` d'une Organization ou d'un Seat que l'appelant ne peut pas voir, sont émis par `@omnilor/omnipass-client`. Le bouchon de développement du socle accorde tout — `admin` sur toute Organization, `seat_admin` sur tout Seat — et n'émet donc qu'un seul de ces codes, `super_admin_required`, parce que `DEV_ACTOR_SUPER_ADMIN` peut être `false`. C'est voulu, et c'est pourquoi la production refuse de démarrer avec lui (D43).
+Ces quatre codes sont levés par `@omnilor/omnipass-client`, sous la forme d'une `OmnipassError` qui porte `statusCode`, `code`, `params` et les alias `errorCode` / `errorParams` que le gestionnaire d'erreurs lit déjà : elle traverse l'API telle quelle, **sans adaptateur**. Le bouchon de développement du socle accorde tout — `admin` sur toute Organization, `seat_admin` sur tout Seat — et n'émet donc que `super_admin_required`, parce que `DEV_ACTOR_SUPER_ADMIN` peut être `false`. C'est voulu, et c'est pourquoi la production refuse de démarrer avec lui (D43).
 
 Une Organization disparue chez omnipass répond **404**, jamais 500 (T4).
+
+## Identité, chez omnipass
+
+Ces codes sont émis par **omnipass**, à la résolution de l'appelant ou à une écriture de tenancy, et traversent cette API telles quelles. Ils sont documentés ici parce que le front les traduit comme les autres.
+
+| Code                         | Statut | Quand                                                                          | `params`                  |
+| ---------------------------- | ------ | ------------------------------------------------------------------------------ | ------------------------- |
+| `invalid_token`              | 401    | Le jeton relayé est refusé par omnipass — pour le front, un jeton à renouveler | `{}`                      |
+| `user_not_invited`           | 403    | L'identité n'a pas de compte : il faut l'inviter                               | `{}`                      |
+| `email_not_verified`         | 403    | L'adresse de l'identité n'est pas vérifiée                                     | `{}`                      |
+| `sign_in_method_unverified`  | 403    | La connexion Auth0 utilisée ne vérifie pas les adresses                        | `provider`                |
+| `email_linked_elsewhere`     | 403    | Cette adresse est déjà liée à une autre méthode de connexion                   | `email`                   |
+| `invitation_limit_reached`   | 429    | Trop d'invitations envoyées                                                    | `per`, `limit`, `retryAt` |
+| `authentication_unavailable` | 503    | L'identité ne peut pas être établie : cache froid et omnipass injoignable      | `{}`                      |
+| `tenancy_unavailable`        | 503    | Une **écriture** de tenancy n'a pas atteint omnipass                           | `{}`                      |
+
+Trois autres codes d'omnipass ne sont **jamais** la faute d'un utilisateur, seulement d'une configuration — un déploiement correct ne les voit pas. S'ils apparaissent, les journaliser bruyamment : `service_required` (403), `application_unknown` (403, un `client_id` hors du registre), `audience_not_allowed` (403, un jeton relayé dont l'`aud` n'est pas déclaré pour Omnipotent).
 
 ## Organization d'une requête
 

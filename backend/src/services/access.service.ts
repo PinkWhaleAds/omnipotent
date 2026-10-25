@@ -124,13 +124,15 @@ export interface AccessService {
   /**
    * Resolve the caller of a request: our user, their Seats, Organizations and effective roles.
    *
-   * The only call to omnipass on the request path, made once by the auth plugin; the client caches
-   * it for `Access.cacheTtl`.
+   * The only call to omnipass on the request path, made once by the auth plugin and **never from a
+   * service**; the client caches it for `Access.cacheTtl`.
    *
    * @param sub - Auth0 subject of the verified token
    * @param endUserToken - The raw token, relayed to omnipass so it acts as the user, never as the application
-   * @returns The snapshot the permission checks are computed from
-   * @throws Error with status 403 when the identity has no account, 503 when omnipass cannot be reached
+   * @returns The snapshot the permission checks are computed from; it never answers `null`
+   * @throws `OmnipassError` with status 403 when the identity may not sign in (`user_not_invited`,
+   *   `email_not_verified`, `sign_in_method_unverified`, `email_linked_elsewhere`), 401 when the relayed token
+   *   is refused (`invalid_token`), 503 when omnipass cannot be reached (`authentication_unavailable`)
    */
   resolve(sub: string, endUserToken: string): Promise<Snapshot>;
 }
@@ -230,13 +232,16 @@ export class LocalAccessService implements AccessService {
       user: {
         id: this.config.devActorUserId,
         email: this.config.devActorEmail,
+        name: null,
         isSuperAdmin: this.config.devActorSuperAdmin,
+        language: null,
       },
-      // No Seat and no Organization is listed: the stub grants them all without reading any, so a
-      // caller never needs the snapshot to hold one. A listing route therefore answers nothing here,
-      // which is the clearest sign that the tenancy is not wired yet.
+      // No Seat, Organization or invitation is listed: the stub grants them all without reading any,
+      // so a caller never needs the snapshot to hold one. A listing route therefore answers nothing
+      // here, which is the clearest sign that the tenancy is not wired yet.
       seats: [],
       organizations: [],
+      invitations: [],
     };
   }
 }

@@ -82,36 +82,84 @@ export const snapshotOrganizationSchema = z.object({
 export type SnapshotOrganization = z.infer<typeof snapshotOrganizationSchema>;
 
 /**
- * What omnipass answers about the caller of a request: our user, their Seats, their Organizations
- * and their effective roles.
+ * The language a user reads the interface in. `null` until their first sign-in.
+ */
+export const userLanguageSchema = z.enum(['fr', 'en']);
+
+/** TypeScript type inferred from {@link userLanguageSchema}. */
+export type UserLanguage = z.infer<typeof userLanguageSchema>;
+
+/**
+ * An invitation waiting for the caller's answer, as omnipass gives it.
+ *
+ * It rides in the snapshot rather than behind a call of its own: it costs two lines in a response
+ * already cached for `Access.cacheTtl`, so a « what am I invited to » screen needs no second round
+ * trip.
+ *
+ * @property id - Opaque uuid of the invitation in omnipass
+ * @property scope - Whether it invites into a Seat or into one Organization
+ * @property seat - The Seat concerned, named
+ * @property organization - The Organization concerned, `null` for a Seat-scoped invitation
+ * @property role - The role it grants, of the kind its `scope` implies
+ * @property organizations - The Organizations a Seat-scoped invitation also grants a role in
+ * @property invitedBy - Who sent it, for display
+ * @property status - Always `pending`: the snapshot only carries what is still waiting
+ * @property createdAt - When it was sent (ISO 8601)
+ */
+export const snapshotInvitationSchema = z.object({
+  id: z.uuid(),
+  scope: z.enum(['seat', 'organization']),
+  seat: z.object({ id: z.uuid(), name: z.string() }),
+  organization: z.object({ id: z.uuid(), name: z.string() }).nullable(),
+  role: z.union([seatRoleSchema, organizationRoleSchema]),
+  organizations: z.array(z.object({ id: z.uuid(), name: z.string(), role: organizationRoleSchema })),
+  invitedBy: z.string(),
+  status: z.literal('pending'),
+  createdAt: z.iso.datetime(),
+});
+
+/** TypeScript type inferred from {@link snapshotInvitationSchema}. */
+export type SnapshotInvitation = z.infer<typeof snapshotInvitationSchema>;
+
+/**
+ * What omnipass answers about the caller of a request: our user, their Seats, their Organizations,
+ * their effective roles, and the invitations waiting for their answer.
  *
  * It is the whole reason the `assert*` methods of `AccessService` are **pure computation**: an
  * effective role is deduced entirely from `seats` and `organizations`, so a permission check costs
- * no network call. One `resolve` per request, in the auth plugin, and the client's cache removes
- * most of those.
+ * no network call — and a refused role therefore does not depend on omnipass being reachable. One
+ * `resolve` per request, in the auth plugin and **never from a service**, and the client's cache
+ * removes most of those.
  *
  * Every id here is an **opaque uuid** (T4): no table of this application has a foreign key to it,
  * and an Organization that disappeared in omnipass answers 404, never 500.
  *
+ * The shape is frozen by `~/OmniAd/omnipass/backend/docs/plan.md` § 9, the single source of truth
+ * for it; `@omnilor/omnipass-client` will export it, and this copy goes away then.
+ *
  * @property user - Our user, as omnipass knows them
  * @property seats - The Seats the caller belongs to
  * @property organizations - The Organizations the caller has a role in
+ * @property invitations - Invitations waiting for their answer, oldest first
  */
 export const snapshotSchema = z.object({
   user: z.object({
     id: z.uuid(),
     email: z.email(),
+    name: z.string().nullable(),
     isSuperAdmin: z.boolean(),
+    language: userLanguageSchema.nullable(),
   }),
   seats: z.array(snapshotSeatSchema),
   organizations: z.array(snapshotOrganizationSchema),
+  invitations: z.array(snapshotInvitationSchema),
 });
 
 /**
  * TypeScript type inferred from {@link snapshotSchema}.
  *
- * Named as the contract names it (`~/OmniAd/omnipass/docs/message-socle-omnipotent.md` § 2), so the
- * day `@omnilor/omnipass-client` replaces our copy, only the import changes.
+ * Named as the contract names it, so the day `@omnilor/omnipass-client` replaces our copy, only the
+ * import changes.
  */
 export type Snapshot = z.infer<typeof snapshotSchema>;
 

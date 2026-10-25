@@ -84,6 +84,18 @@ D43's guard — with `NODE_ENV=prod` and anything but omnipass, startup **fails*
 `killProcess`. If a stub stops being enough for a phase, the answer is to bring omnipass's phase 2
 forward, **never** to add tables here.
 
+Three rules that bind every later phase:
+
+- **Writing the tenancy goes through the package**, never through an HTTP call written by hand:
+  `client.tenancy.inviteOrganizationMember(...)`, `createOrganization(...)`, `acceptInvitation(...)`,
+  one method per route. Each successful write invalidates the user in the local cache on its own. A
+  hand-written call would skip that, so if you ever write one, call `invalidateUser` behind it.
+- Those writes are authorised by the **relayed user's** role, never by the machine account: a machine
+  caller has no Organization role, by construction.
+- The errors omnipass raises are an `OmnipassError` carrying `statusCode`, `code`, `params` and the
+  aliases `errorCode` / `errorParams` the error handler already reads: they cross the API **as they
+  are**, with no adapter. They are catalogued in `backend/docs/error-codes.md`.
+
 ## The conventions, without discussion
 
 They come from `CADRAGE.md` §19 and from `~/OmniAd/multi-search/backend/CLAUDE.md`, which

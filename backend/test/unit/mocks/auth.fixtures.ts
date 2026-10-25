@@ -1,4 +1,4 @@
-import { AuthContext, OrganizationRole, SeatRole, Snapshot } from '@src/types';
+import { AuthContext, OrganizationRole, SeatRole, Snapshot, SnapshotInvitation } from '@src/types';
 
 /** Ids reused across tests. They are opaque uuids: omnipass owns what they designate (T4). */
 export const IDS = {
@@ -28,20 +28,22 @@ export const IDS = {
  * ```
  */
 export function actor(
-  user: Snapshot['user'],
+  user: Pick<Snapshot['user'], 'id' | 'email' | 'isSuperAdmin'> & Partial<Snapshot['user']>,
   tenancy: {
     seats?: { id: string; name?: string; role: SeatRole }[];
     organizations?: { id: string; seatId: string; name?: string; timezone?: string; role: OrganizationRole }[];
+    invitations?: SnapshotInvitation[];
   } = {}
 ): AuthContext {
   const snapshot: Snapshot = {
-    user,
+    user: { name: null, language: null, ...user },
     seats: (tenancy.seats ?? []).map((seat) => ({ name: 'Seat', ...seat })),
     organizations: (tenancy.organizations ?? []).map((organization) => ({
       name: 'Organization',
       timezone: 'Europe/Paris',
       ...organization,
     })),
+    invitations: tenancy.invitations ?? [],
   };
   return { userId: user.id, email: user.email, isSuperAdmin: user.isSuperAdmin, tenancy: snapshot };
 }
