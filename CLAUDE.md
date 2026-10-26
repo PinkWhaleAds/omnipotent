@@ -61,7 +61,7 @@ uuids**, with no foreign key across the two databases (T4), and omnipass is thei
 `AccessService` (`backend/src/services/access.service.ts`) is the **only door to omnipass**, and its
 interface is **the contract of the two projects**, frozen signature by signature:
 `~/OmniAd/omnipass/docs/message-socle-omnipotent.md` § 2. Read that document before touching
-anything on this path. omnipass publishes `@omnilor/omnipass-client` with exactly these signatures,
+anything on this path. omnipass publishes `@multisearchad/omnipass-client` with exactly these signatures,
 so wiring it replaces one line and nothing in the domain.
 
 What this repository **never** carries: a `User`, `Seat`, `Organization`, membership or invitation

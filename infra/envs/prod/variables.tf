@@ -126,6 +126,34 @@ variable "access_provider" {
   }
 }
 
+variable "omnipass_url" {
+  description = "Base URL of omnipass, without a trailing slash (OMNIPASS_URL). omnipass is the single writer of the tenancy (T5), and this backend holds no table of its own for it (T4)."
+  type        = string
+  default     = "https://api.omnipass.app"
+
+  validation {
+    condition     = can(regex("^https://[^/]+$", var.omnipass_url)) || var.node_env != "prod"
+    error_message = "omnipass_url is an https URL without a trailing slash in production."
+  }
+}
+
+variable "omnipass_audience" {
+  description = "Identifier of omnipass's REST API, which the machine token is issued for (OMNIPASS_AUDIENCE). Fixed by omnipass and the same in every environment."
+  type        = string
+  default     = "https://api.omnipass.app"
+}
+
+variable "omnipass_client_id" {
+  description = "Client id of Omnipotent's machine account on omnipass (OMNIPASS_CLIENT_ID), a client_credentials application of the shared Auth0 tenant. Not a secret: its secret is written by hand into Secrets Manager under omnipass/client-secret."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.omnipass_client_id != "" || var.access_provider != "omnipass"
+    error_message = "omnipass_client_id is required when access_provider = \"omnipass\": without a machine account the backend cannot resolve a single caller."
+  }
+}
+
 variable "cors_origins" {
   description = "Origins of the web front ends allowed to call the API from a browser (APP_CORS_ORIGINS), and the URLs set on the Auth0 SPA application (output auth0_settings). Omnipotent serves no front of its own yet: after the switch it is multi-search's, e.g. [\"https://app.omnilor.com\"]. None by default: only server-to-server and MCP callers reach the API."
   type        = list(string)

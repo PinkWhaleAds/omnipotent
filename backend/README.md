@@ -76,7 +76,7 @@ cela appartient à omnipass — le socle ne lit du jeton que son `sub`.
 `AccessService` (`src/services/access.service.ts`) est **l'unique porte vers omnipass**, et son
 interface est **le contrat des deux projets**, figée signature par signature
 (`~/OmniAd/omnipass/docs/message-socle-omnipotent.md` § 2). omnipass publiera
-`@omnilor/omnipass-client` avec exactement ces signatures : le jour venu, seule la ligne qui
+`@multisearchad/omnipass-client` avec exactement ces signatures : le jour venu, seule la ligne qui
 construit le service change, rien dans le domaine.
 
 Ce que le socle **ne porte pas**, et ne portera jamais : aucune entité `User`, `Seat`,

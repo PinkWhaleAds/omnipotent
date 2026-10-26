@@ -5,7 +5,7 @@ import config from 'config';
  *
  * - `local` — the development **stub** of `AccessService` (`src/services/access.service.ts`): a
  *   fixed actor read from the environment, admin of every Organization, no membership read.
- * - `omnipass` — `@omnilor/omnipass-client`, the single writer of the tenancy being omnipass itself
+ * - `omnipass` — `@multisearchad/omnipass-client`, the single writer of the tenancy being omnipass itself
  *   (`~/OmniAd/omnipass`). The only provider production accepts (D43).
  */
 export type AccessProvider = 'local' | 'omnipass';

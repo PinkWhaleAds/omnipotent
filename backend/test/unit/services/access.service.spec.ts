@@ -32,7 +32,7 @@ describe('Unit::Services::LocalAccessService', () => {
 
   describe('the interface the contract freezes', () => {
     // ~/OmniAd/omnipass/docs/message-socle-omnipotent.md § 2: omnipass publishes
-    // @omnilor/omnipass-client with exactly these signatures, so a missing one is a divergence that
+    // @multisearchad/omnipass-client with exactly these signatures, so a missing one is a divergence that
     // would only surface when the package replaces this stub.
     it('should carry every method of the contract', (): void => {
       const service: AccessService = new LocalAccessService(config());

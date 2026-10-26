@@ -135,7 +135,7 @@ export type SnapshotInvitation = z.infer<typeof snapshotInvitationSchema>;
  * and an Organization that disappeared in omnipass answers 404, never 500.
  *
  * The shape is frozen by `~/OmniAd/omnipass/backend/docs/plan.md` § 9, the single source of truth
- * for it; `@omnilor/omnipass-client` will export it, and this copy goes away then.
+ * for it; `@multisearchad/omnipass-client` will export it, and this copy goes away then.
  *
  * @property user - Our user, as omnipass knows them
  * @property seats - The Seats the caller belongs to
@@ -158,7 +158,7 @@ export const snapshotSchema = z.object({
 /**
  * TypeScript type inferred from {@link snapshotSchema}.
  *
- * Named as the contract names it, so the day `@omnilor/omnipass-client` replaces our copy, only the
+ * Named as the contract names it, so the day `@multisearchad/omnipass-client` replaces our copy, only the
  * import changes.
  */
 export type Snapshot = z.infer<typeof snapshotSchema>;

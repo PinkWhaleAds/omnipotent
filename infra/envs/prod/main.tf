@@ -113,6 +113,13 @@ locals {
     # and refuses to start otherwise (D43): the local implementation grants every Organization to every caller.
     ACCESS_PROVIDER = var.access_provider
 
+    # How to reach omnipass. The client secret is **not** here: the backend reads it from Secrets
+    # Manager under OMNIPASS_SECRET_NAME, whose container is declared in `module "secrets"`.
+    OMNIPASS_URL         = var.omnipass_url
+    OMNIPASS_AUDIENCE    = var.omnipass_audience
+    OMNIPASS_CLIENT_ID   = var.omnipass_client_id
+    OMNIPASS_SECRET_NAME = "omnipass/client-secret"
+
     S3_REGION           = var.region
     S3_BUCKET           = module.storage.bucket_name
     S3_FORCE_PATH_STYLE = "false"
@@ -172,8 +179,15 @@ module "ecr" {
 module "secrets" {
   source = "../../modules/secrets"
 
-  prefix                  = local.secrets_prefix
-  secrets                 = {}
+  prefix = local.secrets_prefix
+  secrets = {
+    # The machine account Omnipotent calls omnipass with (T1). The container is created here; its
+    # value is written by hand, never by Terraform, and nothing reads it back but the client itself.
+    omnipass_client_secret = {
+      name        = "omnipass/client-secret"
+      description = "Client secret of Omnipotent's machine account on omnipass (client_credentials)"
+    }
+  }
   recovery_window_in_days = var.force_destroy ? 0 : 30
 }
 

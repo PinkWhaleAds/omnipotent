@@ -24,6 +24,9 @@ variables {
   super_admin_emails  = ["admin@example.com"]
   alarm_email         = "ops@example.com"
   monthly_budget_usd  = 200
+  # Production resolves its callers through omnipass (D43), which needs a machine account: the
+  # variable has no default, so every plan names one.
+  omnipass_client_id = "omnipass-machine-client-id"
 }
 
 run "plan_with_defaults" {
@@ -159,10 +162,11 @@ run "apply_with_defaults" {
   assert {
     condition = (
       local.common_environment["SECRETS_PREFIX"] == "omnipotent/prod" &&
-      output.secrets_to_fill == {} &&
-      length(local.app_secrets) == 0
+      output.secrets_to_fill == { omnipass_client_secret = "omnipotent/prod/omnipass/client-secret" } &&
+      length(local.app_secrets) == 0 &&
+      local.common_environment["OMNIPASS_SECRET_NAME"] == "omnipass/client-secret"
     )
-    error_message = "No phase has declared a credential yet: no container, and nothing injected but the database password without IAM authentication."
+    error_message = "One container to fill by hand, the machine account on omnipass, and nothing injected into the tasks: the backend reads its value through the SDK, never through an environment variable."
   }
 
   assert {

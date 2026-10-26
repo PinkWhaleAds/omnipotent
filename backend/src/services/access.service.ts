@@ -36,7 +36,7 @@ export type OrganizationAccess = {
  *
  * **The signatures of this interface are the contract between the two projects**
  * (`~/OmniAd/omnipass/docs/message-socle-omnipotent.md` § 2): omnipass publishes
- * `@omnilor/omnipass-client` with exactly these, so replacing the local stub is one line in
+ * `@multisearchad/omnipass-client` with exactly these, so replacing the local stub is one line in
  * {@link accessServicePlugin} and nothing in the domain. If one of them gets in the way, raise it
  * instead of adapting it here — a divergence found late is paid at the worst moment.
  *
@@ -253,7 +253,7 @@ export class LocalAccessService implements AccessService {
  * Refuses to start when production is configured with a provider other than omnipass (D43), and
  * warns loudly otherwise, because the stub grants every Organization.
  *
- * The day `@omnilor/omnipass-client` ships (phase 7 of omnipass), only the line building the
+ * The day `@multisearchad/omnipass-client` ships (phase 7 of omnipass), only the line building the
  * service changes; nothing in the domain does.
  *
  * @param fastify - The Fastify instance to decorate

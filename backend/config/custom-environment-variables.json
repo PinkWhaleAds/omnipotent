@@ -94,6 +94,12 @@
       "__format": "json"
     }
   },
+  "Omnipass": {
+    "url": "OMNIPASS_URL",
+    "audience": "OMNIPASS_AUDIENCE",
+    "clientId": "OMNIPASS_CLIENT_ID",
+    "secretName": "OMNIPASS_SECRET_NAME"
+  },
   "Storage": {
     "endpoint": "S3_ENDPOINT",
     "region": "S3_REGION",
