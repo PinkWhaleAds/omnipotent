@@ -5,6 +5,7 @@
  * Provides centralized access to common utility types, Zod schemas of the API resources and
  * Fastify-specific type extensions.
  */
+export * from './ad-account.types';
 export * from './advertiser.types';
 export * from './ad-group.types';
 export * from './api.types';

@@ -36,6 +36,11 @@ export const MCP_INSTRUCTIONS: string = [
   'get-creative-formats describes with the payload and the asset roles each couple needs — and its',
   'versions are immutable: a change is a new version, which delivers once activated, so delivery never',
   'stops while a platform revalidates.',
+  'A campaign reaches a platform through a connected account: the Organization connects it, the client',
+  'accepts the access, and each brand is linked to one account per platform and per currency with its',
+  'identity there. A connected account is not usable until its access is active. Credentials are posted',
+  'from the web interface or the HTTP API only: an API key or a token must never transit through a',
+  'conversation, so never ask the user for one.',
   'Org-scoped tools take an organizationId; ask the user which Organization to use when there are several.',
   'Roles: viewer reads, manager edits, admin also manages members.',
 ].join(' ');

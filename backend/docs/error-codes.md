@@ -315,6 +315,25 @@ cela, et `(targetingGroup, creative)` unique côté Line empêche la même créa
 un même ciblage (`line_creative_duplicated` est l'erreur de la phase de la preview, la base la
 refusant déjà).
 
+## Les comptes plateformes
+
+`src/services/ad-account.service.ts` (phase 7, `docs/phase-7.md` § 7).
+
+| Code                            | Statut | Quand                                                               | `params`                 |
+| ------------------------------- | ------ | ------------------------------------------------------------------- | ------------------------ |
+| `ad_account_transition_invalid` | 400    | La table des transitions ne nomme pas ce passage                    | `from`, `to`             |
+| `ad_account_unusable`           | 400    | Relier une marque à un compte dont l'accès n'est plus valide        | `status`, `statusReason` |
+| `ad_account_not_found`          | 404    | Absent, déconnecté, ou d'une autre Organization                     | `{}`                     |
+| `ad_account_not_deleted`        | 409    | `restore` sur un compte connecté                                    | `{}`                     |
+| `ad_account_already_connected`  | 409    | Cette Organization a déjà ce compte sur cette plateforme            | `platform`, `externalId` |
+| `advertiser_account_exists`     | 409    | Cette marque a déjà un compte pour cette plateforme et cette devise | `platform`, `currency`   |
+| `advertiser_account_not_found`  | 404    | Lien absent, ou d'une autre Organization                            | `{}`                     |
+
+La **devise** d'un compte ne figure pas dans son corps de mise à jour : les montants déjà poussés y
+sont exprimés, donc un compte d'une autre devise est un autre compte — l'envoyer est un
+`validation_failed`. Et il n'existe **aucun code** au sujet d'un credential : sa valeur n'est jamais
+lue, donc jamais refusée ; l'API ne dit que `hasCredentials`.
+
 ## Limite de débit
 
 `src/plugins/rate-limit.plugin.ts` (routes HTTP) et `src/mcp/tool-rate-limit.ts` (tools MCP, sur la limite de la route qu'ils reflètent).

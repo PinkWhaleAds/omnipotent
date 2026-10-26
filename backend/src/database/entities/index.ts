@@ -8,6 +8,8 @@
  * foreign key across the two databases (T4).
  */
 import { AdGroupEntity } from './ad-group.entity';
+import { AdAccountEntity } from './ad-account.entity';
+import { AdvertiserAdAccountEntity } from './advertiser-ad-account.entity';
 import { AdvertiserEntity } from './advertiser.entity';
 import { AssetEntity } from './asset.entity';
 import { BudgetDayEntity } from './budget-day.entity';
@@ -24,6 +26,8 @@ import { ListEntity } from './list.entity';
 import { TargetingGroupEntity } from './targeting-group.entity';
 
 export * from './ad-group.entity';
+export * from './ad-account.entity';
+export * from './advertiser-ad-account.entity';
 export * from './advertiser.entity';
 export * from './asset.entity';
 export * from './base.entity';
@@ -43,6 +47,8 @@ export * from './targeting-group.entity';
 /** Every entity registered on the data source. Add new entities here. */
 export const ENTITIES: (new () => unknown)[] = [
   AdvertiserEntity,
+  AdAccountEntity,
+  AdvertiserAdAccountEntity,
   LabelEntity,
   LabelAssignmentEntity,
   CampaignEntity,

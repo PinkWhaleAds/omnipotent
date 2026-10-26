@@ -3,6 +3,7 @@ import type { DataSource } from 'typeorm';
 
 import type {
   AccessService,
+  AdAccountService,
   AdGroupService,
   AdvertiserService,
   AssetService,
@@ -87,6 +88,7 @@ declare module 'fastify' {
     lineService: LineService;
     /** The daily curve of any node of the tree, and its pacing. */
     budgetCurveService: BudgetCurveService;
+    adAccountService: AdAccountService;
     assetService: AssetService;
     creativeService: CreativeService;
     targetingService: TargetingService;

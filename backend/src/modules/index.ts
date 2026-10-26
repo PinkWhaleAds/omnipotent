@@ -10,6 +10,7 @@ import fastifyPlugin from 'fastify-plugin';
 
 import AdGroupController from './ad-group/ad-group.controller';
 import AdvertiserController from './advertiser/advertiser.controller';
+import AdAccountController from './ad-account/ad-account.controller';
 import AssetController from './asset/asset.controller';
 import BudgetDayController from './budget-day/budget-day.controller';
 import CreativeController from './creative/creative.controller';
@@ -72,6 +73,8 @@ async function registerControllers(fastify: FastifyInstance): Promise<void> {
   // The library of an Advertiser: the bytes, then what is assembled from them.
   await fastify.register(AssetController);
   await fastify.register(CreativeController);
+  // The platform accounts and the sub-advertisers.
+  await fastify.register(AdAccountController);
 }
 
 /**

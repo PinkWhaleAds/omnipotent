@@ -5,6 +5,7 @@
  * Services contain the shared business logic consumed by HTTP controllers, MCP tools and job handlers.
  */
 export * from './access.service';
+export * from './ad-account.service';
 export * from './ad-group.service';
 export * from './advertiser.service';
 export * from './asset.service';

@@ -10,6 +10,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpContext } from '@src/types';
 import AdGroupToolsController from './ad-group/ad-group.controller';
 import AdvertiserToolsController from './advertiser/advertiser.controller';
+import AdAccountToolsController from './ad-account/ad-account.controller';
 import AssetToolsController from './asset/asset.controller';
 import BudgetDayToolsController from './budget-day/budget-day.controller';
 import CreativeToolsController from './creative/creative.controller';
@@ -52,4 +53,6 @@ export function registerToolControllers(server: McpServer, fastify: FastifyInsta
   // The library of an Advertiser: the bytes, then what is assembled from them.
   AssetToolsController(server, fastify, context);
   CreativeToolsController(server, fastify, context);
+  // The platform accounts and the sub-advertisers; the credentials have no tool, by design.
+  AdAccountToolsController(server, fastify, context);
 }

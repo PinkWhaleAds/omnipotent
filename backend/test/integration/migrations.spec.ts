@@ -10,7 +10,9 @@ import { connectIntegrationDatabase, truncateAll } from './database.utils';
  * nobody declared — fails this suite.
  */
 const APPLICATION_TABLES: string[] = [
+  'ad_accounts',
   'ad_groups',
+  'advertiser_ad_accounts',
   'advertisers',
   'assets',
   'budget_days',

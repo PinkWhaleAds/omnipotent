@@ -43,7 +43,8 @@ type ServiceName =
   | 'listService'
   | 'keywordService'
   | 'assetService'
-  | 'creativeService';
+  | 'creativeService'
+  | 'adAccountService';
 
 /** A fake Fastify instance: every service method is a jest mock. */
 type FakeServices = Record<ServiceName, Record<string, jest.Mock>>;
@@ -392,6 +393,149 @@ const ASSET_QUERY = {
 
 /** The query a list of creatives receives once the defaults of its schema apply. */
 const CREATIVE_QUERY = { ...ASSET_QUERY, sortBy: 'name' };
+
+/** What the platform account tools answer. */
+const AD_ACCOUNT = {
+  id: 'ff000000-0000-4000-8000-000000000001',
+  organizationId: IDS.organization,
+  platform: 'dv360',
+  externalId: '123456',
+  name: 'DV360 — Omnilor',
+  currency: 'EUR',
+  timezone: 'Europe/Paris',
+  status: 'pending',
+  statusReason: 'link_requested',
+  scope: { partnerId: '987' },
+  hasCredentials: false,
+  createdAt: NOW.toISOString(),
+  updatedAt: NOW.toISOString(),
+  deletedAt: null,
+};
+
+/** What the link tools answer. */
+const ADVERTISER_ACCOUNT = {
+  id: 'ff000000-0000-4000-8000-000000000002',
+  organizationId: IDS.organization,
+  advertiserId: PARENT_ID,
+  platform: 'dv360',
+  currency: 'EUR',
+  adAccountId: AD_ACCOUNT.id,
+  externalAdvertiserId: '555',
+  createdAt: NOW.toISOString(),
+  updatedAt: NOW.toISOString(),
+};
+
+/** The query a list of accounts receives once the defaults of its schema apply. */
+const AD_ACCOUNT_QUERY = { page: 1, limit: 50, sortBy: 'name', sortOrder: 'asc', includeDeleted: false };
+
+/** The tool calls of the platform accounts (`backend/docs/phase-7.md` § 6). */
+const AD_ACCOUNT_CASES: ToolCase[] = [
+  {
+    tool: 'list-ad-accounts',
+    args: {},
+    service: 'adAccountService',
+    method: 'list',
+    answer: { items: [AD_ACCOUNT], total: 1, page: 1, limit: 50 },
+    expected: [AD_ACCOUNT_QUERY],
+  },
+  {
+    tool: 'get-ad-account',
+    args: { adAccountId: AD_ACCOUNT.id },
+    service: 'adAccountService',
+    method: 'get',
+    answer: AD_ACCOUNT,
+    expected: [AD_ACCOUNT.id],
+  },
+  {
+    tool: 'connect-ad-account',
+    args: {
+      platform: 'dv360',
+      externalId: '123456',
+      name: 'DV360 — Omnilor',
+      currency: 'EUR',
+      timezone: 'Europe/Paris',
+      scope: { partnerId: '987' },
+    },
+    service: 'adAccountService',
+    method: 'connect',
+    answer: AD_ACCOUNT,
+    expected: [
+      {
+        platform: 'dv360',
+        externalId: '123456',
+        name: 'DV360 — Omnilor',
+        currency: 'EUR',
+        timezone: 'Europe/Paris',
+        scope: { partnerId: '987' },
+      },
+    ],
+  },
+  {
+    tool: 'update-ad-account',
+    args: { adAccountId: AD_ACCOUNT.id, name: 'DV360 — production' },
+    service: 'adAccountService',
+    method: 'update',
+    answer: AD_ACCOUNT,
+    expected: [AD_ACCOUNT.id, { name: 'DV360 — production' }],
+  },
+  {
+    tool: 'set-ad-account-status',
+    args: { adAccountId: AD_ACCOUNT.id, status: 'active' },
+    service: 'adAccountService',
+    method: 'setStatus',
+    answer: { ...AD_ACCOUNT, status: 'active', statusReason: null },
+    expected: [AD_ACCOUNT.id, { status: 'active' }],
+  },
+  {
+    tool: 'disconnect-ad-account',
+    args: { adAccountId: AD_ACCOUNT.id },
+    service: 'adAccountService',
+    method: 'disconnect',
+    answer: { id: AD_ACCOUNT.id, deletedAt: NOW.toISOString() },
+    expected: [AD_ACCOUNT.id],
+  },
+  {
+    tool: 'restore-ad-account',
+    args: { adAccountId: AD_ACCOUNT.id },
+    service: 'adAccountService',
+    method: 'restore',
+    answer: { id: AD_ACCOUNT.id, deletedAt: null },
+    expected: [AD_ACCOUNT.id],
+  },
+  {
+    tool: 'list-advertiser-ad-accounts',
+    args: { advertiserId: PARENT_ID },
+    service: 'adAccountService',
+    method: 'listForAdvertiser',
+    answer: [ADVERTISER_ACCOUNT],
+    structured: { items: [ADVERTISER_ACCOUNT] },
+    expected: [PARENT_ID],
+  },
+  {
+    tool: 'link-advertiser-ad-account',
+    args: { advertiserId: PARENT_ID, adAccountId: AD_ACCOUNT.id, externalAdvertiserId: '555' },
+    service: 'adAccountService',
+    method: 'link',
+    answer: ADVERTISER_ACCOUNT,
+    expected: [PARENT_ID, { adAccountId: AD_ACCOUNT.id, externalAdvertiserId: '555' }],
+  },
+  {
+    tool: 'update-advertiser-ad-account',
+    args: { linkId: ADVERTISER_ACCOUNT.id, externalAdvertiserId: '666' },
+    service: 'adAccountService',
+    method: 'updateLink',
+    answer: ADVERTISER_ACCOUNT,
+    expected: [ADVERTISER_ACCOUNT.id, { externalAdvertiserId: '666' }],
+  },
+  {
+    tool: 'unlink-advertiser-ad-account',
+    args: { linkId: ADVERTISER_ACCOUNT.id },
+    service: 'adAccountService',
+    method: 'unlink',
+    answer: { id: ADVERTISER_ACCOUNT.id, deletedAt: NOW.toISOString() },
+    expected: [ADVERTISER_ACCOUNT.id],
+  },
+];
 
 /** The tool calls of the library of an Advertiser (`backend/docs/phase-6.md` § 7). */
 const LIBRARY_CASES: ToolCase[] = [
@@ -1118,6 +1262,7 @@ const TOOL_CASES: ToolCase[] = [
   ...TREE_LEVELS.flatMap(curveCases),
   ...TARGETING_CASES,
   ...LIBRARY_CASES,
+  ...AD_ACCOUNT_CASES,
 ];
 
 /** The bulk tools, with the route whose limit they are counted on. */
@@ -1204,6 +1349,19 @@ function fakeServices(): FakeServices {
     },
     listService: { ...crud(), duplicate: jest.fn(), move: jest.fn() },
     assetService: { ...crud(), upload: jest.fn() },
+    adAccountService: {
+      list: jest.fn(),
+      get: jest.fn(),
+      connect: jest.fn(),
+      update: jest.fn(),
+      setStatus: jest.fn(),
+      disconnect: jest.fn(),
+      restore: jest.fn(),
+      listForAdvertiser: jest.fn(),
+      link: jest.fn(),
+      updateLink: jest.fn(),
+      unlink: jest.fn(),
+    },
     creativeService: {
       ...crud(),
       listVersions: jest.fn(),
@@ -1299,6 +1457,14 @@ describe('Unit::Mcp::McpToolsE2E', () => {
           })
         );
       }
+    });
+
+    it('should expose no tool that reads or writes a credential', (): void => {
+      // A secret must not pass through an assistant's conversation (`../../CADRAGE.md` § 12): the two
+      // credential routes have no tool, and no tool names one.
+      const forbidden = /credential|secret|api[-_]?key|token/i;
+
+      expect(EXPECTED_TOOLS.filter((tool: string): boolean => forbidden.test(tool))).toEqual([]);
     });
 
     it('should cover every org-scoped tool of the phase with a call', (): void => {

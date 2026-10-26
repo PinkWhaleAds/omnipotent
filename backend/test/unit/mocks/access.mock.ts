@@ -73,6 +73,8 @@ export async function buildServiceApp(
     labels?: unknown;
     /** The object storage, for a plugin that depends on `StorageServicePlugin`. */
     storage?: unknown;
+    /** The secret store, for a plugin that depends on `SecretStorePlugin`. */
+    secrets?: unknown;
   }
 ): Promise<FastifyInstance> {
   const app: FastifyInstance = Fastify();
@@ -111,6 +113,16 @@ export async function buildServiceApp(
           instance.decorate('storageService', dependencies.storage as never);
         },
         { name: 'StorageServicePlugin' }
+      )
+    );
+  }
+  if (dependencies.secrets !== undefined) {
+    await app.register(
+      fastifyPlugin(
+        async (instance: FastifyInstance): Promise<void> => {
+          instance.decorate('secretStore', dependencies.secrets as never);
+        },
+        { name: 'SecretStorePlugin' }
       )
     );
   }
