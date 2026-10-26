@@ -1,7 +1,7 @@
 {
   "name": "omnipotent",
   "version": "0.0.0",
-  "description": "Multi-platform media buying API \u2014 backend",
+  "description": "Multi-platform media buying API — backend",
   "main": "dist/index.js",
   "engines": {
     "pnpm": ">=10.0.0",
@@ -54,6 +54,7 @@
     "config": "^4.4.2",
     "fastify": "^5.12.7",
     "fastify-plugin": "^5.1.0",
+    "image-size": "^2.0.4",
     "jsonwebtoken": "^9.0.3",
     "pg": "^8.23.1",
     "pg-boss": "^12.38.0",

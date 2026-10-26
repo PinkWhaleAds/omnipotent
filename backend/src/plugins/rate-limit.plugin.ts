@@ -56,6 +56,12 @@ export const ROUTE_RATE_LIMITS: Readonly<Record<string, RateLimit | false>> = {
   'PATCH /campaigns/bulk': BULK_RATE_LIMIT,
   'DELETE /campaigns/bulk': BULK_RATE_LIMIT,
   'POST /campaigns/bulk/restore': BULK_RATE_LIMIT,
+  'POST /advertisers/:id/creatives/bulk': BULK_RATE_LIMIT,
+  'PATCH /creatives/bulk': BULK_RATE_LIMIT,
+  'DELETE /creatives/bulk': BULK_RATE_LIMIT,
+  'POST /creatives/bulk/restore': BULK_RATE_LIMIT,
+  // An upload carries megabytes: it is limited like a bulk, for the same reason.
+  'POST /advertisers/:id/assets': BULK_RATE_LIMIT,
   'POST /lists/bulk': BULK_RATE_LIMIT,
   'PATCH /lists/bulk': BULK_RATE_LIMIT,
   'DELETE /lists/bulk': BULK_RATE_LIMIT,

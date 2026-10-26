@@ -69,6 +69,8 @@ export type QueryBuilderMock = {
   execute: jest.Mock;
   innerJoinAndMapOne: jest.Mock;
   withDeleted: jest.Mock;
+  innerJoin: jest.Mock;
+  leftJoin: jest.Mock;
   where: jest.Mock;
   andWhere: jest.Mock;
   orderBy: jest.Mock;
@@ -121,6 +123,8 @@ export function createQueryBuilderMock(alias = ''): QueryBuilderMock {
     'values',
     'orIgnore',
     'innerJoinAndMapOne',
+    'innerJoin',
+    'leftJoin',
     'withDeleted',
     'where',
     'andWhere',

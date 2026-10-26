@@ -41,7 +41,9 @@ type ServiceName =
   | 'budgetCurveService'
   | 'targetingService'
   | 'listService'
-  | 'keywordService';
+  | 'keywordService'
+  | 'assetService'
+  | 'creativeService';
 
 /** A fake Fastify instance: every service method is a jest mock. */
 type FakeServices = Record<ServiceName, Record<string, jest.Mock>>;
@@ -324,6 +326,269 @@ const KEYWORD = {
 
 /** The query a list of lists receives once the defaults of its schema apply. */
 const LIST_QUERY = { page: 1, limit: 50, sortBy: 'name', sortOrder: 'asc', includeDeleted: false };
+
+/** What the asset tools answer. */
+const ASSET = {
+  id: 'fc000000-0000-4000-8000-000000000001',
+  organizationId: IDS.organization,
+  advertiserId: PARENT_ID,
+  fileName: 'banniere.png',
+  kind: 'image',
+  mimeType: 'image/png',
+  sizeBytes: 2048,
+  width: 300,
+  height: 250,
+  durationMs: null,
+  fingerprint: 'a'.repeat(64),
+  provenance: 'uploaded',
+  aiGenerationId: null,
+  downloadUrl: 'https://storage.test/banniere.png',
+  labels: [],
+  createdAt: NOW.toISOString(),
+  updatedAt: NOW.toISOString(),
+  deletedAt: null,
+};
+
+/** What the version tools answer. */
+const VERSION = {
+  id: 'fd000000-0000-4000-8000-000000000001',
+  creativeId: 'fe000000-0000-4000-8000-000000000001',
+  version: 1,
+  payload: { altText: 'Bannière' },
+  assets: [{ role: 'image', assetId: ASSET.id }],
+  trackers: [],
+  active: true,
+  createdAt: NOW.toISOString(),
+};
+
+/** What the creative tools answer. */
+const CREATIVE = {
+  id: VERSION.creativeId,
+  organizationId: IDS.organization,
+  advertiserId: PARENT_ID,
+  name: 'Bannière 300x250',
+  format: 'display',
+  subtype: 'image',
+  iabCategories: [],
+  iabTaxonomyVersion: null,
+  clickThroughUrl: null,
+  activeVersion: VERSION,
+  versionCount: 1,
+  labels: [],
+  createdAt: NOW.toISOString(),
+  updatedAt: NOW.toISOString(),
+  deletedAt: null,
+};
+
+/** The query a list of assets receives once the defaults of its schema apply. */
+const ASSET_QUERY = {
+  page: 1,
+  limit: 50,
+  sortBy: 'createdAt',
+  sortOrder: 'asc',
+  includeDeleted: false,
+  labelMode: 'any',
+};
+
+/** The query a list of creatives receives once the defaults of its schema apply. */
+const CREATIVE_QUERY = { ...ASSET_QUERY, sortBy: 'name' };
+
+/** The tool calls of the library of an Advertiser (`backend/docs/phase-6.md` § 7). */
+const LIBRARY_CASES: ToolCase[] = [
+  {
+    tool: 'list-assets',
+    args: { advertiserId: PARENT_ID },
+    service: 'assetService',
+    method: 'list',
+    answer: { items: [ASSET], total: 1, page: 1, limit: 50 },
+    expected: [PARENT_ID, ASSET_QUERY],
+  },
+  {
+    tool: 'get-asset',
+    args: { assetId: ASSET.id },
+    service: 'assetService',
+    method: 'get',
+    answer: ASSET,
+    expected: [ASSET.id],
+  },
+  {
+    tool: 'upload-asset',
+    args: { advertiserId: PARENT_ID, fileName: 'banniere.png', mimeType: 'image/png', base64: 'aGVsbG8=' },
+    service: 'assetService',
+    method: 'upload',
+    answer: { asset: ASSET, created: true },
+    structured: ASSET,
+    expected: [PARENT_ID, { fileName: 'banniere.png', mimeType: 'image/png', data: Buffer.from('aGVsbG8=', 'base64') }],
+  },
+  {
+    tool: 'update-asset',
+    args: { assetId: ASSET.id, fileName: 'banniere-automne.png' },
+    service: 'assetService',
+    method: 'update',
+    answer: ASSET,
+    expected: [ASSET.id, { fileName: 'banniere-automne.png' }],
+  },
+  {
+    tool: 'delete-asset',
+    args: { assetId: ASSET.id },
+    service: 'assetService',
+    method: 'delete',
+    answer: { id: ASSET.id, deletedAt: NOW.toISOString() },
+    expected: [ASSET.id],
+  },
+  {
+    tool: 'restore-asset',
+    args: { assetId: ASSET.id },
+    service: 'assetService',
+    method: 'restore',
+    answer: { id: ASSET.id, deletedAt: null },
+    expected: [ASSET.id],
+  },
+  {
+    tool: 'set-asset-labels',
+    args: { assetId: ASSET.id, labelIds: [] },
+    service: 'assetService',
+    method: 'setLabels',
+    answer: ASSET,
+    expected: [ASSET.id, { labelIds: [] }],
+  },
+  {
+    tool: 'list-creatives',
+    args: { advertiserId: PARENT_ID },
+    service: 'creativeService',
+    method: 'list',
+    answer: { items: [CREATIVE], total: 1, page: 1, limit: 50 },
+    expected: [PARENT_ID, CREATIVE_QUERY],
+  },
+  {
+    tool: 'get-creative',
+    args: { creativeId: CREATIVE.id },
+    service: 'creativeService',
+    method: 'get',
+    answer: CREATIVE,
+    expected: [CREATIVE.id],
+  },
+  {
+    tool: 'create-creative',
+    args: {
+      advertiserId: PARENT_ID,
+      name: 'Bannière 300x250',
+      format: 'display',
+      subtype: 'image',
+      version: { payload: { altText: 'Bannière' }, assets: [{ role: 'image', assetId: ASSET.id }] },
+    },
+    service: 'creativeService',
+    method: 'create',
+    answer: CREATIVE,
+    expected: [PARENT_ID, expect.objectContaining({ name: 'Bannière 300x250', format: 'display' })],
+  },
+  {
+    tool: 'update-creative',
+    args: { creativeId: CREATIVE.id, name: 'Bannière automne' },
+    service: 'creativeService',
+    method: 'update',
+    answer: CREATIVE,
+    expected: [CREATIVE.id, { name: 'Bannière automne' }],
+  },
+  {
+    tool: 'delete-creative',
+    args: { creativeId: CREATIVE.id },
+    service: 'creativeService',
+    method: 'delete',
+    answer: { id: CREATIVE.id, deletedAt: NOW.toISOString() },
+    expected: [CREATIVE.id],
+  },
+  {
+    tool: 'restore-creative',
+    args: { creativeId: CREATIVE.id },
+    service: 'creativeService',
+    method: 'restore',
+    answer: { id: CREATIVE.id, deletedAt: null },
+    expected: [CREATIVE.id],
+  },
+  {
+    tool: 'set-creative-labels',
+    args: { creativeId: CREATIVE.id, labelIds: [] },
+    service: 'creativeService',
+    method: 'setLabels',
+    answer: CREATIVE,
+    expected: [CREATIVE.id, { labelIds: [] }],
+  },
+  {
+    tool: 'list-creative-versions',
+    args: { creativeId: CREATIVE.id },
+    service: 'creativeService',
+    method: 'listVersions',
+    answer: { items: [VERSION], total: 1, page: 1, limit: 50 },
+    expected: [CREATIVE.id, { page: 1, limit: 50 }],
+  },
+  {
+    tool: 'create-creative-version',
+    args: { creativeId: CREATIVE.id, payload: { altText: 'Bannière' } },
+    service: 'creativeService',
+    method: 'createVersion',
+    answer: VERSION,
+    expected: [CREATIVE.id, { payload: { altText: 'Bannière' }, assets: [], trackers: [] }],
+  },
+  {
+    tool: 'get-creative-version',
+    args: { versionId: VERSION.id },
+    service: 'creativeService',
+    method: 'getVersion',
+    answer: VERSION,
+    expected: [VERSION.id],
+  },
+  {
+    tool: 'activate-creative-version',
+    args: { versionId: VERSION.id },
+    service: 'creativeService',
+    method: 'activateVersion',
+    answer: VERSION,
+    expected: [VERSION.id],
+  },
+  {
+    tool: 'bulk-create-creatives',
+    args: {
+      advertiserId: PARENT_ID,
+      items: [
+        {
+          name: 'Bannière 300x250',
+          format: 'display',
+          subtype: 'image',
+          version: { payload: { altText: 'Bannière' } },
+        },
+      ],
+    },
+    service: 'creativeService',
+    method: 'bulkCreate',
+    answer: { items: [CREATIVE], failed: [] },
+    expected: [PARENT_ID, expect.objectContaining({ mode: 'atomic' })],
+  },
+  {
+    tool: 'bulk-update-creatives',
+    args: { items: [{ id: CREATIVE.id, name: 'Bannière automne' }] },
+    service: 'creativeService',
+    method: 'bulkUpdate',
+    answer: { items: [CREATIVE], failed: [] },
+    expected: [{ mode: 'atomic', items: [{ id: CREATIVE.id, name: 'Bannière automne' }] }],
+  },
+  {
+    tool: 'bulk-delete-creatives',
+    args: { ids: [CREATIVE.id] },
+    service: 'creativeService',
+    method: 'bulkDelete',
+    answer: { items: [{ id: CREATIVE.id, deletedAt: NOW.toISOString() }], failed: [] },
+    expected: [{ mode: 'atomic', ids: [CREATIVE.id] }],
+  },
+  {
+    tool: 'bulk-restore-creatives',
+    args: { ids: [CREATIVE.id] },
+    service: 'creativeService',
+    method: 'bulkRestore',
+    answer: { items: [{ id: CREATIVE.id, deletedAt: null }], failed: [] },
+    expected: [{ mode: 'atomic', ids: [CREATIVE.id] }],
+  },
+];
 
 /** The tool calls of the targeting, the lists and the keywords (`backend/docs/phase-5.md` § 7). */
 const TARGETING_CASES: ToolCase[] = [
@@ -662,6 +927,13 @@ type ToolCase = {
   method: string;
   answer: object;
   expected: unknown[];
+  /**
+   * What the tool answers, when it is not what the service returned.
+   *
+   * Only `upload-asset` needs it: its service says **whether the bytes were new**, which the HTTP
+   * route turns into a 201 or a 200, while the tool answers the asset alone.
+   */
+  structured?: object;
 };
 
 /** Every org-scoped tool of the phase, with the call it must make. */
@@ -845,6 +1117,7 @@ const TOOL_CASES: ToolCase[] = [
   ...TREE_LEVELS.flatMap(treeLevelCases),
   ...TREE_LEVELS.flatMap(curveCases),
   ...TARGETING_CASES,
+  ...LIBRARY_CASES,
 ];
 
 /** The bulk tools, with the route whose limit they are counted on. */
@@ -930,6 +1203,14 @@ function fakeServices(): FakeServices {
       removeDimension: jest.fn(),
     },
     listService: { ...crud(), duplicate: jest.fn(), move: jest.fn() },
+    assetService: { ...crud(), upload: jest.fn() },
+    creativeService: {
+      ...crud(),
+      listVersions: jest.fn(),
+      createVersion: jest.fn(),
+      getVersion: jest.fn(),
+      activateVersion: jest.fn(),
+    },
     keywordService: { list: jest.fn(), add: jest.fn(), update: jest.fn(), remove: jest.fn() },
   };
 }
@@ -1024,6 +1305,7 @@ describe('Unit::Mcp::McpToolsE2E', () => {
       const covered: string[] = [
         'get-status',
         'get-targeting-dimensions',
+        'get-creative-formats',
         ...TOOL_CASES.map((toolCase: ToolCase): string => toolCase.tool),
       ];
 
@@ -1043,13 +1325,13 @@ describe('Unit::Mcp::McpToolsE2E', () => {
 
     it.each(TOOL_CASES)(
       'should call the service of $tool with the caller, the Organization and what the model sent',
-      async ({ tool, args, service, method, answer, expected }: ToolCase): Promise<void> => {
+      async ({ tool, args, service, method, answer, expected, structured }: ToolCase): Promise<void> => {
         services[service][method].mockResolvedValue(answer);
 
         const result: ToolCallResult = await connection.client.callTool({ name: tool, arguments: args });
 
         expect(result.isError).toBeFalsy();
-        expect(result.structuredContent).toEqual(answer);
+        expect(result.structuredContent).toEqual(structured ?? answer);
         expect(services[service][method]).toHaveBeenCalledWith(JANE, IDS.organization, ...expected);
       }
     );
@@ -1068,6 +1350,21 @@ describe('Unit::Mcp::McpToolsE2E', () => {
       expect(catalog.dimensions).toEqual(
         expect.arrayContaining([expect.objectContaining({ dimension: 'country', family: 'include_exclude' })])
       );
+    });
+
+    it('should answer the registry of creative formats without naming an Organization', async (): Promise<void> => {
+      const result: ToolCallResult = await connection.client.callTool({
+        name: 'get-creative-formats',
+        arguments: {},
+      });
+
+      expect(result.isError).toBeFalsy();
+      const catalog = result.structuredContent as { couples: { format: string; subtype: string }[] };
+      expect(catalog.couples).toEqual(
+        expect.arrayContaining([expect.objectContaining({ format: 'display', subtype: 'image' })])
+      );
+      // The two subtypes no platform of our references accepts are absent (L20).
+      expect(catalog.couples.map((couple): string => couple.subtype)).not.toContain('html5');
     });
 
     it('should prefer the Organization the model names to the one of the connection', async (): Promise<void> => {

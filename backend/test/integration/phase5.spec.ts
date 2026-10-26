@@ -1,16 +1,8 @@
 import { DataSource, QueryFailedError } from 'typeorm';
 
-import {
-  AdGroupEntity,
-  AdvertiserEntity,
-  CampaignEntity,
-  KeywordEntity,
-  LeverEntity,
-  ListEntity,
-  TargetingGroupEntity,
-} from '@src/database/entities';
+import { KeywordEntity, ListEntity, TargetingGroupEntity } from '@src/database/entities';
 import { Targeting } from '@src/types';
-import { connectIntegrationDatabase, truncateAll } from './database.utils';
+import { connectIntegrationDatabase, seedTree, truncateAll } from './database.utils';
 
 /**
  * What only a real PostgreSQL can prove about the schema of phase 5: the **GIN** index answers which
@@ -23,90 +15,13 @@ describe('Integration::Phase5', () => {
   let targetingGroupId: string;
 
   /**
-   * Insert the chain a TargetingGroup needs — an Advertiser, a Campaign, a lever, an AdGroup — and
-   * answer the id of a TargetingGroup targeting what was asked for.
+   * Insert a campaign tree and answer the id of a TargetingGroup targeting what was asked for.
    *
    * @param targeting - What the node targets
    * @returns Its id
    */
   async function insertNode(targeting: Targeting = {}): Promise<string> {
-    const advertiser: AdvertiserEntity = await dataSource
-      .getRepository(AdvertiserEntity)
-      .save({ organizationId: ORGANIZATION, name: `Herbéa ${Math.random()}`, websiteUrl: null });
-    const campaigns = dataSource.getRepository(CampaignEntity);
-    const campaign: CampaignEntity = await campaigns.save(
-      campaigns.create({
-        organizationId: ORGANIZATION,
-        advertiserId: advertiser.id,
-        name: 'Automne',
-        status: 'draft',
-        currency: 'EUR',
-        timezone: null,
-        startsOn: '2027-01-01',
-        endsOn: '2027-01-07',
-        budgetCents: 70_000,
-        budgetVolume: null,
-        budgetVolumeUnit: null,
-        capping: null,
-        insertionOrderNumber: null,
-      })
-    );
-    const levers = dataSource.getRepository(LeverEntity);
-    const lever: LeverEntity = await levers.save(
-      levers.create({
-        organizationId: ORGANIZATION,
-        campaignId: campaign.id,
-        lever: 'dac',
-        status: 'active',
-        productsMode: false,
-        platformShares: [{ platform: 'dv360', shareBasisPoints: 10_000 }],
-        budgetCents: null,
-        budgetVolume: null,
-        budgetVolumeUnit: null,
-        startsOn: null,
-        endsOn: null,
-        capping: null,
-      })
-    );
-    const adGroups = dataSource.getRepository(AdGroupEntity);
-    const adGroup: AdGroupEntity = await adGroups.save(
-      adGroups.create({
-        organizationId: ORGANIZATION,
-        campaignId: campaign.id,
-        leverId: lever.id,
-        lever: 'dac',
-        name: 'Grand Paris',
-        status: 'active',
-        objective: 'awareness',
-        bidStrategy: 'fixed_cpm',
-        bidAmountCents: null,
-        platformShares: null,
-        budgetCents: null,
-        budgetVolume: null,
-        budgetVolumeUnit: null,
-        startsOn: null,
-        endsOn: null,
-        capping: null,
-      })
-    );
-    const nodes = dataSource.getRepository(TargetingGroupEntity);
-    const node: TargetingGroupEntity = await nodes.save(
-      nodes.create({
-        organizationId: ORGANIZATION,
-        campaignId: campaign.id,
-        adGroupId: adGroup.id,
-        lever: 'dac',
-        name: 'Île-de-France',
-        status: 'active',
-        targeting,
-        bidAmountCents: null,
-        budgetCents: null,
-        budgetVolume: null,
-        budgetVolumeUnit: null,
-        capping: null,
-      })
-    );
-    return node.id;
+    return (await seedTree(dataSource, ORGANIZATION, targeting)).targetingGroupId;
   }
 
   beforeAll(async (): Promise<void> => {

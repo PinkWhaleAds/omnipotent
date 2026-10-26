@@ -1,3 +1,4 @@
+import FastifyMultipart from '@fastify/multipart';
 import Fastify, { FastifyInstance, FastifyPluginAsync, FastifyRequest } from 'fastify';
 
 import ErrorHandlerPlugin from '@src/plugins/error-handler.plugin';
@@ -79,6 +80,9 @@ export async function closeTestApp(app: FastifyInstance): Promise<void> {
  * The error handler and the validator compiler are registered, so a spec sees the real answer of a
  * route: its status code, its validation refusals and the single error shape.
  *
+ * Uploads are served too: the multipart plugin is registered as the real server registers it, so a
+ * spec can post a file and read what the route answered.
+ *
  * @param controller - The controller under test
  * @param services - What to decorate the instance with, by decorator name (`advertiserService`…)
  * @param actor - The caller every request is authenticated as
@@ -103,6 +107,7 @@ export async function setupRouteAppForTest(
   for (const [name, service] of Object.entries(services)) app.decorate(name, service);
   await app.register(ErrorHandlerPlugin);
   await app.register(ValidationPlugin);
+  await app.register(FastifyMultipart, { limits: { fileSize: 1_048_576, files: 1, fields: 5 } });
   await app.register(controller);
   await app.ready();
   return app;

@@ -9,8 +9,12 @@
  */
 import { AdGroupEntity } from './ad-group.entity';
 import { AdvertiserEntity } from './advertiser.entity';
+import { AssetEntity } from './asset.entity';
 import { BudgetDayEntity } from './budget-day.entity';
 import { CampaignEntity } from './campaign.entity';
+import { CreativeVersionAssetEntity } from './creative-version-asset.entity';
+import { CreativeVersionEntity } from './creative-version.entity';
+import { CreativeEntity } from './creative.entity';
 import { KeywordEntity } from './keyword.entity';
 import { LabelAssignmentEntity } from './label-assignment.entity';
 import { LabelEntity } from './label.entity';
@@ -21,9 +25,13 @@ import { TargetingGroupEntity } from './targeting-group.entity';
 
 export * from './ad-group.entity';
 export * from './advertiser.entity';
+export * from './asset.entity';
 export * from './base.entity';
 export * from './budget-day.entity';
 export * from './campaign.entity';
+export * from './creative-version-asset.entity';
+export * from './creative-version.entity';
+export * from './creative.entity';
 export * from './keyword.entity';
 export * from './label-assignment.entity';
 export * from './label.entity';
@@ -45,4 +53,8 @@ export const ENTITIES: (new () => unknown)[] = [
   BudgetDayEntity,
   ListEntity,
   KeywordEntity,
+  AssetEntity,
+  CreativeEntity,
+  CreativeVersionEntity,
+  CreativeVersionAssetEntity,
 ];

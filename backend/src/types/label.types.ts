@@ -25,6 +25,8 @@ const labelColorSchema = z
  */
 export const labelResourceTypeSchema = z.enum([
   'advertiser',
+  'asset',
+  'creative',
   'campaign',
   'lever',
   'ad_group',

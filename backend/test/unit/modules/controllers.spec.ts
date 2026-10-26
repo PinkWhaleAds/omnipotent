@@ -137,6 +137,14 @@ const API_ROUTES: RouteKey[] = [
   ...crudRoutes('lists', { labels: false }),
   { method: 'POST', url: '/lists/:id/duplicate' },
   { method: 'POST', url: '/lists/:id/move' },
+  // Phase 6: the library of an Advertiser — the assets, the creatives and their versions.
+  ...nestedCrudRoutes('/advertisers/:id', 'assets', { bulk: false }),
+  { method: 'GET', url: '/creative-formats' },
+  ...nestedCrudRoutes('/advertisers/:id', 'creatives'),
+  { method: 'GET', url: '/creatives/:id/versions' },
+  { method: 'POST', url: '/creatives/:id/versions' },
+  { method: 'GET', url: '/creative-versions/:id' },
+  { method: 'POST', url: '/creative-versions/:id/activate' },
   // Phase 4: the daily curve and the pacing, on each level of the tree.
   ...curveRoutes('campaigns'),
   ...curveRoutes('levers'),

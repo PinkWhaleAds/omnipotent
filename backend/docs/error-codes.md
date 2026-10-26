@@ -274,6 +274,47 @@ erreur** — la réponse le donne tel qu'il est, donc coller deux fois la même 
 un texte refusé est rapporté par son **index** dans `failed`, comme tous les bulks ; et un mot-clé
 supprimé l'est pour de bon, la réponse disant `deleted: true` plutôt qu'une date.
 
+## La bibliothèque : assets et créas
+
+`src/services/{asset,creative}.service.ts`, `src/creatives/creative-formats.ts` (phase 6,
+`docs/phase-6.md` § 8).
+
+### Les assets
+
+| Code                     | Statut | Quand                                                  | `params`                  |
+| ------------------------ | ------ | ------------------------------------------------------ | ------------------------- |
+| `asset_too_large`        | 400    | Le fichier dépasse le plafond d'envoi                  | `maxBytes`, `sizeBytes`   |
+| `asset_type_unsupported` | 400    | Le type annoncé n'est pas accepté par la bibliothèque  | `mimeType`, `accepted`    |
+| `asset_unreadable`       | 400    | Les octets ne se lisent pas comme l'image annoncée     | `mimeType`                |
+| `asset_other_advertiser` | 400    | Une version réclame un asset d'un autre Advertiser     | `assetId`, `advertiserId` |
+| `asset_not_found`        | 404    | Absent, supprimé, ou d'une autre Organization          | `{}`                      |
+| `asset_not_deleted`      | 409    | `restore` sur un asset vivant                          | `{}`                      |
+| `asset_in_use`           | 409    | Suppression d'un asset qu'une version vivante utilise  | `assetId`, `creatives`    |
+| `multipart_required`     | 415    | Un envoi dont le corps n'est pas `multipart/form-data` | `{}`                      |
+
+Deux choses que le front peut compter sur : **redéposer le même fichier n'est pas une erreur** — la
+réponse est l'asset déjà là, en **200** au lieu de **201** —, et un asset qu'une créa tient ne se
+supprime jamais en silence : le refus dit combien de créas le retiennent.
+
+### Les créas et leurs versions
+
+| Code                          | Statut | Quand                                                | `params`                      |
+| ----------------------------- | ------ | ---------------------------------------------------- | ----------------------------- |
+| `creative_couple_unknown`     | 400    | Le couple `(format, subtype)` n'est pas au registre  | `format`, `subtype`           |
+| `creative_payload_invalid`    | 400    | La charge utile ne passe pas le schéma de son couple | `format`, `subtype`, `reason` |
+| `creative_asset_role_missing` | 400    | Un rôle d'asset que le couple exige manque           | `role`, `format`, `subtype`   |
+| `creative_asset_role_unknown` | 400    | Un rôle que le couple n'attend pas                   | `role`, `format`, `subtype`   |
+| `creative_not_found`          | 404    | Absente, supprimée, ou d'une autre Organization      | `{}`                          |
+| `creative_version_not_found`  | 404    | Absente, ou d'une autre Organization                 | `{}`                          |
+| `creative_not_deleted`        | 409    | `restore` sur une créa vivante                       | `{}`                          |
+
+Le `format` et le `subtype` ne figurent pas dans le corps de mise à jour : les changer invaliderait
+la charge utile de toutes les versions, donc c'est une autre créa — l'envoyer est un
+`validation_failed`. Une version ne se modifie ni ne se supprime : il n'y a **aucune** route pour
+cela, et `(targetingGroup, creative)` unique côté Line empêche la même créa de diffuser deux fois sur
+un même ciblage (`line_creative_duplicated` est l'erreur de la phase de la preview, la base la
+refusant déjà).
+
 ## Limite de débit
 
 `src/plugins/rate-limit.plugin.ts` (routes HTTP) et `src/mcp/tool-rate-limit.ts` (tools MCP, sur la limite de la route qu'ils reflètent).

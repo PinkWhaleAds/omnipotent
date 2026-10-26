@@ -16,7 +16,9 @@ import ValidationPlugin from '@src/plugins/validation.plugin';
 import AccessServicePlugin from '@src/services/access.service';
 import AdGroupServicePlugin from '@src/services/ad-group.service';
 import AdvertiserServicePlugin from '@src/services/advertiser.service';
+import AssetServicePlugin from '@src/services/asset.service';
 import BudgetCurveServicePlugin from '@src/services/budget-curve.service';
+import CreativeServicePlugin from '@src/services/creative.service';
 import CampaignServicePlugin from '@src/services/campaign.service';
 import HealthServicePlugin from '@src/services/health.service';
 import JobQueuePlugin from '@src/services/job-queue.service';
@@ -134,6 +136,9 @@ export class HttpServer extends Server {
     await this.fastify.register(TargetingServicePlugin);
     await this.fastify.register(ListServicePlugin);
     await this.fastify.register(KeywordServicePlugin);
+    // The library of an Advertiser: the bytes, then what is assembled from them.
+    await this.fastify.register(AssetServicePlugin);
+    await this.fastify.register(CreativeServicePlugin);
 
     if (!isApi) {
       await this.fastify.register(ProbeControllers);

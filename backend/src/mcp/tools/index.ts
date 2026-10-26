@@ -10,7 +10,9 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpContext } from '@src/types';
 import AdGroupToolsController from './ad-group/ad-group.controller';
 import AdvertiserToolsController from './advertiser/advertiser.controller';
+import AssetToolsController from './asset/asset.controller';
 import BudgetDayToolsController from './budget-day/budget-day.controller';
+import CreativeToolsController from './creative/creative.controller';
 import CampaignToolsController from './campaign/campaign.controller';
 import KeywordToolsController from './keyword/keyword.controller';
 import LabelToolsController from './label/label.controller';
@@ -47,4 +49,7 @@ export function registerToolControllers(server: McpServer, fastify: FastifyInsta
   TargetingToolsController(server, fastify, context);
   ListToolsController(server, fastify, context);
   KeywordToolsController(server, fastify, context);
+  // The library of an Advertiser: the bytes, then what is assembled from them.
+  AssetToolsController(server, fastify, context);
+  CreativeToolsController(server, fastify, context);
 }

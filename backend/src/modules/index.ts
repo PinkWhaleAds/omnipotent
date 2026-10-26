@@ -10,7 +10,9 @@ import fastifyPlugin from 'fastify-plugin';
 
 import AdGroupController from './ad-group/ad-group.controller';
 import AdvertiserController from './advertiser/advertiser.controller';
+import AssetController from './asset/asset.controller';
 import BudgetDayController from './budget-day/budget-day.controller';
+import CreativeController from './creative/creative.controller';
 import CampaignController from './campaign/campaign.controller';
 import HealthController from './health/health.controller';
 import KeywordController from './keyword/keyword.controller';
@@ -67,6 +69,9 @@ async function registerControllers(fastify: FastifyInstance): Promise<void> {
   await fastify.register(TargetingController);
   await fastify.register(ListController);
   await fastify.register(KeywordController);
+  // The library of an Advertiser: the bytes, then what is assembled from them.
+  await fastify.register(AssetController);
+  await fastify.register(CreativeController);
 }
 
 /**

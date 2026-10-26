@@ -66,7 +66,14 @@ export function createAccessMock(): AccessServiceMock {
  */
 export async function buildServiceApp(
   plugins: FastifyPluginAsync[],
-  dependencies: { db: DataSourceMock; access: AccessServiceMock }
+  dependencies: {
+    db: DataSourceMock;
+    access: AccessServiceMock;
+    /** The label service, for a plugin that depends on `LabelServicePlugin`. */
+    labels?: unknown;
+    /** The object storage, for a plugin that depends on `StorageServicePlugin`. */
+    storage?: unknown;
+  }
 ): Promise<FastifyInstance> {
   const app: FastifyInstance = Fastify();
   await app.register(
@@ -85,6 +92,28 @@ export async function buildServiceApp(
       { name: 'AccessServicePlugin' }
     )
   );
+  // A service that reads labels or bytes declares those plugins as dependencies: a spec hands their
+  // doubles here, and Fastify is satisfied the same way the real server satisfies it.
+  if (dependencies.labels !== undefined) {
+    await app.register(
+      fastifyPlugin(
+        async (instance: FastifyInstance): Promise<void> => {
+          instance.decorate('labelService', dependencies.labels as never);
+        },
+        { name: 'LabelServicePlugin' }
+      )
+    );
+  }
+  if (dependencies.storage !== undefined) {
+    await app.register(
+      fastifyPlugin(
+        async (instance: FastifyInstance): Promise<void> => {
+          instance.decorate('storageService', dependencies.storage as never);
+        },
+        { name: 'StorageServicePlugin' }
+      )
+    );
+  }
   for (const plugin of plugins) await app.register(plugin);
   await app.ready();
   return app;

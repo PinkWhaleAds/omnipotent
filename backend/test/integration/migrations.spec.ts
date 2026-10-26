@@ -12,8 +12,12 @@ import { connectIntegrationDatabase, truncateAll } from './database.utils';
 const APPLICATION_TABLES: string[] = [
   'ad_groups',
   'advertisers',
+  'assets',
   'budget_days',
   'campaigns',
+  'creative_version_assets',
+  'creative_versions',
+  'creatives',
   'keywords',
   'label_assignments',
   'labels',

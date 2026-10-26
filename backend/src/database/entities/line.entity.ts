@@ -1,10 +1,12 @@
 import { Column, DeleteDateColumn, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
+import type { Tracker } from '@src/types/creative.types';
 import type { Capping, Lever, VolumeUnit } from '@src/types/lever.types';
 import type { NodeStatus } from '@src/types/tree.types';
 import { centsTransformer } from '../transformers';
 import { BaseEntity } from './base.entity';
 import { CampaignEntity } from './campaign.entity';
+import { CreativeEntity } from './creative.entity';
 import { TargetingGroupEntity } from './targeting-group.entity';
 
 /**
@@ -18,6 +20,10 @@ import { TargetingGroupEntity } from './targeting-group.entity';
  * a TargetingGroup become N RSA ads in a single Google ad group, which keeps Google's ad rotation.
  */
 @Entity({ name: 'lines' })
+@Index(['targetingGroupId', 'creativeId'], {
+  unique: true,
+  where: '"deleted_at" IS NULL AND "creative_id" IS NOT NULL',
+})
 export class LineEntity extends BaseEntity {
   /** Organization owning it, denormalized so every read is scoped. */
   @Index()
@@ -61,6 +67,31 @@ export class LineEntity extends BaseEntity {
   /** Whether it delivers. */
   @Column({ type: 'varchar', length: 16, default: 'active' })
   status!: NodeStatus;
+
+  /**
+   * The creative it serves.
+   *
+   * **Unique per `(TargetingGroup, Creative)`** among the living Lines (`../../CADRAGE.md` § 9): the
+   * same creative does not deliver twice on the same targeting. It stays nullable — a Line without a
+   * creative saves (§ 13: the incomplete is stored), and the preview refuses it at launch.
+   */
+  @Index()
+  @Column({ type: 'uuid', nullable: true })
+  creativeId!: string | null;
+
+  /** Relation to the creative; never loaded implicitly. `RESTRICT`, since deleting is soft (D19). */
+  @ManyToOne(() => CreativeEntity, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'creative_id' })
+  creative?: CreativeEntity;
+
+  /**
+   * Third-party trackers overriding those of the creative version (L18).
+   *
+   * `null` follows the version; `[]` says explicitly « none », the same distinction the capping makes
+   * (D10). Each adapter puts them where its platform expects them.
+   */
+  @Column({ type: 'jsonb', nullable: true })
+  trackers!: Tracker[] | null;
 
   /**
    * Landing page of this Line, overriding the creative's (L18).

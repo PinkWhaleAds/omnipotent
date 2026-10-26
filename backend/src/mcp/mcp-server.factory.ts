@@ -31,6 +31,11 @@ export const MCP_INSTRUCTIONS: string = [
   'to do with is refused at once. Sites, apps, devices, points of interest, screens and negative keywords',
   'are reusable lists of the Organization that a targeting references by id. Only the search lever buys',
   'keywords, posted by the hundred on a TargetingGroup.',
+  'The bytes of a creative are assets, a resource of their own in the library of an Advertiser: the same',
+  'file uploaded twice is one asset. A creative is never the bytes — it has a format and a subtype, which',
+  'get-creative-formats describes with the payload and the asset roles each couple needs — and its',
+  'versions are immutable: a change is a new version, which delivers once activated, so delivery never',
+  'stops while a platform revalidates.',
   'Org-scoped tools take an organizationId; ask the user which Organization to use when there are several.',
   'Roles: viewer reads, manager edits, admin also manages members.',
 ].join(' ');
