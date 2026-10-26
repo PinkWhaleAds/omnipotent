@@ -342,6 +342,7 @@ export class TargetingGroupService {
         levers: [lever],
         parentId: adGroupId,
         nodeId: null,
+        campaignId: parent.campaignId as string,
         // Its own amount, else its AdGroup's: that is the CPM a volume entry converts through.
         bidAmountCents: body.bidAmountCents ?? (parent.bidAmountCents as number | null),
       },

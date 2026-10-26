@@ -1,4 +1,4 @@
-import { TargetingDimension } from '@src/types';
+import { CreativeFormat, CreativeSubtype, PlatformObject, TargetingDimension, TreeLevel } from '@src/types';
 import { httpError } from '@utils';
 
 /**
@@ -13,10 +13,38 @@ import { httpError } from '@utils';
  * @property label - Display name of the platform
  * @property targeting - The targeting dimensions this couple accepts; what it is asked for and does
  *   not accept is **dropped for it**, and the preview names the loss (L2, `docs/phase-5.md` § 5)
+ * @property creatives - The `(format, subtype)` couples it accepts, spelled `format:subtype`
+ *   (D37, G6): a creative no platform of the lever accepts fails the preview, one some accept only
+ *   warns there
+ * @property projection - What each of our levels becomes there, and where it can hold a budget
+ *   (`../../CADRAGE.md` § 7)
+ * @property requiresClickThroughUrl - Whether it refuses a creative without one (G5: Hawk does,
+ *   audio included)
+ * @property requiresIabCategories - Whether it refuses a creative without content categories (L19)
  */
 export type PlatformRules = {
   label: string;
   targeting: readonly TargetingDimension[];
+  creatives: readonly `${CreativeFormat}:${CreativeSubtype}`[];
+  projection: PlatformProjection;
+  requiresClickThroughUrl: boolean;
+  requiresIabCategories: boolean;
+};
+
+/**
+ * What a platform makes of our tree (`../../CADRAGE.md` § 7).
+ *
+ * A **declaration, not code**: the preview counts the objects from this table and from the level that
+ * holds the budget, so an adapter implements nothing for the preview to work, and two platforms that
+ * project alike share the same engine (`docs/phase-8.md` § 2).
+ *
+ * @property levels - The object each of our levels becomes, `null` when it becomes none of its own
+ * @property budgetLevel - The level of **ours** whose object can hold a budget there; a node below it
+ *   carrying an explicit budget becomes its own object of that level — the split of § 7
+ */
+export type PlatformProjection = {
+  levels: Readonly<Record<TreeLevel, PlatformObject | null>>;
+  budgetLevel: TreeLevel;
 };
 
 /**
@@ -124,4 +152,64 @@ export function unsupportedDimensions(
 ): TargetingDimension[] {
   const accepted: readonly TargetingDimension[] = rulesOf(platform, lever).targeting;
   return asked.filter((dimension: TargetingDimension): boolean => !accepted.includes(dimension)).sort();
+}
+
+/**
+ * The projection of one couple.
+ *
+ * @param platform - Its id
+ * @param lever - The lever the campaign buys on
+ * @returns What that couple makes of our tree
+ * @throws Error with status 400 when the platform has no connector, or none for that lever
+ *
+ * @example
+ * ```typescript
+ * projectionOf('google_ads', 'search').budgetLevel; // 'ad_group', once the Search phase has landed
+ * ```
+ */
+export function projectionOf(platform: string, lever: string): PlatformProjection {
+  return rulesOf(platform, lever).projection;
+}
+
+/**
+ * Whether a couple accepts a creative of that shape.
+ *
+ * @param platform - Its id
+ * @param lever - The lever the campaign buys on
+ * @param format - The inventory the creative aims at
+ * @param subtype - How it reaches the platform
+ * @returns `true` when it accepts it
+ * @throws Error with status 400 when the platform has no connector, or none for that lever
+ *
+ * @example
+ * ```typescript
+ * acceptsCreative('hawk', 'dooh', 'display', 'image');
+ * ```
+ */
+export function acceptsCreative(
+  platform: string,
+  lever: string,
+  format: CreativeFormat,
+  subtype: CreativeSubtype
+): boolean {
+  return rulesOf(platform, lever).creatives.includes(`${format}:${subtype}`);
+}
+
+/**
+ * Whether a couple has a connector at all.
+ *
+ * A **question**, where `rulesOf` is a demand: the preview asks it so that a couple no phase has
+ * landed yet becomes a finding rather than an exception to catch (`docs/phase-8.md` § 2).
+ *
+ * @param platform - Its id
+ * @param lever - The lever the campaign buys on
+ * @returns `true` when the registry declares that couple
+ *
+ * @example
+ * ```typescript
+ * hasAdapter('hawk', 'dooh'); // false until the Hawk phase lands
+ * ```
+ */
+export function hasAdapter(platform: string, lever: string): boolean {
+  return PLATFORM_RULES[platform]?.[lever] !== undefined;
 }

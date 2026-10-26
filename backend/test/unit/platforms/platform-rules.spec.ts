@@ -1,19 +1,43 @@
 import {
+  acceptsCreative,
   PLATFORM_RULES,
+  PlatformRules,
   leversOf,
+  projectionOf,
   rulesOf,
   supportedPlatforms,
   unsupportedDimensions,
 } from '@src/platforms/platform-rules';
-import { TargetingDimension } from '@src/types';
 import { errorCodeOf, statusCodeOf } from '@utils';
 
 describe('Unit::Platforms::PlatformRules', () => {
   /** The registry, writable, so a test can declare a couple as a phase would. */
-  const registry: Record<
+  const registry: Record<string, Record<string, PlatformRules>> = PLATFORM_RULES as Record<
     string,
-    Record<string, { label: string; targeting: TargetingDimension[] }>
-  > = PLATFORM_RULES as Record<string, Record<string, { label: string; targeting: TargetingDimension[] }>>;
+    Record<string, PlatformRules>
+  >;
+
+  /**
+   * The rules a phase would declare, accepting nothing: a case adds what it needs.
+   *
+   * @param label - Display name of the platform
+   * @param overrides - What this case declares
+   * @returns The rules
+   */
+  function rules(label: string, overrides: Partial<PlatformRules> = {}): PlatformRules {
+    return {
+      label,
+      targeting: [],
+      creatives: [],
+      projection: {
+        levels: { campaign: null, lever: null, ad_group: 'campaign', targeting_group: 'ad_group', line: 'ad' },
+        budgetLevel: 'ad_group',
+      },
+      requiresClickThroughUrl: false,
+      requiresIabCategories: false,
+      ...overrides,
+    };
+  }
 
   afterEach((): void => {
     for (const platform of Object.keys(registry)) Reflect.deleteProperty(registry, platform);
@@ -27,17 +51,17 @@ describe('Unit::Platforms::PlatformRules', () => {
   it('should be keyed by the couple (platform, lever), never by the platform alone', (): void => {
     // leviers.md L2 and faisabilite-search.md F11: the same platform accepts different things on
     // different levers, so a phase declares one entry per couple.
-    registry.dv360 = { ctv_tvs: { label: 'DV360', targeting: [] }, audio: { label: 'DV360', targeting: [] } };
+    registry.dv360 = { ctv_tvs: rules('DV360'), audio: rules('DV360') };
 
     expect(supportedPlatforms()).toEqual(['dv360']);
     expect(leversOf('dv360')).toEqual(['audio', 'ctv_tvs']);
-    expect(rulesOf('dv360', 'audio')).toEqual({ label: 'DV360', targeting: [] });
+    expect(rulesOf('dv360', 'audio')).toEqual(rules('DV360'));
   });
 
   describe('supportedPlatforms', () => {
     it('should name every platform of the registry, sorted', (): void => {
-      registry.hawk = { dooh: { label: 'Hawk', targeting: [] } };
-      registry.dv360 = { dac: { label: 'DV360', targeting: [] } };
+      registry.hawk = { dooh: rules('Hawk') };
+      registry.dv360 = { dac: rules('DV360') };
 
       expect(supportedPlatforms()).toEqual(['dv360', 'hawk']);
     });
@@ -64,7 +88,7 @@ describe('Unit::Platforms::PlatformRules', () => {
     });
 
     it('should refuse a lever the platform has no connector for', (): void => {
-      registry.amazon_dsp = { ctv_tvs: { label: 'Amazon DSP', targeting: [] } };
+      registry.amazon_dsp = { ctv_tvs: rules('Amazon DSP') };
 
       // L27: Amazon DSP left the audio lever, so the couple does not exist.
       let error: unknown;
@@ -83,15 +107,15 @@ describe('Unit::Platforms::PlatformRules', () => {
     });
 
     it('should answer the rules of a declared couple', (): void => {
-      registry.hawk = { dooh: { label: 'Hawk', targeting: [] } };
+      registry.hawk = { dooh: rules('Hawk') };
 
-      expect(rulesOf('hawk', 'dooh')).toEqual({ label: 'Hawk', targeting: [] });
+      expect(rulesOf('hawk', 'dooh')).toEqual(rules('Hawk'));
     });
   });
 
   describe('unsupportedDimensions', () => {
     it('should name what the couple cannot express, among what the node asks for', (): void => {
-      registry.hawk = { dooh: { label: 'Hawk', targeting: ['screen', 'country', 'schedule'] } };
+      registry.hawk = { dooh: rules('Hawk', { targeting: ['screen', 'country', 'schedule'] }) };
 
       expect(unsupportedDimensions('hawk', 'dooh', ['country', 'browser', 'viewability'])).toEqual([
         'browser',
@@ -102,6 +126,41 @@ describe('Unit::Platforms::PlatformRules', () => {
 
     it('should refuse to answer for a couple no connector declares', (): void => {
       expect((): unknown => unsupportedDimensions('hawk', 'dooh', ['country'])).toThrow(
+        expect.objectContaining({ statusCode: 400 })
+      );
+    });
+  });
+
+  describe('what a couple makes of our tree', () => {
+    it('should answer the projection and the level that holds the budget', (): void => {
+      registry.google_ads = {
+        search: rules('Google Ads', {
+          projection: {
+            levels: { campaign: null, lever: null, ad_group: 'campaign', targeting_group: 'ad_group', line: 'ad' },
+            budgetLevel: 'ad_group',
+          },
+        }),
+      };
+
+      // What multi-search proves today: our AdGroup is a Google campaign, which is where the budget
+      // sits, and our TargetingGroup is one of its ad groups (`../../CADRAGE.md` § 7).
+      expect(projectionOf('google_ads', 'search')).toEqual({
+        levels: { campaign: null, lever: null, ad_group: 'campaign', targeting_group: 'ad_group', line: 'ad' },
+        budgetLevel: 'ad_group',
+      });
+    });
+
+    it('should say which creative couples it accepts', (): void => {
+      registry.hawk = { dooh: rules('Hawk', { creatives: ['display:image', 'video:file'] }) };
+
+      expect(acceptsCreative('hawk', 'dooh', 'display', 'image')).toBe(true);
+      // Hawk has no type for a DOOH native, so the couple is simply absent (G6).
+      expect(acceptsCreative('hawk', 'dooh', 'native', 'assets')).toBe(false);
+    });
+
+    it('should refuse to answer for a couple no connector declares', (): void => {
+      expect((): unknown => projectionOf('hawk', 'dooh')).toThrow(expect.objectContaining({ statusCode: 400 }));
+      expect((): unknown => acceptsCreative('hawk', 'dooh', 'display', 'image')).toThrow(
         expect.objectContaining({ statusCode: 400 })
       );
     });

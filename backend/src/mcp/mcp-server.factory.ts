@@ -41,6 +41,11 @@ export const MCP_INSTRUCTIONS: string = [
   'identity there. A connected account is not usable until its access is active. Credentials are posted',
   'from the web interface or the HTTP API only: an API key or a token must never transit through a',
   'conversation, so never ask the user for one.',
+  'A campaign is written permissively while it is a draft, so an incomplete campaign saves: the rigour is',
+  'at publication. preview-campaign says what would be created on each platform and what is wrong, and',
+  'launch-campaign refuses while it reports an error — so read the preview before proposing anything, and',
+  'tell the user what it reports rather than guessing. A warning never blocks: it says something will be',
+  'delivered short, which the user may accept.',
   'Org-scoped tools take an organizationId; ask the user which Organization to use when there are several.',
   'Roles: viewer reads, manager edits, admin also manages members.',
 ].join(' ');

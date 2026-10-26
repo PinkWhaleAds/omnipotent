@@ -160,4 +160,7 @@ export const EXPECTED_TOOLS: string[] = [
   'link-advertiser-ad-account',
   'update-advertiser-ad-account',
   'unlink-advertiser-ad-account',
+  'preview-campaign',
+  'launch-campaign',
+  'set-campaign-status',
 ];

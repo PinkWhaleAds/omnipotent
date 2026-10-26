@@ -328,6 +328,7 @@ export class LineService {
         levers: [lever],
         parentId: targetingGroupId,
         nodeId: null,
+        campaignId: parent.campaignId as string,
       },
       body
     );

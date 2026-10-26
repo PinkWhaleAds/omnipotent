@@ -15,6 +15,7 @@ import {
   findNodeOrFail,
   normalizeNodeWrite,
   restoreNode,
+  statusOfNewNode,
 } from '@src/services/node.helpers';
 import { DeletionResult } from '@src/types';
 import { createTreeStore, TreeStore } from '@test/unit/mocks/tree-store.mock';
@@ -415,6 +416,24 @@ describe('Unit::Services::NodeHelpers', () => {
       await restoreNode(store.manager, 'ad_group', ORG, 'g1');
 
       expect(row(store, LineEntity, 'n1').deletedAt).toBe(earlier);
+    });
+  });
+
+  describe('statusOfNewNode', () => {
+    it('should let a node of a draft campaign deliver, and pause one added to a live campaign', async (): Promise<void> => {
+      // A node added to a campaign that already launched reaches no platform until someone activates
+      // it (`../../CADRAGE.md` § 13), which is what keeps an unfinished AdGroup from spending money
+      // the hour it is written.
+      store.seed(CampaignEntity, [{ id: 'c-draft', status: 'draft' }]);
+      store.seed(CampaignEntity, [{ id: 'c-live', status: 'active' }]);
+
+      await expect(statusOfNewNode(store.manager, 'c-draft')).resolves.toBe('active');
+      await expect(statusOfNewNode(store.manager, 'c-live')).resolves.toBe('paused');
+    });
+
+    it('should let a node deliver when the campaign cannot be read at all', async (): Promise<void> => {
+      // Nothing to pause for: the write that follows will fail on its own foreign key.
+      await expect(statusOfNewNode(store.manager, 'c-gone')).resolves.toBe('active');
     });
   });
 });

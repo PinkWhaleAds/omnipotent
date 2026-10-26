@@ -352,6 +352,7 @@ export class AdGroupService {
         levers: [lever],
         parentId: leverId,
         nodeId: null,
+        campaignId: parent.campaignId as string,
         bidAmountCents: body.bidAmountCents ?? null,
       },
       body

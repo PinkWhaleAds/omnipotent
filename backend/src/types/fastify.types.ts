@@ -17,6 +17,7 @@ import type {
   LeverService,
   LineService,
   ListService,
+  PreviewService,
   TargetingGroupService,
   TargetingService,
   SecretStore,
@@ -89,6 +90,7 @@ declare module 'fastify' {
     /** The daily curve of any node of the tree, and its pacing. */
     budgetCurveService: BudgetCurveService;
     adAccountService: AdAccountService;
+    previewService: PreviewService;
     assetService: AssetService;
     creativeService: CreativeService;
     targetingService: TargetingService;

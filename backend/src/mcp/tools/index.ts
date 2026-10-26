@@ -19,6 +19,7 @@ import KeywordToolsController from './keyword/keyword.controller';
 import LabelToolsController from './label/label.controller';
 import LeverToolsController from './lever/lever.controller';
 import LineToolsController from './line/line.controller';
+import PreviewToolsController from './preview/preview.controller';
 import ListToolsController from './list/list.controller';
 import StatusToolsController from './status/status.controller';
 import TargetingGroupToolsController from './targeting-group/targeting-group.controller';
@@ -55,4 +56,6 @@ export function registerToolControllers(server: McpServer, fastify: FastifyInsta
   CreativeToolsController(server, fastify, context);
   // The platform accounts and the sub-advertisers; the credentials have no tool, by design.
   AdAccountToolsController(server, fastify, context);
+  // The preview and the lifecycle, which read everything above.
+  PreviewToolsController(server, fastify, context);
 }

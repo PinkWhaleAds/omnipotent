@@ -159,6 +159,10 @@ const API_ROUTES: RouteKey[] = [
   { method: 'POST', url: '/advertisers/:id/ad-accounts' },
   { method: 'PATCH', url: '/advertiser-ad-accounts/:id' },
   { method: 'DELETE', url: '/advertiser-ad-accounts/:id' },
+  // Phase 8: the preview, the launch and the lifecycle of a campaign.
+  { method: 'GET', url: '/campaigns/:id/preview' },
+  { method: 'POST', url: '/campaigns/:id/launch' },
+  { method: 'PUT', url: '/campaigns/:id/status' },
   // Phase 4: the daily curve and the pacing, on each level of the tree.
   ...curveRoutes('campaigns'),
   ...curveRoutes('levers'),

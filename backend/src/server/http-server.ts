@@ -17,6 +17,7 @@ import AccessServicePlugin from '@src/services/access.service';
 import AdGroupServicePlugin from '@src/services/ad-group.service';
 import AdvertiserServicePlugin from '@src/services/advertiser.service';
 import AdAccountServicePlugin from '@src/services/ad-account.service';
+import PreviewServicePlugin from '@src/services/preview.service';
 import AssetServicePlugin from '@src/services/asset.service';
 import BudgetCurveServicePlugin from '@src/services/budget-curve.service';
 import CreativeServicePlugin from '@src/services/creative.service';
@@ -142,6 +143,8 @@ export class HttpServer extends Server {
     await this.fastify.register(CreativeServicePlugin);
     // The platform accounts and the sub-advertisers; the credentials live in the secret store.
     await this.fastify.register(AdAccountServicePlugin);
+    // The preview and the lifecycle read everything above, so they come last.
+    await this.fastify.register(PreviewServicePlugin);
 
     if (!isApi) {
       await this.fastify.register(ProbeControllers);

@@ -24,6 +24,7 @@ export * from './lever.service';
 export * from './list.service';
 export * from './node.helpers';
 export * from './pacing.helpers';
+export * from './preview.service';
 export * from './secret-store.service';
 export * from './status.service';
 export * from './storage.service';

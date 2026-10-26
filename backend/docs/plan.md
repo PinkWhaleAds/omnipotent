@@ -170,6 +170,7 @@ Chaque phase livre les endpoints HTTP, les tools MCP correspondants et **100 % d
 | 5. Ciblage, listes, mots-clés | ✅ **livrée** — le registre des dimensions et ses familles de forme, le ciblage en un objet sur le TargetingGroup, les listes réutilisables avec duplication et déplacement, et les mots-clés                        |
 | 6. Assets et créas            | ✅ **livrée** — l'asset comme ressource de premier plan avec déduplication par empreinte, le registre des couples `(format, subtype)`, les versions immuables et la `Line` qui choisit sa créa                       |
 | 7. Comptes plateformes        | ✅ **livrée** — l'`AdAccount` et son `scope`, le sous-advertiser par devise, les secrets dans Secrets Manager (la base ne gardant que le nom, aucun tool MCP), et le cycle de vie du lien comme table de transitions |
-| 8 → 32                        | à faire                                                                                                                                                                                                              |
+| 8. Preview et cycle de vie    | ✅ **livrée** — la preview qui dit ce qui sera créé par plateforme et ce qui cloche, l'éclatement et son plafond, le lancement refusé sur erreur, et le cycle de vie comme table de transitions                      |
+| 9 → 32                        | à faire                                                                                                                                                                                                              |
 
 Cadrages : **reporting mené** (`reporting.md`), **leviers mené** (`leviers.md`), **faisabilité Search menée** (`plateformes/faisabilite-search.md`), **plateformes** une fois par phase.

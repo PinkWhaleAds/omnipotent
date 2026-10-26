@@ -157,7 +157,7 @@ export class LeverService {
 
       const columns: ObjectLiteral = await normalizeNodeWrite(
         manager,
-        { level: LEVEL, levers: [body.lever], parentId: campaignId, nodeId: null },
+        { level: LEVEL, levers: [body.lever], parentId: campaignId, nodeId: null, campaignId },
         body
       );
       const created: LeverEntity = await this.save(

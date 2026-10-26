@@ -44,7 +44,8 @@ type ServiceName =
   | 'keywordService'
   | 'assetService'
   | 'creativeService'
-  | 'adAccountService';
+  | 'adAccountService'
+  | 'previewService';
 
 /** A fake Fastify instance: every service method is a jest mock. */
 type FakeServices = Record<ServiceName, Record<string, jest.Mock>>;
@@ -427,6 +428,64 @@ const ADVERTISER_ACCOUNT = {
 
 /** The query a list of accounts receives once the defaults of its schema apply. */
 const AD_ACCOUNT_QUERY = { page: 1, limit: 50, sortBy: 'name', sortOrder: 'asc', includeDeleted: false };
+
+/** What the preview answers: one platform, one thing to fix, one thing that will deliver short. */
+const PREVIEW = {
+  campaignId: 'f1000000-0000-4000-8000-000000000001',
+  status: 'draft',
+  launchable: false,
+  platforms: [
+    {
+      platform: 'hawk',
+      lever: 'dooh',
+      adAccountId: 'ff000000-0000-4000-8000-000000000001',
+      accountCurrency: 'EUR',
+      fxRate: null,
+      effectiveCents: 100_000,
+      objects: { campaign: 1, ad_group: 1 },
+    },
+  ],
+  errors: [
+    { code: 'preview_creative_missing', params: { name: 'Bannière' }, level: 'line', nodeId: NODE_ID, platform: null },
+  ],
+  warnings: [
+    {
+      code: 'preview_targeting_dropped',
+      params: { dimension: 'viewability', cents: 100_000 },
+      level: 'targeting_group',
+      nodeId: NODE_ID,
+      platform: 'hawk',
+    },
+  ],
+};
+
+/** The tool calls of the preview and of the lifecycle (`backend/docs/phase-8.md` § 5). */
+const LIFECYCLE_CASES: ToolCase[] = [
+  {
+    tool: 'preview-campaign',
+    args: { campaignId: PREVIEW.campaignId },
+    service: 'previewService',
+    method: 'preview',
+    answer: PREVIEW,
+    expected: [PREVIEW.campaignId],
+  },
+  {
+    tool: 'launch-campaign',
+    args: { campaignId: PREVIEW.campaignId },
+    service: 'previewService',
+    method: 'launch',
+    answer: { ...TREE_LEVELS[0].resource, id: PREVIEW.campaignId },
+    expected: [PREVIEW.campaignId],
+  },
+  {
+    tool: 'set-campaign-status',
+    args: { campaignId: PREVIEW.campaignId, status: 'paused' },
+    service: 'previewService',
+    method: 'setStatus',
+    answer: { ...TREE_LEVELS[0].resource, id: PREVIEW.campaignId },
+    expected: [PREVIEW.campaignId, { status: 'paused' }],
+  },
+];
 
 /** The tool calls of the platform accounts (`backend/docs/phase-7.md` § 6). */
 const AD_ACCOUNT_CASES: ToolCase[] = [
@@ -1263,6 +1322,7 @@ const TOOL_CASES: ToolCase[] = [
   ...TARGETING_CASES,
   ...LIBRARY_CASES,
   ...AD_ACCOUNT_CASES,
+  ...LIFECYCLE_CASES,
 ];
 
 /** The bulk tools, with the route whose limit they are counted on. */
@@ -1349,6 +1409,7 @@ function fakeServices(): FakeServices {
     },
     listService: { ...crud(), duplicate: jest.fn(), move: jest.fn() },
     assetService: { ...crud(), upload: jest.fn() },
+    previewService: { preview: jest.fn(), launch: jest.fn(), setStatus: jest.fn() },
     adAccountService: {
       list: jest.fn(),
       get: jest.fn(),

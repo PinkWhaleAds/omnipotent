@@ -12,8 +12,18 @@
 import { DataSource, EntityManager, Not, ObjectLiteral, SelectQueryBuilder } from 'typeorm';
 
 import { assertFieldAllowedForLevers, assertVolumeUnitPermitted, carriesBudget } from '@src/levers/lever-profiles';
-import { BudgetVolume, Capping, DeletionResult, Lever, ListQuery, TreeLevel } from '@src/types';
+import {
+  BudgetVolume,
+  CampaignStatus,
+  Capping,
+  DeletionResult,
+  Lever,
+  ListQuery,
+  NodeStatus,
+  TreeLevel,
+} from '@src/types';
 import { escapeLike, httpError, toSkipTake, withoutAccents, withoutAccentsSql } from '@utils';
+import { CampaignEntity } from '@src/database/entities';
 import { applyLabelFilter, toOrder } from './crud.helpers';
 import { dropCurve } from './budget-curve.service';
 import { assertWithinParent, volumeToCents } from './budget.helpers';
@@ -63,6 +73,14 @@ export type NodeWriteContext = {
   nodeId: string | null;
   bidAmountCents?: number | null;
   current?: TreeNodeRow;
+  /**
+   * The campaign the node belongs to, when one is being **created** below it.
+   *
+   * A node created inside a campaign that has already launched starts **paused** and reaches no
+   * platform until it is activated (`../../CADRAGE.md` § 13). The rule lives here, once, so it holds
+   * for the four levels below the campaign.
+   */
+  campaignId?: string;
 };
 
 /**
@@ -193,6 +211,10 @@ async function budgetColumns(
   // it (`docs/phase-4.md` § 8, point 1). Written here, once, for the five levels.
   if (columns.budgetCents === null && context.nodeId !== null) {
     await dropCurve(manager, context.level, context.nodeId);
+  }
+
+  if (context.nodeId === null && context.campaignId !== undefined) {
+    columns.status = await statusOfNewNode(manager, context.campaignId);
   }
 
   const wanted: number | null | undefined = columns.budgetCents as number | null | undefined;
@@ -350,4 +372,30 @@ export async function listNodes(
   }
   const [rows, total]: [ObjectLiteral[], number] = await builder.skip(skip).take(take).getManyAndCount();
   return [rows as TreeNodeRow[], total];
+}
+
+/**
+ * The status a node takes when it is created.
+ *
+ * `active` under a campaign still in `draft` — nothing has been sent anywhere, so there is nothing to
+ * interrupt — and **`paused`** under a campaign that has launched: a node added to a live campaign
+ * reaches no platform until someone activates it (`../../CADRAGE.md` § 13), which is what keeps an
+ * unfinished AdGroup from spending money the hour it is written.
+ *
+ * @param manager - Where to read
+ * @param campaignId - The campaign the node belongs to
+ * @returns The status to store
+ *
+ * @example
+ * ```typescript
+ * await statusOfNewNode(manager, campaignId); // 'paused' once the campaign is active
+ * ```
+ */
+export async function statusOfNewNode(manager: EntityManager, campaignId: string): Promise<NodeStatus> {
+  const campaign: { status: CampaignStatus } | null = await manager.findOne(CampaignEntity, {
+    where: { id: campaignId },
+    select: { status: true },
+    withDeleted: true,
+  });
+  return campaign && campaign.status !== 'draft' ? 'paused' : 'active';
 }

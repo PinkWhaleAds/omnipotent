@@ -334,6 +334,57 @@ sont exprimés, donc un compte d'une autre devise est un autre compte — l'envo
 `validation_failed`. Et il n'existe **aucun code** au sujet d'un credential : sa valeur n'est jamais
 lue, donc jamais refusée ; l'API ne dit que `hasCredentials`.
 
+## La preview et le cycle de vie
+
+`src/services/preview.service.ts` (phase 8, `docs/phase-8.md` § 3 et § 4).
+
+Les constats de la preview ne sont **pas** des erreurs HTTP : ils voyagent **dans** sa réponse, en
+deux listes. Ce sont des codes stables avec leurs valeurs, comme les erreurs, parce que le front les
+traduit de la même façon.
+
+### Les refus des routes
+
+| Code                          | Statut | Quand                                                    | `params`     |
+| ----------------------------- | ------ | -------------------------------------------------------- | ------------ |
+| `campaign_preview_failed`     | 400    | Lancer alors que la preview rapporte au moins une erreur | `errors`     |
+| `campaign_not_draft`          | 400    | Lancer autre chose qu'un brouillon                       | `status`     |
+| `campaign_transition_invalid` | 400    | La table des transitions ne nomme pas ce passage         | `from`, `to` |
+
+`draft → active` n'est pas dans la table : on ne lance pas une campagne en écrivant un champ, et
+`PUT /campaigns/:id/status` n'accepte donc pas `draft` dans son corps.
+
+### Les erreurs de la preview, qui bloquent le lancement
+
+| Code                                  | Quand                                                      | `params`                             |
+| ------------------------------------- | ---------------------------------------------------------- | ------------------------------------ |
+| `preview_lever_missing`               | La campagne n'achète sur aucun levier                      | `{}`                                 |
+| `preview_ad_group_missing`            | Un levier sans AdGroup                                     | `lever`                              |
+| `preview_targeting_group_missing`     | Un AdGroup sans TargetingGroup                             | `name`                               |
+| `preview_line_missing`                | Un TargetingGroup sans Line                                | `name`                               |
+| `preview_creative_missing`            | Une Line sans créa, ou dont la créa a été supprimée        | `name`                               |
+| `preview_creative_version_missing`    | Une créa dont aucune version ne diffuse                    | `creative`                           |
+| `preview_keywords_missing`            | Un TargetingGroup Search sans mot-clé positif              | `name`                               |
+| `preview_account_missing`             | Aucun compte relié pour cette plateforme et cette devise   | `platform`, `currency`               |
+| `preview_account_unusable`            | Le compte relié n'est pas actif                            | `platform`, `status`, `statusReason` |
+| `preview_account_credentials_missing` | Le compte n'a pas de credentials                           | `platform`                           |
+| `preview_adapter_missing`             | Le couple `(plateforme, levier)` n'a pas encore d'adapter  | `platform`, `lever`                  |
+| `preview_click_url_missing`           | La plateforme exige une URL de clic que la créa n'a pas    | `creative`                           |
+| `preview_iab_categories_missing`      | La plateforme exige des catégories IAB que la créa n'a pas | `creative`                           |
+| `preview_platform_campaign_cap`       | L'éclatement dépasse le plafond d'objets par AdGroup       | `objects`, `max`                     |
+
+### Les avertissements, qui ne bloquent rien
+
+| Code                        | Quand                                                                                  | `params`             |
+| --------------------------- | -------------------------------------------------------------------------------------- | -------------------- |
+| `preview_targeting_dropped` | Cette plateforme n'applique pas cette dimension : **ce montant y diffusera sans elle** | `dimension`, `cents` |
+| `preview_creative_dropped`  | Cette plateforme n'accepte pas le couple de la créa                                    | `format`, `subtype`  |
+| `preview_campaign_split`    | L'éclatement crée plusieurs objets là où il y en aurait eu un                          | `objects`, `level`   |
+| `preview_node_paused`       | Un nœud en pause : il ne partira pas                                                   | `{}`                 |
+
+Chaque constat porte en plus `level`, `nodeId` et `platform` — nuls quand il concerne la campagne
+entière ou toutes les plateformes —, de sorte qu'une interface peut le poser à côté du nœud fautif
+sans deviner.
+
 ## Limite de débit
 
 `src/plugins/rate-limit.plugin.ts` (routes HTTP) et `src/mcp/tool-rate-limit.ts` (tools MCP, sur la limite de la route qu'ils reflètent).
