@@ -396,7 +396,7 @@ export class CampaignService {
     const current: TreeNodeRow = await findNodeOrFail(manager, LEVEL, organizationId, id);
     const columns: ObjectLiteral = await normalizeNodeWrite(
       manager,
-      { level: LEVEL, levers: await this.leversOf(manager, id), parentId: null, nodeId: id, current },
+      { level: LEVEL, levers: await this.leversOf(manager, id), parentId: null, nodeId: id, current, campaignId: id },
       body
     );
 

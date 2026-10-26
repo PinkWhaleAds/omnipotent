@@ -26,6 +26,8 @@ import type {
   TokenVerifier,
 } from '@services';
 import type { AuthContext, AuthMode } from './auth.types';
+import type { SyncScheduler, SyncService } from '@src/services/sync.service';
+import type { CallJournal } from '@src/services/platform-call.service';
 
 /**
  * Function type for recording metrics on incoming HTTP requests.
@@ -91,6 +93,12 @@ declare module 'fastify' {
     budgetCurveService: BudgetCurveService;
     adAccountService: AdAccountService;
     previewService: PreviewService;
+    /** The engine that makes the platforms match the tree, and leaves them alone otherwise. */
+    syncService: SyncService;
+    /** How a synchronization is asked for, without waiting for it. */
+    syncScheduler: SyncScheduler;
+    /** One line per call to a platform: what a failed sync is debugged with. */
+    platformCallJournal: CallJournal;
     assetService: AssetService;
     creativeService: CreativeService;
     targetingService: TargetingService;

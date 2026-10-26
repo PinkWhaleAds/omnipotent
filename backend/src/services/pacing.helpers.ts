@@ -12,7 +12,7 @@
  *
  * Transcribed from `~/OmniAd/multi-search/backend/src/platforms/pacing.ts`, amounts in cents.
  */
-import { Pacing, PacingStatus } from '@src/types';
+import { AuthContext, Pacing, PacingStatus, SnapshotOrganization } from '@src/types';
 import { distributeOverDays } from './budget-curve.helpers';
 
 /** One hour, in milliseconds. */
@@ -20,6 +20,9 @@ const HOUR_IN_MS = 3_600_000;
 
 /** How far spend may drift from the plan before it stops being on track. */
 const TOLERANCE = 0.1;
+
+/** The timezone a campaign with no timezone of its own, under an Organization with none, counts in. */
+const DEFAULT_TIMEZONE = 'UTC';
 
 /** An amount planned for one day. */
 export type PlannedDay = {
@@ -211,4 +214,50 @@ export function paceDay(plan: PlannedDay[], spentBeforeTodayCents: number, today
     budgetReached,
     status: pacingStatus(plannedToDateCents, spentBeforeTodayCents, budgetReached),
   };
+}
+
+/**
+ * The timezone a campaign counts its days in: its own, else its Organization's, else UTC.
+ *
+ * The Organization's comes from the snapshot omnipass resolved for the request — nothing here reads a
+ * tenancy table, which omnipass alone owns (T5). A **job has no actor**, and passes `null`: by then
+ * the campaign carries its own, because the launch stamps it (`docs/phase-9.md` § 3). That is what
+ * stops a change of the Organization's timezone from retroactively moving the days of a campaign
+ * already delivering.
+ *
+ * @param own - The campaign's own timezone, `null` when it has none
+ * @param actor - The caller, whose snapshot carries the Organization's timezone; `null` in a job
+ * @param organizationId - The Organization
+ * @returns An IANA timezone
+ *
+ * @example
+ * ```typescript
+ * resolveCampaignTimezone(null, actor, organizationId); // 'Europe/Paris', the Organization's
+ * ```
+ */
+export function resolveCampaignTimezone(own: string | null, actor: AuthContext | null, organizationId: string): string {
+  if (own !== null) return own;
+  const organization: SnapshotOrganization | undefined = actor?.tenancy.organizations.find(
+    (candidate: SnapshotOrganization): boolean => candidate.id === organizationId
+  );
+  return organization?.timezone ?? DEFAULT_TIMEZONE;
+}
+
+/**
+ * The instant of the next local midnight in a timezone.
+ *
+ * What a campaign's daily appointment is set to (D34 rule 2): the day's budget is recomputed when
+ * **its own** day turns over, not when a UTC clock does.
+ *
+ * @param at - Where to count from, in epoch milliseconds
+ * @param timezone - IANA timezone
+ * @returns The instant the next local day starts
+ *
+ * @example
+ * ```typescript
+ * nextLocalMidnight(Date.now(), 'Europe/Paris');
+ * ```
+ */
+export function nextLocalMidnight(at: number, timezone: string): Date {
+  return new Date(dayStart(nextDay(dayAt(at, timezone)), timezone));
 }

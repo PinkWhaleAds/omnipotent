@@ -6,6 +6,7 @@ import {
   CampaignEntity,
   LeverEntity,
   LineEntity,
+  PlatformUnitEntity,
   TargetingGroupEntity,
 } from '@src/database/entities';
 import {
@@ -390,6 +391,23 @@ describe('Unit::Services::NodeHelpers', () => {
         errorCode: 'ad_group_not_found',
       });
     });
+
+    it('should mark the units of the campaign, in the same transaction', async (): Promise<void> => {
+      store.seed(PlatformUnitEntity, [{ id: 'u1', campaignId: 'c1', syncState: 'synced', attempts: 0 }]);
+
+      await deleteNode(store.manager, 'ad_group', ORG, 'g1');
+
+      // A node that disappears must disappear over there too (`services/sync.helpers.ts`).
+      expect(row(store, PlatformUnitEntity, 'u1').syncState).toBe('pending');
+    });
+
+    it('should find the campaign of a campaign in itself', async (): Promise<void> => {
+      store.seed(PlatformUnitEntity, [{ id: 'u1', campaignId: 'c1', syncState: 'synced', attempts: 0 }]);
+
+      await deleteNode(store.manager, 'campaign', ORG, 'c1');
+
+      expect(row(store, PlatformUnitEntity, 'u1').syncState).toBe('pending');
+    });
   });
 
   describe('restoreNode', () => {
@@ -406,6 +424,15 @@ describe('Unit::Services::NodeHelpers', () => {
         statusCode: 409,
         errorCode: 'ad_group_not_deleted',
       });
+    });
+
+    it('should mark the units of the campaign, in the same transaction', async (): Promise<void> => {
+      await deleteNode(store.manager, 'ad_group', ORG, 'g1');
+      store.seed(PlatformUnitEntity, [{ id: 'u1', campaignId: 'c1', syncState: 'synced', attempts: 0 }]);
+
+      await restoreNode(store.manager, 'ad_group', ORG, 'g1');
+
+      expect(row(store, PlatformUnitEntity, 'u1').syncState).toBe('pending');
     });
 
     it('should leave deleted what had been deleted before', async (): Promise<void> => {

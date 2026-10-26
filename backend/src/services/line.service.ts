@@ -377,6 +377,7 @@ export class LineService {
         parentId: current.targetingGroupId as string,
         nodeId: id,
         current,
+        campaignId: current.campaignId as string,
       },
       body
     );

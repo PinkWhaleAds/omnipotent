@@ -20,6 +20,7 @@ import {
 import { httpError, toPage, toSkipTake } from '@utils';
 import { AccessService } from './access.service';
 import { toBulkFailure, toOrder } from './crud.helpers';
+import { markCampaignDirty } from './sync.helpers';
 
 /** One keyword as the caller sent it, once its text is normalized. */
 type NormalizedKeyword = { text: string; matchType: MatchType; negative: boolean };
@@ -129,22 +130,27 @@ export class KeywordService {
     }
 
     if (wanted.length > 0) {
-      await this.dataSource
-        .createQueryBuilder()
-        .insert()
-        .into(KeywordEntity)
-        .values(
-          wanted.map((keyword: NormalizedKeyword) => ({
-            organizationId,
-            campaignId: node.campaignId,
-            targetingGroupId,
-            ...keyword,
-          }))
-        )
-        // A keyword the node already carries, or sent twice in the same request, is not a failure:
-        // the unique index on (node, text, match type, polarity) absorbs it.
-        .orIgnore()
-        .execute();
+      // In one transaction with the dirty bit: a keyword that reached the table while its mark did
+      // not would be a word nothing ever sends to a platform (`services/sync.helpers.ts`).
+      await this.dataSource.transaction(async (manager: EntityManager): Promise<void> => {
+        await manager
+          .createQueryBuilder()
+          .insert()
+          .into(KeywordEntity)
+          .values(
+            wanted.map((keyword: NormalizedKeyword) => ({
+              organizationId,
+              campaignId: node.campaignId,
+              targetingGroupId,
+              ...keyword,
+            }))
+          )
+          // A keyword the node already carries, or sent twice in the same request, is not a failure:
+          // the unique index on (node, text, match type, polarity) absorbs it.
+          .orIgnore()
+          .execute();
+        await markCampaignDirty(manager, node.campaignId);
+      });
     }
 
     return { items: await this.readBack(organizationId, targetingGroupId, wanted), failed };
@@ -185,6 +191,7 @@ export class KeywordService {
         });
       }
       await manager.update(KeywordEntity, { id }, { matchType: shaped.matchType, negative: shaped.negative });
+      await markCampaignDirty(manager, keyword.campaignId);
       return toKeyword({ ...keyword, ...shaped });
     });
   }
@@ -203,6 +210,7 @@ export class KeywordService {
     return this.dataSource.transaction(async (manager: EntityManager): Promise<KeywordRemoval> => {
       const keyword: KeywordEntity = await this.findOrFail(manager, organizationId, id);
       await manager.delete(KeywordEntity, { id: keyword.id });
+      await markCampaignDirty(manager, keyword.campaignId);
       return { id: keyword.id, deleted: true };
     });
   }

@@ -88,7 +88,7 @@ Sur `POST /mcp`, une 401 porte en plus l'en-tête `WWW-Authenticate`, qui pointe
 
 Les `assert*` sont du **calcul pur** sur l'instantané que `resolve` a rapporté : vérifier un droit ne coûte aucun appel réseau — un refus de rôle ne dépend donc **pas** de la disponibilité d'omnipass.
 
-Ces quatre codes sont levés par `@omnilor/omnipass-client`, sous la forme d'une `OmnipassError` qui porte `statusCode`, `code`, `params` et les alias `errorCode` / `errorParams` que le gestionnaire d'erreurs lit déjà : elle traverse l'API telle quelle, **sans adaptateur**. Le bouchon de développement du socle accorde tout — `admin` sur toute Organization, `seat_admin` sur tout Seat — et n'émet donc que `super_admin_required`, parce que `DEV_ACTOR_SUPER_ADMIN` peut être `false`. C'est voulu, et c'est pourquoi la production refuse de démarrer avec lui (D43).
+Ces quatre codes sont levés par `@multisearchad/omnipass-client`, sous la forme d'une `OmnipassError` qui porte `statusCode`, `code`, `params` et les alias `errorCode` / `errorParams` que le gestionnaire d'erreurs lit déjà : elle traverse l'API telle quelle, **sans adaptateur**. Le bouchon de développement du socle accorde tout — `admin` sur toute Organization, `seat_admin` sur tout Seat — et n'émet donc que `super_admin_required`, parce que `DEV_ACTOR_SUPER_ADMIN` peut être `false`. C'est voulu, et c'est pourquoi la production refuse de démarrer avec lui (D43).
 
 Une Organization disparue chez omnipass répond **404**, jamais 500 (T4).
 
@@ -384,6 +384,35 @@ traduit de la même façon.
 Chaque constat porte en plus `level`, `nodeId` et `platform` — nuls quand il concerne la campagne
 entière ou toutes les plateformes —, de sorte qu'une interface peut le poser à côté du nœud fautif
 sans deviner.
+
+## La synchronisation
+
+`src/services/sync.service.ts` (phase 9, `docs/phase-9.md` § 5).
+
+### Les refus des routes
+
+| Code                         | Statut | Quand                                                         | `params` |
+| ---------------------------- | ------ | ------------------------------------------------------------- | -------- |
+| `sync_campaign_not_launched` | 400    | Demander une synchro d'un brouillon : il n'existe rien là-bas | `{}`     |
+| `platform_unit_not_found`    | 404    | L'unité n'existe pas, ou appartient à une autre campagne      | `{}`     |
+
+### Les erreurs qu'une unité garde
+
+Elles ne sont pas des réponses HTTP : elles sont **enregistrées sur l'unité**, et la route de statut
+les rend dans `errorCode` et `errorParams`. Le front les traduit comme les autres.
+
+| Code                   | Quand                                                                   | `params`   |
+| ---------------------- | ----------------------------------------------------------------------- | ---------- |
+| `sync_adapter_missing` | Le couple est déclaré au registre mais aucune phase n'a écrit l'adapter | `platform` |
+
+Une erreur venue d'une plateforme garde **son** texte et son code à elle : `errorCode` est alors nul,
+sauf quand c'est nous qui avons formulé le message — les phases plateformes ajouteront leurs codes
+ici. Les erreurs que la synchronisation rencontre ailleurs dans l'application (un secret absent, un
+compte illisible) arrivent avec leur propre code, celui qu'elles portaient déjà.
+
+Ce qui distingue les deux familles n'est pas le code mais `nextAttemptAt` : une prochaine tentative
+fixée veut dire « réessayer peut marcher », et **nulle** veut dire qu'il faut corriger quelque chose —
+une modification, qui remet le bit, ou `POST /campaigns/:id/platform-units/:unitId/retry`.
 
 ## Limite de débit
 

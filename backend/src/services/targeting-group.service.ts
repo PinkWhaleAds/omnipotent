@@ -394,6 +394,7 @@ export class TargetingGroupService {
         parentId: current.adGroupId as string,
         nodeId: id,
         current,
+        campaignId: current.campaignId as string,
         bidAmountCents:
           body.bidAmountCents ?? (current.bidAmountCents as number | null) ?? (parent.bidAmountCents as number | null),
       },

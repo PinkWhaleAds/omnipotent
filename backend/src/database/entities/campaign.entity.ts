@@ -78,6 +78,18 @@ export class CampaignEntity extends BaseEntity {
   @Column({ type: 'varchar', length: 64, nullable: true })
   insertionOrderNumber!: string | null;
 
+  /**
+   * When the day's budget must be recomputed next: **this campaign's local midnight**, with a jitter
+   * (D34 rule 2, D47).
+   *
+   * Scheduled per campaign rather than swept: one pass a day and a campaign, naturally spread over
+   * the time zones, instead of a herd of jobs at a single UTC hour. `null` while the campaign is a
+   * draft — nothing is paced before the launch.
+   */
+  @Index({ where: '"next_pacing_at" IS NOT NULL' })
+  @Column({ type: 'timestamptz', nullable: true })
+  nextPacingAt!: Date | null;
+
   /** Soft-delete marker: deleting a campaign hides its whole subtree (D19). */
   @DeleteDateColumn({ type: 'timestamptz', nullable: true })
   deletedAt!: Date | null;

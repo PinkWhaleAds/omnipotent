@@ -21,6 +21,10 @@ import { httpError } from '@utils';
  * @property requiresClickThroughUrl - Whether it refuses a creative without one (G5: Hawk does,
  *   audio included)
  * @property requiresIabCategories - Whether it refuses a creative without content categories (L19)
+ * @property minDailyBudgetCents - The smallest daily budget it accepts, in cents of the **account's**
+ *   currency. A platform refuses a budget below its minimum **even on a paused object**, so a paused
+ *   unit is sent the larger of this and its planned average rather than its real zero
+ *   (`docs/phase-9.md` § 3)
  */
 export type PlatformRules = {
   label: string;
@@ -29,6 +33,7 @@ export type PlatformRules = {
   projection: PlatformProjection;
   requiresClickThroughUrl: boolean;
   requiresIabCategories: boolean;
+  minDailyBudgetCents: number;
 };
 
 /**

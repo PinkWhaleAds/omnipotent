@@ -408,6 +408,7 @@ export class AdGroupService {
         parentId: current.leverId as string,
         nodeId: id,
         current,
+        campaignId: current.campaignId as string,
         bidAmountCents: body.bidAmountCents ?? (current.bidAmountCents as number | null),
       },
       body

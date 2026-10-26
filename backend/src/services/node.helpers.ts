@@ -45,6 +45,8 @@ import {
  * re-exported here because every write starts by reading the node it changes.
  */
 export { effectiveWindowOf, findNodeOrFail } from './tree.helpers';
+import { campaignOf } from './tree.helpers';
+import { markCampaignDirty } from './sync.helpers';
 
 /** The fields of a node every level shares, as a request sends them. */
 export type NodeWriteInput = {
@@ -74,11 +76,16 @@ export type NodeWriteContext = {
   bidAmountCents?: number | null;
   current?: TreeNodeRow;
   /**
-   * The campaign the node belongs to, when one is being **created** below it.
+   * The campaign the node belongs to — its own id, at the campaign level.
    *
-   * A node created inside a campaign that has already launched starts **paused** and reaches no
-   * platform until it is activated (`../../CADRAGE.md` § 13). The rule lives here, once, so it holds
-   * for the four levels below the campaign.
+   * Two rules hang from it, and both hold for the five levels at once because it is declared here:
+   *
+   * - a node created inside a campaign that has already launched starts **paused**, and reaches no
+   *   platform until it is activated (`../../CADRAGE.md` § 13);
+   * - a write marks the campaign's units as having something to apply, **in this transaction**
+   *   (`services/sync.helpers.ts`).
+   *
+   * It is absent only where there is no campaign yet: the creation of one.
    */
   campaignId?: string;
 };
@@ -216,6 +223,8 @@ async function budgetColumns(
   if (context.nodeId === null && context.campaignId !== undefined) {
     columns.status = await statusOfNewNode(manager, context.campaignId);
   }
+  // The dirty bit, in the same transaction as the write it describes (D34, rule 4).
+  if (context.campaignId !== undefined) await markCampaignDirty(manager, context.campaignId);
 
   const wanted: number | null | undefined = columns.budgetCents as number | null | undefined;
   const carries: boolean = context.levers.every((lever: Lever): boolean => carriesBudget(lever, context.level));
@@ -282,6 +291,7 @@ export async function deleteNode(
   const deletedAt = new Date();
   await manager.update(descriptorOf(level).entity, { id: node.id }, { deletedAt });
   await cascadeDelete(manager, level, node.id, deletedAt);
+  await markCampaignDirty(manager, campaignOf(level, node));
   return { id: node.id, deletedAt: deletedAt.toISOString() };
 }
 
@@ -317,6 +327,7 @@ export async function restoreNode(
   const deletedAt: Date = node.deletedAt;
   await manager.update(descriptorOf(level).entity, { id: node.id }, { deletedAt: null });
   await cascadeRestore(manager, level, node.id, deletedAt);
+  await markCampaignDirty(manager, campaignOf(level, node));
   return { id: node.id, deletedAt: null };
 }
 

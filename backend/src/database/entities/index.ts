@@ -17,12 +17,15 @@ import { CampaignEntity } from './campaign.entity';
 import { CreativeVersionAssetEntity } from './creative-version-asset.entity';
 import { CreativeVersionEntity } from './creative-version.entity';
 import { CreativeEntity } from './creative.entity';
+import { ExternalIdHistoryEntity } from './external-id-history.entity';
 import { KeywordEntity } from './keyword.entity';
 import { LabelAssignmentEntity } from './label-assignment.entity';
 import { LabelEntity } from './label.entity';
 import { LeverEntity } from './lever.entity';
 import { LineEntity } from './line.entity';
 import { ListEntity } from './list.entity';
+import { PlatformCallEntity } from './platform-call.entity';
+import { PlatformUnitEntity } from './platform-unit.entity';
 import { TargetingGroupEntity } from './targeting-group.entity';
 
 export * from './ad-group.entity';
@@ -36,12 +39,15 @@ export * from './campaign.entity';
 export * from './creative-version-asset.entity';
 export * from './creative-version.entity';
 export * from './creative.entity';
+export * from './external-id-history.entity';
 export * from './keyword.entity';
 export * from './label-assignment.entity';
 export * from './label.entity';
 export * from './lever.entity';
 export * from './line.entity';
 export * from './list.entity';
+export * from './platform-call.entity';
+export * from './platform-unit.entity';
 export * from './targeting-group.entity';
 
 /** Every entity registered on the data source. Add new entities here. */
@@ -63,4 +69,7 @@ export const ENTITIES: (new () => unknown)[] = [
   CreativeEntity,
   CreativeVersionEntity,
   CreativeVersionAssetEntity,
+  PlatformUnitEntity,
+  ExternalIdHistoryEntity,
+  PlatformCallEntity,
 ];

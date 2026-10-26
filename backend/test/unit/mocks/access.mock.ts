@@ -77,6 +77,12 @@ export async function buildServiceApp(
     secrets?: unknown;
     /** The campaign service, for a plugin that depends on `CampaignServicePlugin`. */
     campaigns?: unknown;
+    /** The daily curves, for a plugin that depends on `BudgetCurveServicePlugin`. */
+    curves?: unknown;
+    /** The job queue, for a plugin that depends on `JobQueuePlugin`. */
+    jobQueue?: unknown;
+    /** The engine and its scheduler, for a plugin that depends on `SyncServicePlugin`. */
+    sync?: { service: unknown; scheduler: unknown };
   }
 ): Promise<FastifyInstance> {
   const app: FastifyInstance = Fastify();
@@ -135,6 +141,37 @@ export async function buildServiceApp(
           instance.decorate('campaignService', dependencies.campaigns as never);
         },
         { name: 'CampaignServicePlugin' }
+      )
+    );
+  }
+  if (dependencies.curves !== undefined) {
+    await app.register(
+      fastifyPlugin(
+        async (instance: FastifyInstance): Promise<void> => {
+          instance.decorate('budgetCurveService', dependencies.curves as never);
+        },
+        { name: 'BudgetCurveServicePlugin' }
+      )
+    );
+  }
+  if (dependencies.jobQueue !== undefined) {
+    await app.register(
+      fastifyPlugin(
+        async (instance: FastifyInstance): Promise<void> => {
+          instance.decorate('jobQueue', dependencies.jobQueue as never);
+        },
+        { name: 'JobQueuePlugin' }
+      )
+    );
+  }
+  if (dependencies.sync !== undefined) {
+    await app.register(
+      fastifyPlugin(
+        async (instance: FastifyInstance): Promise<void> => {
+          instance.decorate('syncService', dependencies.sync?.service as never);
+          instance.decorate('syncScheduler', dependencies.sync?.scheduler as never);
+        },
+        { name: 'SyncServicePlugin' }
       )
     );
   }

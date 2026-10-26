@@ -163,4 +163,7 @@ export const EXPECTED_TOOLS: string[] = [
   'preview-campaign',
   'launch-campaign',
   'set-campaign-status',
+  'get-campaign-platform-status',
+  'sync-campaign',
+  'retry-platform-unit',
 ];

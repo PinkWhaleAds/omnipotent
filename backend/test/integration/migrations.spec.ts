@@ -20,12 +20,15 @@ const APPLICATION_TABLES: string[] = [
   'creative_version_assets',
   'creative_versions',
   'creatives',
+  'external_id_history',
   'keywords',
   'label_assignments',
   'labels',
   'levers',
   'lines',
   'lists',
+  'platform_calls',
+  'platform_units',
   'targeting_groups',
 ];
 

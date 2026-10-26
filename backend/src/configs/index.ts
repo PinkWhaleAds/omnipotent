@@ -3,8 +3,8 @@
  *
  * Barrel file that re-exports all application configuration modules.
  * Provides centralized access to the access provider, application, authentication, database,
- * documentation, HTTP server, logger, MCP server, preview, queue, secret store and storage
- * configurations.
+ * documentation, HTTP server, logger, MCP server, preview, queue, secret store, storage and
+ * synchronization configurations.
  */
 export * from './access.config';
 export * from './app.config';
@@ -18,3 +18,4 @@ export * from './preview.config';
 export * from './queue.config';
 export * from './secrets.config';
 export * from './storage.config';
+export * from './sync.config';

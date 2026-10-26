@@ -1,5 +1,15 @@
-import { dayAt, dayStart, moveToTimezone, nextDay, paceDay, PlannedDay } from '@src/services/pacing.helpers';
+import {
+  dayAt,
+  dayStart,
+  moveToTimezone,
+  nextDay,
+  nextLocalMidnight,
+  paceDay,
+  PlannedDay,
+  resolveCampaignTimezone,
+} from '@src/services/pacing.helpers';
 import { Pacing } from '@src/types';
+import { IDS, JANE } from '@test/unit/mocks/auth.fixtures';
 
 /** A plan of four days at 100 €, in the timezone of the campaign. */
 const PLAN: PlannedDay[] = [
@@ -174,6 +184,43 @@ describe('Unit::Services::PacingHelpers', () => {
     it('should call a plan that vanished after a spend reached, not on track', (): void => {
       // An AdGroup or a platform was removed: nothing is planned any more, but money went out.
       expect(paceDay([], 5_000, '2027-01-01')).toMatchObject({ budgetReached: true, status: 'budget_reached' });
+    });
+  });
+  describe('resolveCampaignTimezone', () => {
+    it('should prefer the timezone the campaign names', (): void => {
+      expect(resolveCampaignTimezone('America/Los_Angeles', JANE, IDS.organization)).toBe('America/Los_Angeles');
+    });
+
+    it('should fall back to the Organization of the caller', (): void => {
+      // From the snapshot omnipass resolved for this request: nothing here reads a tenancy table (T5).
+      expect(resolveCampaignTimezone(null, JANE, IDS.organization)).toBe('Europe/Paris');
+    });
+
+    it('should fall back to UTC in a job, which has no caller', (): void => {
+      // By then the campaign names its own: the launch stamps it (`docs/phase-9.md` § 3).
+      expect(resolveCampaignTimezone(null, null, IDS.organization)).toBe('UTC');
+    });
+
+    it('should fall back to UTC for an Organization the snapshot does not carry', (): void => {
+      expect(resolveCampaignTimezone(null, JANE, 'another-organization')).toBe('UTC');
+    });
+  });
+
+  describe('nextLocalMidnight', () => {
+    it('should answer the instant the next local day starts', (): void => {
+      expect(nextLocalMidnight(Date.parse('2027-01-03T10:00:00.000Z'), 'Europe/Paris').toISOString()).toBe(
+        '2027-01-03T23:00:00.000Z'
+      );
+      expect(nextLocalMidnight(Date.parse('2027-01-03T10:00:00.000Z'), 'UTC').toISOString()).toBe(
+        '2027-01-04T00:00:00.000Z'
+      );
+    });
+
+    it('should answer a day away for a zone where the day has already turned', (): void => {
+      // In Auckland it is already the fourth: the next midnight is the fifth, local.
+      expect(nextLocalMidnight(Date.parse('2027-01-03T20:00:00.000Z'), 'Pacific/Auckland').toISOString()).toBe(
+        '2027-01-04T11:00:00.000Z'
+      );
     });
   });
 });

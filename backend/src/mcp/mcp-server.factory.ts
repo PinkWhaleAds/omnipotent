@@ -46,6 +46,11 @@ export const MCP_INSTRUCTIONS: string = [
   'launch-campaign refuses while it reports an error — so read the preview before proposing anything, and',
   'tell the user what it reports rather than guessing. A warning never blocks: it says something will be',
   'delivered short, which the user may accept.',
+  'Once launched, a campaign is kept in step with its platforms on its own: every change is applied in',
+  'the background, and nothing is sent when nothing changed. get-campaign-platform-status says what',
+  'exists on each platform and where each unit stands — read it to answer « has my change gone live »,',
+  'and read the code of a unit in error rather than retrying blindly. sync-campaign is only for when',
+  'something was changed by hand on a platform; retry-platform-unit is for a failure that was fixed.',
   'Org-scoped tools take an organizationId; ask the user which Organization to use when there are several.',
   'Roles: viewer reads, manager edits, admin also manages members.',
 ].join(' ');

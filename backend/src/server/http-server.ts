@@ -33,6 +33,8 @@ import SecretStorePlugin from '@src/services/secret-store.service';
 import StatusServicePlugin from '@src/services/status.service';
 import StorageServicePlugin from '@src/services/storage.service';
 import TargetingGroupServicePlugin from '@src/services/targeting-group.service';
+import PlatformCallJournalPlugin from '@src/services/platform-call.service';
+import SyncServicePlugin from '@src/services/sync.service';
 import TargetingServicePlugin from '@src/services/targeting.service';
 import TokenVerifierPlugin from '@src/services/token-verifier.service';
 import { Opt, Callback } from '@src/types';
@@ -143,7 +145,11 @@ export class HttpServer extends Server {
     await this.fastify.register(CreativeServicePlugin);
     // The platform accounts and the sub-advertisers; the credentials live in the secret store.
     await this.fastify.register(AdAccountServicePlugin);
-    // The preview and the lifecycle read everything above, so they come last.
+    // The journal of the platform calls, and the engine that keeps the platforms in step. The
+    // preview and the lifecycle read everything above and ask the engine for a campaign's units, so
+    // they come last.
+    await this.fastify.register(PlatformCallJournalPlugin);
+    await this.fastify.register(SyncServicePlugin);
     await this.fastify.register(PreviewServicePlugin);
 
     if (!isApi) {

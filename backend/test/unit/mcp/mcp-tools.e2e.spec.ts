@@ -45,7 +45,8 @@ type ServiceName =
   | 'assetService'
   | 'creativeService'
   | 'adAccountService'
-  | 'previewService';
+  | 'previewService'
+  | 'syncService';
 
 /** A fake Fastify instance: every service method is a jest mock. */
 type FakeServices = Record<ServiceName, Record<string, jest.Mock>>;
@@ -484,6 +485,69 @@ const LIFECYCLE_CASES: ToolCase[] = [
     method: 'setStatus',
     answer: { ...TREE_LEVELS[0].resource, id: PREVIEW.campaignId },
     expected: [PREVIEW.campaignId, { status: 'paused' }],
+  },
+];
+
+/** Where a campaign stands on its platforms, as the synchronization answers it. */
+const PLATFORM_STATUS = {
+  campaignId: PREVIEW.campaignId,
+  units: [
+    {
+      id: 'fc000000-0000-4000-8000-000000000001',
+      platform: 'hawk',
+      lever: 'dooh',
+      adGroupId: 'f3000000-0000-4000-8000-000000000001',
+      adAccountId: 'ff000000-0000-4000-8000-000000000001',
+      currency: 'EUR',
+      fxRate: 1,
+      state: 'synced',
+      objects: [
+        {
+          key: 'ad_group:f3000000-0000-4000-8000-000000000001',
+          level: 'ad_group',
+          nodeId: 'f3000000-0000-4000-8000-000000000001',
+          keywordId: null,
+          object: 'campaign',
+          externalId: 'HAWK-1',
+        },
+      ],
+      attempts: 0,
+      nextAttemptAt: null,
+      lastAttemptAt: '2027-01-03T10:00:00.000Z',
+      lastSyncedAt: '2027-01-03T10:00:00.000Z',
+      errorCode: null,
+      errorParams: null,
+      errorMessage: null,
+    },
+  ],
+  pending: 0,
+};
+
+/** The tool calls of the synchronization (`backend/docs/phase-9.md` § 6). */
+const SYNC_CASES: ToolCase[] = [
+  {
+    tool: 'get-campaign-platform-status',
+    args: { campaignId: PREVIEW.campaignId },
+    service: 'syncService',
+    method: 'platformStatus',
+    answer: PLATFORM_STATUS,
+    expected: [PREVIEW.campaignId],
+  },
+  {
+    tool: 'sync-campaign',
+    args: { campaignId: PREVIEW.campaignId },
+    service: 'syncService',
+    method: 'requestSync',
+    answer: { campaignId: PREVIEW.campaignId, units: 2 },
+    expected: [PREVIEW.campaignId],
+  },
+  {
+    tool: 'retry-platform-unit',
+    args: { campaignId: PREVIEW.campaignId, platformUnitId: PLATFORM_STATUS.units[0].id },
+    service: 'syncService',
+    method: 'retry',
+    answer: PLATFORM_STATUS.units[0],
+    expected: [PREVIEW.campaignId, PLATFORM_STATUS.units[0].id],
   },
 ];
 
@@ -1323,6 +1387,7 @@ const TOOL_CASES: ToolCase[] = [
   ...LIBRARY_CASES,
   ...AD_ACCOUNT_CASES,
   ...LIFECYCLE_CASES,
+  ...SYNC_CASES,
 ];
 
 /** The bulk tools, with the route whose limit they are counted on. */
@@ -1410,6 +1475,7 @@ function fakeServices(): FakeServices {
     listService: { ...crud(), duplicate: jest.fn(), move: jest.fn() },
     assetService: { ...crud(), upload: jest.fn() },
     previewService: { preview: jest.fn(), launch: jest.fn(), setStatus: jest.fn() },
+    syncService: { platformStatus: jest.fn(), requestSync: jest.fn(), retry: jest.fn() },
     adAccountService: {
       list: jest.fn(),
       get: jest.fn(),

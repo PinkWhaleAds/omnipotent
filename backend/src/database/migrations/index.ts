@@ -16,6 +16,7 @@ import { CampaignTree1792952658715 } from './1792952658715-CampaignTree';
 import { Targeting1792967310499 } from './1792967310499-Targeting';
 import { AssetsAndCreatives1793007739192 } from './1793007739192-AssetsAndCreatives';
 import { PlatformAccounts1793010942785 } from './1793010942785-PlatformAccounts';
+import { Sync1793045657967 } from './1793045657967-Sync';
 
 export const MIGRATIONS: (new () => unknown)[] = [
   AdvertisersAndLabels1792936887388,
@@ -24,4 +25,5 @@ export const MIGRATIONS: (new () => unknown)[] = [
   Targeting1792967310499,
   AssetsAndCreatives1793007739192,
   PlatformAccounts1793010942785,
+  Sync1793045657967,
 ];

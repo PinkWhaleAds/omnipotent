@@ -4,14 +4,7 @@ import { DataSource, EntityManager } from 'typeorm';
 
 import { BudgetDayEntity } from '@src/database/entities';
 import { AuthContext } from '@src/types/auth.types';
-import {
-  ApplyBudgetPresetBody,
-  BudgetCurve,
-  Pacing,
-  SnapshotOrganization,
-  TreeLevel,
-  UpdateBudgetDaysBody,
-} from '@src/types';
+import { ApplyBudgetPresetBody, BudgetCurve, Pacing, TreeLevel, UpdateBudgetDaysBody } from '@src/types';
 import { httpError } from '@utils';
 import { AccessService } from './access.service';
 import {
@@ -23,8 +16,10 @@ import {
   completeCurve,
   toBudgetDays,
 } from './budget-curve.helpers';
-import { dayAt, paceDay, PlannedDay } from './pacing.helpers';
+import { dayAt, paceDay, PlannedDay, resolveCampaignTimezone } from './pacing.helpers';
+import { markCampaignDirty } from './sync.helpers';
 import {
+  campaignOf,
   DeliveryWindow,
   descriptorOf,
   effectiveBudgetOf,
@@ -33,9 +28,6 @@ import {
   NodeDescriptor,
   TreeNodeRow,
 } from './tree.helpers';
-
-/** The timezone a campaign falls back on when neither it nor its Organization names one. */
-const DEFAULT_TIMEZONE = 'UTC';
 
 /**
  * Manages the daily curve of any node of the campaign tree, and its pacing (phase 4,
@@ -77,7 +69,8 @@ export class BudgetCurveService {
   public async get(actor: AuthContext, organizationId: string, level: TreeLevel, nodeId: string): Promise<BudgetCurve> {
     await this.access.assertOrganizationRole(actor, organizationId, 'viewer');
     const node: TreeNodeRow = await findNodeOrFail(this.dataSource.manager, level, organizationId, nodeId);
-    return this.curveOf(this.dataSource.manager, actor, organizationId, level, node);
+    const timezone: string = await this.timezoneOf(this.dataSource.manager, organizationId, level, node, actor);
+    return this.curveOf(this.dataSource.manager, organizationId, level, node, timezone);
   }
 
   /**
@@ -157,7 +150,9 @@ export class BudgetCurveService {
     return this.dataSource.transaction(async (manager: EntityManager): Promise<BudgetCurve> => {
       const node: TreeNodeRow = await findNodeOrFail(manager, level, organizationId, nodeId);
       await dropCurve(manager, level, nodeId);
-      return this.curveOf(manager, actor, organizationId, level, node);
+      await markCampaignDirty(manager, campaignOf(level, node));
+      const timezone: string = await this.timezoneOf(manager, organizationId, level, node, actor);
+      return this.curveOf(manager, organizationId, level, node, timezone);
     });
   }
 
@@ -177,10 +172,50 @@ export class BudgetCurveService {
   public async pacing(actor: AuthContext, organizationId: string, level: TreeLevel, nodeId: string): Promise<Pacing> {
     await this.access.assertOrganizationRole(actor, organizationId, 'viewer');
     const node: TreeNodeRow = await findNodeOrFail(this.dataSource.manager, level, organizationId, nodeId);
-    const curve: BudgetCurve = await this.curveOf(this.dataSource.manager, actor, organizationId, level, node);
-    const timezone: string = await this.timezoneOf(this.dataSource.manager, actor, organizationId, level, node);
+    const timezone: string = await this.timezoneOf(this.dataSource.manager, organizationId, level, node, actor);
+    const curve: BudgetCurve = await this.curveOf(this.dataSource.manager, organizationId, level, node, timezone);
     const plan: PlannedDay[] = curve.days.map((day): PlannedDay => ({ day: day.day, cents: day.cents }));
     return paceDay(plan, 0, dayAt(this.now(), timezone));
+  }
+
+  /**
+   * What a node must spend today, and what its plan averages over its window.
+   *
+   * The entry point of the **synchronization**, which is why it takes no actor: a job is not a
+   * request, it has no caller to check rights for, and the rights of what triggered it were checked
+   * when the modification was written. It takes the timezone resolved by its caller rather than
+   * resolving one, for the same reason (`services/pacing.helpers.ts`).
+   *
+   * The average is what a **paused** object is sent instead of today's amount: platforms refuse a
+   * budget below their minimum even on something that is not delivering
+   * (`docs/phase-9.md` § 3).
+   *
+   * @param manager - Where to read
+   * @param organizationId - The Organization
+   * @param level - The level of the node
+   * @param nodeId - The node
+   * @param timezone - The timezone its days are counted in
+   * @returns Today's amount and the planned average, in cents of the campaign's currency
+   * @throws Error with status 404 when the node is gone
+   *
+   * @example
+   * ```typescript
+   * await curves.pacedDay(manager, organizationId, 'ad_group', adGroupId, 'Europe/Paris');
+   * ```
+   */
+  public async pacedDay(
+    manager: EntityManager,
+    organizationId: string,
+    level: TreeLevel,
+    nodeId: string,
+    timezone: string
+  ): Promise<{ todayCents: number; averageCents: number }> {
+    const node: TreeNodeRow = await findNodeOrFail(manager, level, organizationId, nodeId);
+    const curve: BudgetCurve = await this.curveOf(manager, organizationId, level, node, timezone);
+    const plan: PlannedDay[] = curve.days.map((day): PlannedDay => ({ day: day.day, cents: day.cents }));
+    const { todayCents }: Pacing = paceDay(plan, 0, dayAt(this.now(), timezone));
+    const averageCents: number = plan.length === 0 ? 0 : Math.round(curve.totalCents / plan.length);
+    return { todayCents, averageCents };
   }
 
   /**
@@ -215,7 +250,8 @@ export class BudgetCurveService {
 
       const days: string[] = await this.daysOf(manager, level, nodeId);
       const budgetCents: number = node.budgetCents;
-      const today: string | null = await this.todayOf(manager, actor, organizationId, level, node);
+      const timezone: string = await this.timezoneOf(manager, organizationId, level, node, actor);
+      const today: string | null = await this.todayOf(manager, organizationId, level, node, timezone);
       const current: CurveDay[] = await this.storedCurve(manager, level, nodeId, days, budgetCents, today);
 
       const shaped: CurveDay[] = shape(current, budgetCents, today, days);
@@ -224,6 +260,7 @@ export class BudgetCurveService {
         BudgetDayEntity,
         shaped.map((day: CurveDay) => ({ level, nodeId, day: day.day, cents: day.cents, locked: day.locked }))
       );
+      await markCampaignDirty(manager, campaignOf(level, node));
       return { level, nodeId, source: 'own', totalCents: budgetCents, days: toBudgetDays(shaped) };
     });
   }
@@ -241,14 +278,14 @@ export class BudgetCurveService {
    */
   private async curveOf(
     manager: EntityManager,
-    actor: AuthContext,
     organizationId: string,
     level: TreeLevel,
-    node: TreeNodeRow
+    node: TreeNodeRow,
+    timezone: string
   ): Promise<BudgetCurve> {
     const days: string[] = await this.daysOf(manager, level, node.id);
     const totalCents: number = await effectiveBudgetOf(manager, level, node.id);
-    const today: string | null = await this.todayOf(manager, actor, organizationId, level, node);
+    const today: string | null = await this.todayOf(manager, organizationId, level, node, timezone);
 
     if (node.budgetCents !== null) {
       const own: CurveDay[] = await this.storedCurve(manager, level, node.id, days, totalCents, today);
@@ -259,7 +296,7 @@ export class BudgetCurveService {
     const parentLevel: TreeLevel = descriptor.parentLevel as TreeLevel;
     const parentId: string = node[descriptor.parentIdColumn as string] as string;
     const parent: TreeNodeRow = await findNodeOrFail(manager, parentLevel, organizationId, parentId);
-    const above: BudgetCurve = await this.curveOf(manager, actor, organizationId, parentLevel, parent);
+    const above: BudgetCurve = await this.curveOf(manager, organizationId, parentLevel, parent, timezone);
     const shape: CurveDay[] = followShape(
       above.days.map((day): CurveDay => ({ day: day.day, cents: day.cents, locked: false })),
       days,
@@ -330,14 +367,14 @@ export class BudgetCurveService {
    */
   private async todayOf(
     manager: EntityManager,
-    actor: AuthContext,
     organizationId: string,
     level: TreeLevel,
-    node: TreeNodeRow
+    node: TreeNodeRow,
+    timezone: string
   ): Promise<string | null> {
     const campaign: TreeNodeRow = await this.campaignOf(manager, organizationId, level, node);
     if (campaign.status === 'draft') return null;
-    return dayAt(this.now(), this.resolveTimezone(actor, organizationId, campaign));
+    return dayAt(this.now(), timezone);
   }
 
   /**
@@ -352,12 +389,13 @@ export class BudgetCurveService {
    */
   private async timezoneOf(
     manager: EntityManager,
-    actor: AuthContext,
     organizationId: string,
     level: TreeLevel,
-    node: TreeNodeRow
+    node: TreeNodeRow,
+    actor: AuthContext | null
   ): Promise<string> {
-    return this.resolveTimezone(actor, organizationId, await this.campaignOf(manager, organizationId, level, node));
+    const campaign: TreeNodeRow = await this.campaignOf(manager, organizationId, level, node);
+    return resolveCampaignTimezone(campaign.timezone as string | null, actor, organizationId);
   }
 
   /**
@@ -378,26 +416,6 @@ export class BudgetCurveService {
   ): Promise<TreeNodeRow> {
     if (level === 'campaign') return node;
     return findNodeOrFail(manager, 'campaign', organizationId, node.campaignId as string, { deleted: true });
-  }
-
-  /**
-   * The timezone of a campaign: its own, else its Organization's, else UTC.
-   *
-   * The Organization's comes from the snapshot omnipass resolved for this request — nothing here
-   * reads a tenancy table, which omnipass alone owns (T5).
-   *
-   * @param actor - The caller
-   * @param organizationId - The Organization
-   * @param campaign - The campaign row
-   * @returns An IANA timezone
-   */
-  private resolveTimezone(actor: AuthContext, organizationId: string, campaign: TreeNodeRow): string {
-    const own: string | null = (campaign.timezone as string | null) ?? null;
-    if (own !== null) return own;
-    const organization: SnapshotOrganization | undefined = actor.tenancy.organizations.find(
-      (candidate: SnapshotOrganization): boolean => candidate.id === organizationId
-    );
-    return organization?.timezone ?? DEFAULT_TIMEZONE;
   }
 }
 

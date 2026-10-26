@@ -22,6 +22,7 @@ import { escapeLike, httpError, toPage, toSkipTake, withoutAccents, withoutAccen
 import { AccessService, OrganizationAccess } from './access.service';
 import { runBulk, toOrder } from './crud.helpers';
 import { assertDistinctIds } from './label.service';
+import { markListDirty } from './sync.helpers';
 import { TargetingService } from './targeting.service';
 
 /** PostgreSQL error code of a unique constraint violation. */
@@ -416,6 +417,7 @@ export class ListService {
       list.name = body.name;
     }
     if (body.items !== undefined) list.items = body.items;
+    await markListDirty(manager, list.id);
     return toList(await this.save(manager, list));
   }
 
@@ -432,6 +434,7 @@ export class ListService {
     const list: ListEntity = await this.findOrFail(manager, organizationId, id);
     const deletedAt = new Date();
     await manager.update(ListEntity, { id: list.id }, { deletedAt });
+    await markListDirty(manager, list.id);
     return { id: list.id, deletedAt: deletedAt.toISOString() };
   }
 
@@ -449,6 +452,7 @@ export class ListService {
     if (!list.deletedAt) throw httpError(409, 'This list is not deleted', { code: 'list_not_deleted' });
     await this.assertNameFree(manager, organizationId, list.kind, list.name);
     await manager.update(ListEntity, { id: list.id }, { deletedAt: null });
+    await markListDirty(manager, list.id);
     return { id: list.id, deletedAt: null };
   }
 

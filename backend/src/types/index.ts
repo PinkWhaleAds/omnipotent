@@ -31,6 +31,7 @@ export * from './oauth.types';
 export * from './platform.types';
 export * from './preview.types';
 export * from './status.types';
+export * from './sync.types';
 export * from './targeting-group.types';
 export * from './targeting.types';
 export * from './tree.types';

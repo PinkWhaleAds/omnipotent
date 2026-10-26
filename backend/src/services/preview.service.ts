@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import fastifyPlugin from 'fastify-plugin';
-import { DataSource, EntityManager, In, IsNull } from 'typeorm';
+import { DataSource, EntityManager, IsNull } from 'typeorm';
 
 import { previewConfig, PreviewConfig } from '@configs';
 import {
@@ -9,7 +9,6 @@ import {
   AdvertiserAdAccountEntity,
   CampaignEntity,
   CreativeEntity,
-  KeywordEntity,
   LeverEntity,
   LineEntity,
   TargetingGroupEntity,
@@ -39,6 +38,11 @@ import {
 import { httpError } from '@utils';
 import { AccessService } from './access.service';
 import { CampaignService } from './campaign.service';
+import { countByObject, ProjectedObject, projectObjects } from '@src/platforms/projection';
+import { adGroupStructure, CampaignTree, leverStructure, readCampaignTree } from './campaign-tree.helpers';
+import { nextLocalMidnight, resolveCampaignTimezone } from './pacing.helpers';
+import { SyncScheduler, SyncService } from './sync.service';
+import { markCampaignDirty } from './sync.helpers';
 import { effectiveBudgetOf, resolvePlatformShares } from './tree.helpers';
 
 /**
@@ -57,19 +61,6 @@ const TRANSITIONS: Readonly<Record<CampaignStatus, readonly CampaignStatus[]>> =
 
 /** How basis points divide: ten thousand of them make the whole. */
 const SHARE_TOTAL = 10_000;
-
-/** The whole tree of a campaign, read once. */
-type Tree = {
-  campaign: CampaignEntity;
-  levers: LeverEntity[];
-  adGroups: AdGroupEntity[];
-  targetingGroups: TargetingGroupEntity[];
-  lines: LineEntity[];
-  creatives: Map<string, CreativeEntity>;
-  keywordsByTargetingGroup: Map<string, number>;
-  linksByPlatform: Map<string, AdvertiserAdAccountEntity>;
-  accountsById: Map<string, AdAccountEntity>;
-};
 
 /**
  * Says what will be created on each platform, and what is wrong.
@@ -91,13 +82,19 @@ export class PreviewService {
    * @param dataSource - Application database
    * @param access - Permission checks
    * @param campaigns - Reading a campaign back in its API shape
+   * @param sync - The engine, which the launch asks for the units of the campaign
+   * @param scheduler - How a first synchronization is asked for
    * @param config - Preview configuration, which caps the split
+   * @param now - Current time, injectable so a test owns the clock
    */
   constructor(
     private readonly dataSource: DataSource,
     private readonly access: AccessService,
     private readonly campaigns: CampaignService,
-    private readonly config: PreviewConfig = previewConfig
+    private readonly sync: SyncService,
+    private readonly scheduler: SyncScheduler,
+    private readonly config: PreviewConfig = previewConfig,
+    private readonly now: () => number = Date.now
   ) {}
 
   /**
@@ -111,8 +108,19 @@ export class PreviewService {
    */
   public async preview(actor: AuthContext, organizationId: string, campaignId: string): Promise<Preview> {
     await this.access.assertOrganizationRole(actor, organizationId, 'viewer');
-    const tree: Tree = await this.readTree(organizationId, campaignId);
+    return this.previewOf(await this.treeOf(organizationId, campaignId));
+  }
 
+  /**
+   * Look at a tree already read, which is what the launch does.
+   *
+   * Separate from {@link preview} so a launch reads the tree **once**: it needs it for the findings
+   * and again to create the units, and reading it twice would be two chances to disagree with itself.
+   *
+   * @param tree - The campaign's tree
+   * @returns What each platform receives, and the findings
+   */
+  private async previewOf(tree: CampaignTree): Promise<Preview> {
     const errors: PreviewFinding[] = [];
     const warnings: PreviewFinding[] = [];
     this.checkStructure(tree, errors, warnings);
@@ -129,10 +137,31 @@ export class PreviewService {
   }
 
   /**
+   * The whole tree of a campaign the caller can see.
+   *
+   * @param organizationId - The Organization
+   * @param campaignId - The campaign
+   * @returns Its tree
+   * @throws Error with status 404 coded `campaign_not_found`
+   */
+  private async treeOf(organizationId: string, campaignId: string): Promise<CampaignTree> {
+    return readCampaignTree(this.dataSource.manager, await this.campaignOrFail(organizationId, campaignId));
+  }
+
+  /**
    * Launch a campaign, if the preview finds no error.
    *
    * The **only** way out of `draft`: the transition table does not carry it, so a campaign cannot be
    * launched by writing a field (`docs/phase-8.md` § 4).
+   *
+   * What the launch **freezes**, in one transaction with the status:
+   *
+   * - the **timezone**: resolved from the Organization's snapshot if the campaign names none, and
+   *   written on it. From then on the jobs read it without a caller, and a change of the
+   *   Organization's timezone never retroactively moves the days of a campaign already delivering;
+   * - the **units**, one per couple (AdGroup, platform), each `pending` so the first sync applies
+   *   everything;
+   * - the **pacing appointment**, at the campaign's own next local midnight (D34, D47).
    *
    * @param actor - The caller
    * @param organizationId - The Organization
@@ -143,7 +172,8 @@ export class PreviewService {
    */
   public async launch(actor: AuthContext, organizationId: string, campaignId: string): Promise<Campaign> {
     await this.access.assertOrganizationRole(actor, organizationId, 'manager');
-    const preview: Preview = await this.preview(actor, organizationId, campaignId);
+    const tree: CampaignTree = await this.treeOf(organizationId, campaignId);
+    const preview: Preview = await this.previewOf(tree);
     if (preview.status !== 'draft') {
       throw httpError(400, `A campaign is launched out of draft, not out of ${preview.status}`, {
         code: 'campaign_not_draft',
@@ -156,7 +186,16 @@ export class PreviewService {
         params: { errors: preview.errors.length },
       });
     }
-    await this.dataSource.manager.update(CampaignEntity, { id: campaignId }, { status: 'active' });
+    const timezone: string = resolveCampaignTimezone(tree.campaign.timezone, actor, organizationId);
+    await this.dataSource.transaction(async (manager: EntityManager): Promise<void> => {
+      await manager.update(
+        CampaignEntity,
+        { id: campaignId },
+        { status: 'active', timezone, nextPacingAt: nextLocalMidnight(this.now(), timezone) }
+      );
+      await this.sync.ensureUnits(manager, { ...tree, campaign: { ...tree.campaign, status: 'active', timezone } });
+    });
+    await this.scheduler.request(campaignId);
     return this.campaigns.get(actor, organizationId, campaignId);
   }
 
@@ -185,99 +224,14 @@ export class PreviewService {
         params: { from: campaign.status, to: body.status },
       });
     }
-    await this.dataSource.manager.update(CampaignEntity, { id: campaign.id }, { status: body.status });
-    return this.campaigns.get(actor, organizationId, campaignId);
-  }
-
-  /**
-   * Read the whole tree of a campaign, one query per table.
-   *
-   * Every level denormalizes its campaign (phase 3), so nothing here walks the tree node by node:
-   * five reads bring the nodes, and three more the creatives, the keyword counts and the accounts.
-   *
-   * @param organizationId - The Organization
-   * @param campaignId - The campaign
-   * @returns Its tree
-   * @throws Error with status 404 coded `campaign_not_found`
-   */
-  private async readTree(organizationId: string, campaignId: string): Promise<Tree> {
-    const manager: EntityManager = this.dataSource.manager;
-    const campaign: CampaignEntity = await this.campaignOrFail(organizationId, campaignId);
-    const alive = { campaignId, organizationId, deletedAt: IsNull() };
-
-    const [levers, adGroups, targetingGroups, lines]: [
-      LeverEntity[],
-      AdGroupEntity[],
-      TargetingGroupEntity[],
-      LineEntity[],
-    ] = await Promise.all([
-      manager.find(LeverEntity, { where: alive }),
-      manager.find(AdGroupEntity, { where: alive }),
-      manager.find(TargetingGroupEntity, { where: alive }),
-      manager.find(LineEntity, { where: alive }),
-    ]);
-
-    const creativeIds: string[] = [
-      ...new Set(
-        lines.map((line: LineEntity): string | null => line.creativeId).filter((id): id is string => id !== null)
-      ),
-    ];
-    const creatives: CreativeEntity[] = creativeIds.length
-      ? await manager.find(CreativeEntity, { where: { organizationId, id: In(creativeIds), deletedAt: IsNull() } })
-      : [];
-
-    // Only the column that says which node a keyword belongs to: counting happens here rather than in
-    // SQL, so the read stays one query per table and the engine needs no query builder.
-    const keywords: KeywordEntity[] = targetingGroups.length
-      ? await manager.find(KeywordEntity, {
-          where: {
-            organizationId,
-            targetingGroupId: In(targetingGroups.map((node: TargetingGroupEntity): string => node.id)),
-            negative: false,
-          },
-          select: { targetingGroupId: true },
-        })
-      : [];
-    const keywordsByTargetingGroup = new Map<string, number>();
-    for (const keyword of keywords) {
-      keywordsByTargetingGroup.set(
-        keyword.targetingGroupId,
-        (keywordsByTargetingGroup.get(keyword.targetingGroupId) ?? 0) + 1
-      );
-    }
-
-    const links: AdvertiserAdAccountEntity[] = await manager.find(AdvertiserAdAccountEntity, {
-      where: {
-        organizationId,
-        advertiserId: campaign.advertiserId,
-        currency: campaign.currency,
-        deletedAt: IsNull(),
-      },
+    await this.dataSource.transaction(async (manager: EntityManager): Promise<void> => {
+      await manager.update(CampaignEntity, { id: campaign.id }, { status: body.status });
+      // Pausing, ending or archiving is a change the platforms must hear about: everything over there
+      // follows the campaign (`services/sync.helpers.ts`).
+      await markCampaignDirty(manager, campaign.id);
     });
-    const accounts: AdAccountEntity[] = links.length
-      ? await manager.find(AdAccountEntity, {
-          where: { organizationId, id: In(links.map((link: AdvertiserAdAccountEntity): string => link.adAccountId)) },
-          withDeleted: true,
-        })
-      : [];
-
-    return {
-      campaign,
-      levers,
-      adGroups,
-      targetingGroups,
-      lines,
-      creatives: new Map(
-        creatives.map((creative: CreativeEntity): [string, CreativeEntity] => [creative.id, creative])
-      ),
-      keywordsByTargetingGroup,
-      linksByPlatform: new Map(
-        links.map((link: AdvertiserAdAccountEntity): [string, AdvertiserAdAccountEntity] => [link.platform, link])
-      ),
-      accountsById: new Map(
-        accounts.map((account: AdAccountEntity): [string, AdAccountEntity] => [account.id, account])
-      ),
-    };
+    await this.scheduler.request(campaignId);
+    return this.campaigns.get(actor, organizationId, campaignId);
   }
 
   /**
@@ -291,7 +245,7 @@ export class PreviewService {
    * @param warnings - Collected warnings
    * @returns Nothing
    */
-  private checkStructure(tree: Tree, errors: PreviewFinding[], warnings: PreviewFinding[]): void {
+  private checkStructure(tree: CampaignTree, errors: PreviewFinding[], warnings: PreviewFinding[]): void {
     if (tree.levers.length === 0) {
       errors.push(this.finding('preview_lever_missing', {}, null, null));
     }
@@ -310,7 +264,7 @@ export class PreviewService {
       if (lines.length === 0) {
         errors.push(this.finding('preview_line_missing', { name: node.name }, 'targeting_group', node.id));
       }
-      if (node.lever === 'search' && (tree.keywordsByTargetingGroup.get(node.id) ?? 0) === 0) {
+      if (node.lever === 'search' && (tree.keywords.get(node.id) ?? []).length === 0) {
         errors.push(this.finding('preview_keywords_missing', { name: node.name }, 'targeting_group', node.id));
       }
     }
@@ -347,7 +301,7 @@ export class PreviewService {
    * @returns One entry per couple, in the order of the levers
    */
   private async projectPlatforms(
-    tree: Tree,
+    tree: CampaignTree,
     errors: PreviewFinding[],
     warnings: PreviewFinding[]
   ): Promise<PlatformPreview[]> {
@@ -406,9 +360,11 @@ export class PreviewService {
   /**
    * Count what will be created on one platform, the split included.
    *
-   * A node **below** the budget-holding level that carries an explicit budget becomes its own object
-   * of that level (`../../CADRAGE.md` § 7): that is the split, and it is deduced here rather than
-   * written per platform.
+   * The counting is **deduced**, by the same pure projection the synchronization builds its desired
+   * state from (`platforms/projection.ts`): what the preview promises and what the engine does cannot
+   * drift apart, because there is one deduction and not two. In particular the split — a node below
+   * the budget-holding level, carrying a budget of its own, becoming its own object of that level
+   * (`../../CADRAGE.md` § 7) — is nowhere written per platform.
    *
    * @param tree - The tree
    * @param lever - The lever being projected
@@ -419,49 +375,31 @@ export class PreviewService {
    * @returns How many objects of each kind
    */
   private countObjects(
-    tree: Tree,
+    tree: CampaignTree,
     lever: LeverEntity,
     projection: PlatformProjection,
     platform: Platform,
     errors: PreviewFinding[],
     warnings: PreviewFinding[]
   ): Partial<Record<PlatformObject, number>> {
-    const groups: AdGroupEntity[] = tree.adGroups.filter((group: AdGroupEntity): boolean => group.leverId === lever.id);
-    const counts = new Map<PlatformObject, number>();
-    const add = (object: PlatformObject | null, howMany: number): void => {
-      if (object === null || howMany === 0) return;
-      counts.set(object, (counts.get(object) ?? 0) + howMany);
+    const counts: Partial<Record<PlatformObject, number>> = {};
+    const add = (more: Partial<Record<PlatformObject, number>>): void => {
+      for (const [object, howMany] of Object.entries(more) as [PlatformObject, number][]) {
+        counts[object] = (counts[object] ?? 0) + howMany;
+      }
     };
 
-    add(projection.levels.campaign, 1);
-    add(projection.levels.lever, 1);
-    for (const group of groups) {
-      const nodes: TargetingGroupEntity[] = tree.targetingGroups.filter(
-        (node: TargetingGroupEntity): boolean => node.adGroupId === group.id
-      );
-      const lines: LineEntity[] = tree.lines.filter((line: LineEntity): boolean =>
-        nodes.some((node: TargetingGroupEntity): boolean => node.id === line.targetingGroupId)
-      );
-      // The split: a TargetingGroup with a budget of its own needs an object of the budget level.
-      const split: number =
-        projection.budgetLevel === 'ad_group'
-          ? nodes.filter((node: TargetingGroupEntity): boolean => node.budgetCents !== null).length
-          : 0;
-      const budgetObjects: number = 1 + split;
+    // The campaign and its lever, which every AdGroup of that lever shares.
+    add(countByObject(projectObjects(projection, leverStructure(tree, lever))));
 
-      add(projection.levels.ad_group, budgetObjects);
-      add(projection.levels.targeting_group, nodes.length);
-      add(projection.levels.line, lines.length);
-      add(
-        'keyword',
-        nodes.reduce(
-          (total: number, node: TargetingGroupEntity): number =>
-            total + (tree.keywordsByTargetingGroup.get(node.id) ?? 0),
-          0
-        )
-      );
+    for (const group of tree.adGroups.filter((node: AdGroupEntity): boolean => node.leverId === lever.id)) {
+      const branch: ProjectedObject[] = projectObjects(projection, adGroupStructure(tree, group));
+      add(countByObject(branch));
 
-      if (split > 0) {
+      // One object of the budget level is shared with the AdGroup; each split adds one of its own.
+      const splits: number = branch.filter((object: ProjectedObject): boolean => object.split).length;
+      const budgetObjects: number = 1 + splits;
+      if (splits > 0) {
         warnings.push(
           this.finding(
             'preview_campaign_split',
@@ -484,7 +422,7 @@ export class PreviewService {
         );
       }
     }
-    return Object.fromEntries(counts) as Partial<Record<PlatformObject, number>>;
+    return counts;
   }
 
   /**
@@ -501,7 +439,7 @@ export class PreviewService {
    * @returns Nothing
    */
   private checkCreatives(
-    tree: Tree,
+    tree: CampaignTree,
     lever: LeverEntity,
     platform: Platform,
     errors: PreviewFinding[],
@@ -550,7 +488,7 @@ export class PreviewService {
    * @returns Nothing
    */
   private checkTargeting(
-    tree: Tree,
+    tree: CampaignTree,
     lever: LeverEntity,
     platform: Platform,
     effectiveCents: number,
@@ -652,15 +590,25 @@ export class PreviewService {
 /**
  * Fastify plugin that decorates the instance with a {@link PreviewService}.
  *
- * Depends on `DatabasePlugin`, `AccessServicePlugin` and `CampaignServicePlugin`.
+ * Depends on `DatabasePlugin`, `AccessServicePlugin`, `CampaignServicePlugin` and
+ * `SyncServicePlugin`.
  *
  * @param fastify - The Fastify instance to decorate
  */
 async function previewServicePlugin(fastify: FastifyInstance): Promise<void> {
-  fastify.decorate('previewService', new PreviewService(fastify.db, fastify.accessService, fastify.campaignService));
+  fastify.decorate(
+    'previewService',
+    new PreviewService(
+      fastify.db,
+      fastify.accessService,
+      fastify.campaignService,
+      fastify.syncService,
+      fastify.syncScheduler
+    )
+  );
 }
 
 export default fastifyPlugin(previewServicePlugin, {
   name: 'PreviewServicePlugin',
-  dependencies: ['DatabasePlugin', 'AccessServicePlugin', 'CampaignServicePlugin'],
+  dependencies: ['DatabasePlugin', 'AccessServicePlugin', 'CampaignServicePlugin', 'SyncServicePlugin'],
 });

@@ -25,6 +25,7 @@ import TargetingGroupController from './targeting-group/targeting-group.controll
 import TargetingController from './targeting/targeting.controller';
 import OAuthController from './oauth/oauth.controller';
 import PreviewController from './preview/preview.controller';
+import SyncController from './sync/sync.controller';
 import StatusController from './status/status.controller';
 
 /**
@@ -76,8 +77,10 @@ async function registerControllers(fastify: FastifyInstance): Promise<void> {
   await fastify.register(CreativeController);
   // The platform accounts and the sub-advertisers.
   await fastify.register(AdAccountController);
-  // The preview and the lifecycle read every level, so they are registered last.
+  // The preview and the lifecycle read every level, so they are registered last, with the
+  // synchronization they hand the campaign to.
   await fastify.register(PreviewController);
+  await fastify.register(SyncController);
 }
 
 /**

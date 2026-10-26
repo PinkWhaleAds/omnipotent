@@ -49,6 +49,7 @@ function hawkRules(overrides: Partial<PlatformRules> = {}): PlatformRules {
     },
     requiresClickThroughUrl: false,
     requiresIabCategories: false,
+    minDailyBudgetCents: 0,
     ...overrides,
   };
 }
@@ -67,6 +68,8 @@ describe('Unit::Services::PreviewService', () => {
   let store: TreeStore;
   let access: AccessServiceMock;
   let campaigns: { get: jest.Mock };
+  let sync: { ensureUnits: jest.Mock };
+  let scheduler: { request: jest.Mock };
   let service: PreviewService;
 
   /**
@@ -195,6 +198,23 @@ describe('Unit::Services::PreviewService', () => {
     ]);
   }
 
+  /**
+   * The service on the current store, with a cap low enough for a spec to reach it.
+   *
+   * @returns The service
+   */
+  function build(): PreviewService {
+    return new PreviewService(
+      store.dataSource as never,
+      access as never,
+      campaigns as never,
+      sync as never,
+      scheduler as never,
+      { maxPlatformObjectsPerAdGroup: 3 },
+      (): number => NOW.getTime()
+    );
+  }
+
   beforeEach((): void => {
     jest.clearAllMocks();
     for (const platform of Object.keys(registry)) Reflect.deleteProperty(registry, platform);
@@ -202,9 +222,9 @@ describe('Unit::Services::PreviewService', () => {
     store = createTreeStore();
     access = createAccessMock();
     campaigns = { get: jest.fn().mockResolvedValue(CAMPAIGN) };
-    service = new PreviewService(store.dataSource as never, access as never, campaigns as never, {
-      maxPlatformObjectsPerAdGroup: 3,
-    });
+    sync = { ensureUnits: jest.fn().mockResolvedValue([]) };
+    scheduler = { request: jest.fn().mockResolvedValue(undefined) };
+    service = build();
   });
 
   afterEach((): void => {
@@ -283,9 +303,7 @@ describe('Unit::Services::PreviewService', () => {
       ]);
 
       store = createTreeStore();
-      service = new PreviewService(store.dataSource as never, access as never, campaigns as never, {
-        maxPlatformObjectsPerAdGroup: 3,
-      });
+      service = build();
       seedComplete();
       store.rows(LineEntity).length = 0;
       preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
@@ -587,6 +605,32 @@ describe('Unit::Services::PreviewService', () => {
       expect(store.rows(CampaignEntity)[0].status).toBe('active');
       expect(launched).toBe(CAMPAIGN);
       expect(access.assertOrganizationRole).toHaveBeenCalledWith(JANE, IDS.organization, 'manager');
+      // The launch asks the engine for the campaign's units and queues their first application.
+      expect(sync.ensureUnits).toHaveBeenCalledWith(
+        store.manager,
+        expect.objectContaining({ campaign: expect.objectContaining({ status: 'active' }) })
+      );
+      expect(scheduler.request).toHaveBeenCalledWith(CAMPAIGN_ID);
+    });
+
+    it('should freeze the timezone and the pacing appointment of the campaign', async (): Promise<void> => {
+      seedComplete({ campaign: { timezone: null } });
+
+      await service.launch(JANE, IDS.organization, CAMPAIGN_ID);
+
+      // Jane's Organization names a timezone, and the campaign keeps it from now on: a change of the
+      // Organization's would otherwise move the days of a campaign already delivering.
+      const campaign = store.rows(CampaignEntity)[0] as { timezone: string; nextPacingAt: Date };
+      expect(campaign.timezone).toBe('Europe/Paris');
+      expect(campaign.nextPacingAt.toISOString()).toBe('2026-10-06T22:00:00.000Z');
+    });
+
+    it('should keep the timezone the campaign already names', async (): Promise<void> => {
+      seedComplete({ campaign: { timezone: 'America/Los_Angeles' } });
+
+      await service.launch(JANE, IDS.organization, CAMPAIGN_ID);
+
+      expect((store.rows(CampaignEntity)[0] as { timezone: string }).timezone).toBe('America/Los_Angeles');
     });
 
     it('should refuse to launch while the preview reports an error, and change nothing', async (): Promise<void> => {
@@ -620,14 +664,14 @@ describe('Unit::Services::PreviewService', () => {
         ['ended', 'archived'],
       ] as const) {
         store = createTreeStore();
-        service = new PreviewService(store.dataSource as never, access as never, campaigns as never, {
-          maxPlatformObjectsPerAdGroup: 3,
-        });
+        service = build();
         seedComplete({ campaign: { status: from } });
 
         await service.setStatus(JANE, IDS.organization, CAMPAIGN_ID, { status: to });
 
         expect({ from, to, stored: store.rows(CampaignEntity)[0].status }).toEqual({ from, to, stored: to });
+        // Pausing, ending or archiving is a change the platforms must hear about.
+        expect(scheduler.request).toHaveBeenCalledWith(CAMPAIGN_ID);
       }
     });
 
@@ -639,9 +683,7 @@ describe('Unit::Services::PreviewService', () => {
         ['archived', 'ended'],
       ] as const) {
         store = createTreeStore();
-        service = new PreviewService(store.dataSource as never, access as never, campaigns as never, {
-          maxPlatformObjectsPerAdGroup: 3,
-        });
+        service = build();
         seedComplete({ campaign: { status: from } });
 
         await expect(service.setStatus(JANE, IDS.organization, CAMPAIGN_ID, { status: to })).rejects.toMatchObject({
@@ -684,6 +726,7 @@ describe('Unit::Services::PreviewService', () => {
         db,
         access,
         campaigns: campaigns as never,
+        sync: { service: sync, scheduler },
       });
       db.manager.findOne.mockResolvedValue({
         id: CAMPAIGN_ID,

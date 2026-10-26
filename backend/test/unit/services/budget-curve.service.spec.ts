@@ -308,6 +308,25 @@ describe('Unit::Services::BudgetCurveService', () => {
       });
     });
 
+    it('should answer the day and the average to the synchronization, with no caller to check', async (): Promise<void> => {
+      // The entry point of the engine: a job is not a request, so it hands the timezone and no actor
+      // (`docs/phase-9.md` § 3).
+      await expect(service.pacedDay(store.manager, IDS.organization, 'campaign', CAMPAIGN_ID, 'UTC')).resolves.toEqual({
+        todayCents: 35_000,
+        averageCents: 10_000,
+      });
+    });
+
+    it('should answer nothing for a node whose window holds no day', async (): Promise<void> => {
+      const empty: BudgetCurve = { level: 'campaign', nodeId: CAMPAIGN_ID, source: 'own', totalCents: 0, days: [] };
+      jest.spyOn(service as never, 'curveOf').mockResolvedValue(empty as never);
+
+      await expect(service.pacedDay(store.manager, IDS.organization, 'campaign', CAMPAIGN_ID, 'UTC')).resolves.toEqual({
+        todayCents: 0,
+        averageCents: 0,
+      });
+    });
+
     it('should count today in the timezone of the campaign', async (): Promise<void> => {
       // 10:00 UTC on the 6th is still the 6th in UTC, and already the 7th in Kiritimati (UTC+14), so
       // one more day is behind.

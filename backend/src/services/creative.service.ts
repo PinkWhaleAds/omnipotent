@@ -28,6 +28,7 @@ import { escapeLike, httpError, toPage, toSkipTake, withoutAccents, withoutAccen
 import { AccessService } from './access.service';
 import { runBulk, toOrder } from './crud.helpers';
 import { assertDistinctIds, LabelService } from './label.service';
+import { markCreativeDirty } from './sync.helpers';
 
 /** The kind this resource is, as the label assignments store it. */
 const RESOURCE_TYPE = 'creative';
@@ -331,6 +332,7 @@ export class CreativeService {
       const version: CreativeVersionEntity = await this.versionOrFail(manager, organizationId, id);
       await this.findOrFail(manager, organizationId, version.creativeId);
       await manager.update(CreativeEntity, { id: version.creativeId }, { activeVersionId: version.id });
+      await markCreativeDirty(manager, version.creativeId);
       const [answered]: CreativeVersion[] = await this.toVersions(manager, [version], version.id);
       return answered;
     });
@@ -509,6 +511,7 @@ export class CreativeService {
     const creative: CreativeEntity = await this.findOrFail(manager, organizationId, id);
     const deletedAt = new Date();
     await manager.update(CreativeEntity, { id: creative.id }, { deletedAt });
+    await markCreativeDirty(manager, creative.id);
     return { id: creative.id, deletedAt: deletedAt.toISOString() };
   }
 
@@ -527,6 +530,7 @@ export class CreativeService {
       throw httpError(409, 'This creative is not deleted', { code: 'creative_not_deleted' });
     }
     await manager.update(CreativeEntity, { id: creative.id }, { deletedAt: null });
+    await markCreativeDirty(manager, creative.id);
     return { id: creative.id, deletedAt: null };
   }
 

@@ -541,3 +541,19 @@ export async function effectiveWindowOf(manager: EntityManager, level: TreeLevel
     endsOn: (node.endsOn as string | null) ?? parent.endsOn,
   };
 }
+
+/**
+ * The campaign a node belongs to: the node itself, at the root.
+ *
+ * @param level - The level of the node
+ * @param node - The row
+ * @returns The campaign's id
+ *
+ * @example
+ * ```typescript
+ * campaignOf('line', row); // row.campaignId
+ * ```
+ */
+export function campaignOf(level: TreeLevel, node: TreeNodeRow): string {
+  return level === 'campaign' ? node.id : (node.campaignId as string);
+}

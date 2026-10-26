@@ -23,6 +23,7 @@ import { escapeLike, httpError, toPage, toSkipTake, withoutAccents, withoutAccen
 import { AccessService } from './access.service';
 import { toOrder } from './crud.helpers';
 import { SecretStore } from './secret-store.service';
+import { markAccountDirty } from './sync.helpers';
 
 /**
  * The transitions the lifecycle of a link allows (`docs/phase-7.md` § 3).
@@ -269,6 +270,9 @@ export class AdAccountService {
       }
       const statusReason: AdAccountStatusReason | null = body.reason ?? null;
       await manager.update(AdAccountEntity, { id: account.id }, { status: body.status, statusReason });
+      // An access that was broken and is mended has units nobody has written since: they were
+      // skipped while it was broken (`services/sync.helpers.ts`).
+      await markAccountDirty(manager, account.id);
       return toAdAccount({ ...account, status: body.status, statusReason });
     });
   }
@@ -298,7 +302,10 @@ export class AdAccountService {
     const secretName: string = secretNameOf(account.id);
     // The store first: a row naming a secret that does not exist would be worse than no row at all.
     await this.secrets.put(secretName, body.secret);
-    await this.dataSource.manager.update(AdAccountEntity, { id: account.id }, { secretName });
+    await this.dataSource.transaction(async (manager: EntityManager): Promise<void> => {
+      await manager.update(AdAccountEntity, { id: account.id }, { secretName });
+      await markAccountDirty(manager, account.id);
+    });
     return toAdAccount({ ...account, secretName });
   }
 

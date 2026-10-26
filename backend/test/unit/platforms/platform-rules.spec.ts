@@ -35,6 +35,7 @@ describe('Unit::Platforms::PlatformRules', () => {
       },
       requiresClickThroughUrl: false,
       requiresIabCategories: false,
+      minDailyBudgetCents: 0,
       ...overrides,
     };
   }
