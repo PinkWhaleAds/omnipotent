@@ -134,6 +134,36 @@ garde-fou existe parce qu'un jeton MCP ne doit jamais ouvrir l'API REST.
 `omnipotent.omnilor.com` en production, `localhost:3002` en local. C'est déjà posé dans le code et dans
 l'infrastructure, tu n'as rien à en déduire.
 
+#### Le plafond du plan gratuit, constaté le 2026-10-27
+
+**Auth0 refuse la création : un tenant gratuit est plafonné à 10 « API (Resource Servers) »**, et la
+Management API du tenant en occupe une. Entre multi-search, omnipass et Omniscient, avec leurs API MCP
+— une par environnement — les dix sont prises. C'est le même mur que pour les applications, qui a déjà
+fait changer la conception du compte machine d'omnipass (A0).
+
+Trois sorties, de la moins coûteuse à la plus franche.
+
+1. **Libérer des places.** **Applications** → **APIs** liste les API du tenant ; donne-moi leurs noms
+   (un identifiant d'API n'est pas un secret) et je dis lesquelles sont mortes. Les candidates
+   habituelles : les API MCP **locales** d'un projet qu'on ne développe plus à la main, et les API MCP
+   d'un **environnement de test disparu**. Supprimer une API casse tout client configuré pour elle,
+   donc on ne touche qu'à du mort.
+2. **Réduire ce qu'Omnipotent demande à deux, puis à une.** Notre API MCP **locale** n'est pas
+   nécessaire : en local le socle tourne derrière le bouchon de tenancy, sans vrais jetons. Celle de
+   l'environnement de test ne servira que le jour où cet environnement parlera à un vrai omnipass.
+   Reste donc l'**API REST** maintenant, et l'**API MCP de production** au déploiement. Et si même une
+   place ne se libère pas : **rien n'est bloqué aujourd'hui**, parce que brancher omnipass n'a pas
+   besoin de nos audiences — le compte machine et l'audience d'omnipass suffisent, nos audiences ne
+   comptent que lorsqu'un jeton de **personne** est relayé.
+3. **Passer le tenant au plan payant** (Essentials, ~35 USD/mois) : la limite passe à 100. À trois
+   produits qui ont chacun une API REST et une API MCP par environnement, le plafond de dix va
+   continuer de mordre à chaque environnement.
+
+Il existe une quatrième voie, que je ne recommande pas : **réutiliser l'audience REST de
+multi-search**. Elle ne coûte aucune place, et elle coûte la garantie — omnipass attribuerait chaque
+appel d'Omnipotent à multi-search, ses invitations nommeraient multi-search, et un jeton volé sur un
+produit ouvrirait l'autre. À garder pour le cas où il faudrait vraiment avancer sans place libre.
+
 #### Le pas à pas
 
 1. **manage.auth0.com**. Vérifie en haut à gauche que le tenant est bien celui de multi-search :
