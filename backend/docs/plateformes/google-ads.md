@@ -47,11 +47,17 @@ cumuler.
 
 **[MS]**, et c'est ce qui doit faire refuser une modification chez nous plutôt qu'échouer à la synchro :
 
-- un **critère de lieu** et un **cercle de proximité** sont **immuables** : les changer est une
-  suppression et une création dans le même `mutate`. L'adapter le fait, mais l'identifiant externe
-  change — c'est exactement ce que l'`ExternalIdHistory` de la phase 9 existe pour garder ;
-- un **appareil** ne s'enlève pas : il s'exclut par un ajustement d'enchère de −100 %, et se recible
-  par un ajustement de 0 % ;
+- un **critère de lieu**, un **cercle de proximité** et un **mot-clé** sont **immuables** : Google
+  n'accepte pas de modifier ce qui les définit. Les changer est donc une suppression et une création
+  dans le même `mutate`, et l'objet qui en sort a un **nouvel identifiant** chez Google. Qui s'en
+  souvient diffère selon l'objet, et c'est le § 7 qui le dit : un lieu et un cercle n'ont **aucune
+  clé** dans notre carte `refs` — ils viennent du ciblage d'un TargetingGroup, pas d'un nœud —, donc
+  nous ne gardons pas leur identifiant du tout et l'adapter les compare **par leur contenu**, comme le
+  fait multi-search. Un **mot-clé**, lui, a sa clé (`keyword:<id>`) : changer son type de
+  correspondance lui donne un nouvel identifiant, et c'est l'`ExternalIdHistory` qui garde l'ancien ;
+- un **appareil** n'est pas immuable et ne s'enlève pas non plus : il s'exclut par un **ajustement
+  d'enchère de 0** — ce que l'interface montre comme « −100 % » — et se recible par un ajustement
+  de 1 ;
 - **l'`advertisingChannelType`** d'une campagne ne change jamais. Un AdGroup qui changerait de levier
   serait une autre campagne — notre modèle l'interdit déjà, le levier étant au-dessus de l'AdGroup ;
 - **le fuseau d'un compte** est immuable (`accountTimezoneMutable: false`), ce qui est cohérent avec
@@ -185,9 +191,14 @@ voulu — donc pour toutes les plateformes d'un coup.
 
 - **retrouver ce qu'une synchro interrompue a créé** : multi-search cherche la campagne par un **tag
   dans son nom** (`[ms:<unitId>]`), ce qui suffit parce que le nom est à nous. Nous avons mieux : la
-  carte `refs` du `PlatformUnit`, qui garde l'identifiant de **chaque** objet. Le tag reste utile en
-  secours — une synchro tuée entre le `mutate` et l'écriture de `refs` a créé des objets dont nous
-  n'avons pas l'identifiant, et c'est le seul moyen de les retrouver. **Nous gardons donc les deux** ;
+  carte `refs` du `PlatformUnit`, qui garde l'identifiant de chaque objet **qui vient d'un de nos
+  nœuds ou d'un de nos mots-clés** — c'est la forme de ses clés, `<niveau>:<id>` et `keyword:<id>`.
+  Ce qui vient du **ciblage** n'y est donc pas : un critère de lieu, un cercle, un ajustement
+  d'appareil n'ont pas de clé, et l'adapter les lit chez Google et les compare par leur contenu. C'est
+  voulu, et pas un oubli : notre table de faits est clé sur nos entités, pas sur un critère, donc rien
+  ne se perd si l'identifiant d'un lieu change. Le tag dans le nom reste utile en secours — une synchro
+  tuée entre le `mutate` et l'écriture de `refs` a créé des objets dont nous n'avons pas l'identifiant,
+  et c'est le seul moyen de les retrouver. **Nous gardons donc les deux** ;
 - **relier une ligne de rapport à notre entité** : un paramètre d'URL personnalisé (`mskey`) sur chaque
   annonce, dont la valeur nomme notre nœud. Google ne donne pas de clé d'idempotence.
 
