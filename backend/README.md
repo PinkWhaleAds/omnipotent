@@ -83,9 +83,9 @@ cela appartient à omnipass — le socle ne lit du jeton que son `sub`.
 
 `AccessService` (`src/services/access.service.ts`) est **l'unique porte vers omnipass**, et son
 interface est **le contrat des deux projets**, figée signature par signature
-(`~/OmniAd/omnipass/docs/message-socle-omnipotent.md` § 2). omnipass publiera
-`@multisearchad/omnipass-client` avec exactement ces signatures : le jour venu, seule la ligne qui
-construit le service change, rien dans le domaine.
+(`~/OmniAd/omnipass/docs/message-socle-omnipotent.md` § 2). `@multisearchad/omnipass-client` est
+installé depuis la phase 1 et porte **exactement** ces signatures : le service est donc le client
+lui-même, et `src/types/auth.types.ts` réexporte les types du contrat au lieu d'en garder une copie.
 
 Ce que le socle **ne porte pas**, et ne portera jamais : aucune entité `User`, `Seat`,
 `Organization`, membership ou invitation ; aucun `IdentityService` ; aucun modèle de rôles à lui.
@@ -104,9 +104,11 @@ Le partage est net :
   coûte aucun appel réseau. Rien des droits ne voyage dans le jeton (T3) : un administrateur révoqué
   perd ses droits à l'expiration du cache, pas à celle de son JWT.
 
-En attendant omnipass, le socle livre un **bouchon**, pas une tenancy. `CADRAGE.md` § 8 parlait d'une
-« implémentation locale (mêmes tables) » ; c'est incompatible avec l'interdiction de porter la
-tenancy, et omnipass a tranché pour le bouchon :
+`ACCESS_PROVIDER` choisit : avec `omnipass`, le plugin construit le vrai client et lit le secret du
+compte machine dans le magasin, au démarrage. Avec `local`, il livre un **bouchon**, pas une tenancy
+— pour développer sans omnipass sous la main, et tant qu'omnipass n'a pas déclaré nos audiences dans
+son registre. `CADRAGE.md` § 8 parlait d'une « implémentation locale (mêmes tables) » ; c'est
+incompatible avec l'interdiction de porter la tenancy, et omnipass a tranché pour le bouchon :
 
 - un acteur de développement **fixe**, lu dans l'environnement (`DEV_ACTOR_USER_ID`,
   `DEV_ACTOR_EMAIL`, `DEV_ACTOR_SUPER_ADMIN`) ;

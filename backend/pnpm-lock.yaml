@@ -45,6 +45,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.32.1
         version: 1.32.2(zod@4.4.3)
+      '@multisearchad/omnipass-client':
+        specifier: ^0.1.1
+        version: 0.1.1(zod@4.4.3)
       '@opentelemetry/api':
         specifier: ^1.9.1
         version: 1.10.0
@@ -866,6 +869,12 @@ packages:
     peerDependenciesMeta:
       '@cfworker/json-schema':
         optional: true
+
+  '@multisearchad/omnipass-client@0.1.1':
+    resolution: {integrity: sha512-oZYHuRNoLQ04rdPexIqo1Tz019d5MTaojti6xeEhlWO+ZaBtLYShO7IBU2G5/WZjVBgH6eVSIeZ+RR8VXoztcQ==, tarball: https://npm.pkg.github.com/download/@multisearchad/omnipass-client/0.1.1/44e90f8b0b2c06c97789d6cd13e748d8cb2719f5}
+    engines: {node: '>=22.0.0'}
+    peerDependencies:
+      zod: ~4.4.3
 
   '@napi-rs/wasm-runtime@1.2.6':
     resolution: {integrity: sha512-mRyDmEw9/fCDXCGfL1sbgIw/GUK0PVxRW4YwgPN61F3LQ+fSyoBFarJVzgGyhF6kRzEQZ0FejDqm4WLXSeqQmw==}
@@ -4812,6 +4821,10 @@ snapshots:
       zod-to-json-schema: 3.25.2(zod@4.4.3)
     transitivePeerDependencies:
       - supports-color
+
+  '@multisearchad/omnipass-client@0.1.1(zod@4.4.3)':
+    dependencies:
+      zod: 4.4.3
 
   '@napi-rs/wasm-runtime@1.2.6(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)':
     dependencies:

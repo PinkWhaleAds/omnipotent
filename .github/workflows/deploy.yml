@@ -19,6 +19,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 concurrency:
   group: deploy-production
@@ -119,11 +120,21 @@ jobs:
 
       # No build cache: the production image is built from the pinned base image and the lockfile only,
       # never from layers another workflow could have written to the shared Actions cache.
+      # The install inside the image needs the organization's npm registry. The file is a BuildKit
+      # **secret**: mounted for one `RUN`, in no layer of the image that is then pushed.
+      - name: Write the npmrc the image build reads
+        if: steps.image.outputs.exists == 'false'
+        run: printf '//npm.pkg.github.com/:_authToken=%s\n' "$NODE_AUTH_TOKEN" > "$RUNNER_TEMP/npmrc"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build and push the image (linux/arm64)
         if: steps.image.outputs.exists == 'false'
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: backend
+          secret-files: |
+            npmrc=${{ runner.temp }}/npmrc
           platforms: linux/arm64
           push: true
           provenance: false

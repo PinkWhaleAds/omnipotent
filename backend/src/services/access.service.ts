@@ -1,26 +1,20 @@
+import { AccessService, OmnipassClient } from '@multisearchad/omnipass-client';
 import { FastifyInstance } from 'fastify';
 import fastifyPlugin from 'fastify-plugin';
 
-import { accessConfig, AccessConfig } from '@configs';
-import { AuthContext, OrganizationRole, SeatRole, Snapshot } from '@src/types/auth.types';
+import { accessConfig, AccessConfig, authConfig, omnipassConfig } from '@configs';
+import { AuthContext, OrganizationAccess, OrganizationRole, SeatRole, Snapshot } from '@src/types/auth.types';
 import { httpError, LoggerBuilder } from '@utils';
 import { assertTenancyProviderAllowed } from './tenancy-provider';
 
 /**
- * What a caller may do in one Organization.
+ * The door to omnipass, and the single place answering "may this caller do that?".
  *
- * @property organizationId - The Organization
- * @property seatId - Its Seat
- * @property role - The caller's effective role (a Seat admin or a super-admin is `admin`)
- */
-export type OrganizationAccess = {
-  organizationId: string;
-  seatId: string;
-  role: OrganizationRole;
-};
-
-/**
- * Single place answering "may this caller do that?", and the only door to omnipass.
+ * **The interface is the contract of the two projects**, and it is now the package's own
+ * (`@multisearchad/omnipass-client`, `~/OmniAd/omnipass/docs/message-socle-omnipotent.md` § 2): it is
+ * re-exported here so that every service keeps importing it from its neighbour, and so that a
+ * signature cannot drift from the one omnipass implements. If one of them gets in the way, raise it
+ * instead of adapting it here — a divergence found late is paid at the worst moment.
  *
  * Every service method calls one of the `assert*` methods first, so HTTP routes, MCP tools and job
  * handlers enforce the same rules — never a handler (`CLAUDE.md`).
@@ -34,108 +28,10 @@ export type OrganizationAccess = {
  * leak; a role too low answers **403**. An Organization that disappeared in omnipass is therefore a
  * 404 as well, never a 500 (T4).
  *
- * **The signatures of this interface are the contract between the two projects**
- * (`~/OmniAd/omnipass/docs/message-socle-omnipotent.md` § 2): omnipass publishes
- * `@multisearchad/omnipass-client` with exactly these, so replacing the local stub is one line in
- * {@link accessServicePlugin} and nothing in the domain. If one of them gets in the way, raise it
- * instead of adapting it here — a divergence found late is paid at the worst moment.
- *
  * The `assert*` and `get*` methods are **pure computation** on the snapshot: no network call on the
- * permission path. The only call to omnipass in a request is {@link AccessService.resolve}, once, in
- * the auth plugin.
+ * permission path. The only call to omnipass in a request is `resolve`, once, in the auth plugin.
  */
-export interface AccessService {
-  /**
-   * Refuse anyone but a super-admin.
-   *
-   * @param actor - The caller
-   * @returns Nothing
-   * @throws Error with status 403 for any other caller
-   */
-  assertSuperAdmin(actor: AuthContext): void;
-
-  /**
-   * Effective role of the caller in a Seat.
-   *
-   * @param actor - The caller
-   * @param seatId - The Seat
-   * @returns The role, or `null` when the caller cannot see the Seat
-   */
-  getSeatRole(actor: AuthContext, seatId: string): Promise<SeatRole | null>;
-
-  /**
-   * Require a minimum role in a Seat.
-   *
-   * @param actor - The caller
-   * @param seatId - The Seat
-   * @param minimum - `member` to read, `seat_admin` to manage
-   * @returns The caller's role
-   * @throws Error with status 404 when the caller cannot see the Seat, 403 when the role is too low
-   */
-  assertSeatRole(actor: AuthContext, seatId: string, minimum: SeatRole): Promise<SeatRole>;
-
-  /**
-   * Effective access of the caller to an Organization.
-   *
-   * @param actor - The caller
-   * @param organizationId - The Organization
-   * @returns The access, or `null` when the caller cannot see the Organization
-   */
-  getOrganizationAccess(actor: AuthContext, organizationId: string): Promise<OrganizationAccess | null>;
-
-  /**
-   * Require a minimum role in an Organization.
-   *
-   * @param actor - The caller
-   * @param organizationId - The Organization
-   * @param minimum - Lowest acceptable role
-   * @returns The caller's access
-   * @throws Error with status 404 when the caller cannot see the Organization, 403 when the role is too low
-   *
-   * @example
-   * ```typescript
-   * await accessService.assertOrganizationRole(actor, organizationId, 'manager');
-   * ```
-   */
-  assertOrganizationRole(
-    actor: AuthContext,
-    organizationId: string,
-    minimum: OrganizationRole
-  ): Promise<OrganizationAccess>;
-
-  /**
-   * Forget what is cached about one user, after a membership of theirs changed.
-   *
-   * Call it after relaying any membership write to omnipass, so the change applies at once on this
-   * process instead of at the end of the cache's TTL.
-   *
-   * @param userId - The user whose memberships changed
-   * @returns Nothing
-   */
-  invalidateUser(userId: string): void;
-
-  /**
-   * Forget every cached snapshot, after a Seat or an Organization was deleted.
-   *
-   * @returns Nothing
-   */
-  invalidateAll(): void;
-
-  /**
-   * Resolve the caller of a request: our user, their Seats, Organizations and effective roles.
-   *
-   * The only call to omnipass on the request path, made once by the auth plugin and **never from a
-   * service**; the client caches it for `Access.cacheTtl`.
-   *
-   * @param sub - Auth0 subject of the verified token
-   * @param endUserToken - The raw token, relayed to omnipass so it acts as the user, never as the application
-   * @returns The snapshot the permission checks are computed from; it never answers `null`
-   * @throws `OmnipassError` with status 403 when the identity may not sign in (`user_not_invited`,
-   *   `email_not_verified`, `sign_in_method_unverified`, `email_linked_elsewhere`), 401 when the relayed token
-   *   is refused (`invalid_token`), 503 when omnipass cannot be reached (`authentication_unavailable`)
-   */
-  resolve(sub: string, endUserToken: string): Promise<Snapshot>;
-}
+export type { AccessService, OrganizationAccess };
 
 /**
  * The Seat the stub pretends every Organization belongs to. A fixed value rather than a setting: the
@@ -247,21 +143,54 @@ export class LocalAccessService implements AccessService {
 }
 
 /**
+ * Build the real client: omnipass behind the same interface.
+ *
+ * The secret's **value** never travels through the configuration (`../../CADRAGE.md` § 12): the name
+ * of its entry does, and the store is read here, once, when the client is built. A missing value
+ * makes the package throw at startup rather than at the first sign-in, which is what we want — a
+ * deployment mistake must be seen in the first seconds of a task, not by a user.
+ *
+ * @param fastify - The instance, for its secret store
+ * @returns The client, which implements {@link AccessService} without an adapter
+ *
+ * @example
+ * ```typescript
+ * const access: AccessService = await buildOmnipassClient(fastify);
+ * ```
+ */
+export async function buildOmnipassClient(fastify: FastifyInstance): Promise<AccessService> {
+  return new OmnipassClient({
+    url: omnipassConfig.url,
+    audience: omnipassConfig.audience,
+    clientId: omnipassConfig.clientId,
+    clientSecret: await fastify.secretStore.get(omnipassConfig.secretName),
+    auth0Domain: authConfig.domain,
+    cacheTtl: accessConfig.cacheTtl,
+    logger: LoggerBuilder.getChildLogger('Omnipass'),
+  });
+}
+
+/**
  * Fastify plugin that decorates the instance with the {@link AccessService} of the configured
  * provider.
  *
- * Refuses to start when production is configured with a provider other than omnipass (D43), and
- * warns loudly otherwise, because the stub grants every Organization.
- *
- * The day `@multisearchad/omnipass-client` ships (phase 7 of omnipass), only the line building the
- * service changes; nothing in the domain does.
+ * With `omnipass`, the client of the package: one call per user per minute to resolve a caller, and
+ * nothing on the permission path. With `local`, the stub — which is why it warns loudly, and why
+ * D43's guard refuses it in production.
  *
  * @param fastify - The Fastify instance to decorate
  * @returns A promise that resolves once the decorator is registered
- * @throws Error when the configured provider may not run in this environment
+ * @throws Error when the configured provider may not run in this environment, or when the client is
+ *   missing a value it cannot work without
  */
 async function accessServicePlugin(fastify: FastifyInstance): Promise<void> {
   assertTenancyProviderAllowed(accessConfig.provider);
+
+  if (accessConfig.provider === 'omnipass') {
+    fastify.decorate('accessService', await buildOmnipassClient(fastify));
+    return;
+  }
+
   LoggerBuilder.getChildLogger('AccessService').warn(
     'The tenancy is a development stub: every caller is a fixed actor, admin of every Organization ' +
       'and seat_admin of every Seat, and no membership is read. Never in production (D43).',
@@ -272,4 +201,5 @@ async function accessServicePlugin(fastify: FastifyInstance): Promise<void> {
 
 export default fastifyPlugin(accessServicePlugin, {
   name: 'AccessServicePlugin',
+  dependencies: ['SecretStorePlugin'],
 });

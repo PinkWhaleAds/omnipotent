@@ -14,9 +14,11 @@ concurrency:
   group: backend-${{ github.ref }}
   cancel-in-progress: true
 
-# Read the code, nothing else: no job writes to the repository or calls a cloud.
+# Read the code and the organization's packages — the omnipass client is published there — and nothing
+# else: no job writes to the repository or calls a cloud.
 permissions:
   contents: read
+  packages: read
 
 defaults:
   run:
@@ -38,6 +40,14 @@ jobs:
           node-version: 22
           cache: pnpm
           cache-dependency-path: backend/pnpm-lock.yaml
+      # The omnipass client lives on GitHub Packages, which `backend/.npmrc` names for the `@multisearchad`
+      # scope. The workflow's own token is enough — both repositories belong to the same organization and
+      # the package grants this one read access — so no secret has to be created. Only the runner's npmrc
+      # is written, never the repository's.
+      - name: Authenticate to GitHub Packages
+        run: npm config set //npm.pkg.github.com/:_authToken="$NODE_AUTH_TOKEN"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint:check
       - run: pnpm prettier:check
@@ -58,6 +68,14 @@ jobs:
           node-version: 22
           cache: pnpm
           cache-dependency-path: backend/pnpm-lock.yaml
+      # The omnipass client lives on GitHub Packages, which `backend/.npmrc` names for the `@multisearchad`
+      # scope. The workflow's own token is enough — both repositories belong to the same organization and
+      # the package grants this one read access — so no secret has to be created. Only the runner's npmrc
+      # is written, never the repository's.
+      - name: Authenticate to GitHub Packages
+        run: npm config set //npm.pkg.github.com/:_authToken="$NODE_AUTH_TOKEN"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: pnpm install --frozen-lockfile
       - run: pnpm test:cov
         env:
@@ -98,6 +116,14 @@ jobs:
           node-version: 22
           cache: pnpm
           cache-dependency-path: backend/pnpm-lock.yaml
+      # The omnipass client lives on GitHub Packages, which `backend/.npmrc` names for the `@multisearchad`
+      # scope. The workflow's own token is enough — both repositories belong to the same organization and
+      # the package grants this one read access — so no secret has to be created. Only the runner's npmrc
+      # is written, never the repository's.
+      - name: Authenticate to GitHub Packages
+        run: npm config set //npm.pkg.github.com/:_authToken="$NODE_AUTH_TOKEN"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: pnpm install --frozen-lockfile
       - run: pnpm test:integration
         env:
@@ -123,10 +149,19 @@ jobs:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      # The image build installs the omnipass client too. The file is handed to BuildKit as a **secret**,
+      # mounted for the length of one `RUN` and part of no layer: a token baked into an image is a token
+      # published with it.
+      - name: Write the npmrc the image build reads
+        run: printf '//npm.pkg.github.com/:_authToken=%s\n' "$NODE_AUTH_TOKEN" > "$RUNNER_TEMP/npmrc"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: backend
           push: false
           build-args: COMMIT_SHA=${{ github.sha }}
+          secret-files: |
+            npmrc=${{ runner.temp }}/npmrc
           cache-from: type=gha
           cache-to: type=gha,mode=max

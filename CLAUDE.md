@@ -78,11 +78,14 @@ The split on a request:
   sits on `request.auth`, and **every `assert*` is pure computation** on it — a permission check
   costs no network call. No right travels in the token (T3).
 
-Until omnipass answers, the socle ships a **stub**, not a tenancy: a fixed actor from the environment
-(`DEV_ACTOR_*`), `admin` of every Organization, no membership read, a loud warning at startup, and
-D43's guard — with `NODE_ENV=prod` and anything but omnipass, startup **fails** through
-`killProcess`. If a stub stops being enough for a phase, the answer is to bring omnipass's phase 2
-forward, **never** to add tables here.
+The package is installed (phase 1) and `ACCESS_PROVIDER` picks the implementation: `omnipass` builds
+the real client, reading its machine account's secret from the store. `local` is still there, and
+still a **stub** rather than a tenancy — a fixed actor from the environment (`DEV_ACTOR_*`), `admin`
+of every Organization, no membership read, a loud warning at startup — for a developer with no
+omnipass at hand, and because omnipass has yet to declare our audiences in its registry. D43's guard
+holds either way: with `NODE_ENV=prod` and anything but omnipass, startup **fails** through
+`killProcess`. If a stub stops being enough for a phase, the answer is to resolve through omnipass,
+**never** to add tables here.
 
 Three rules that bind every later phase:
 

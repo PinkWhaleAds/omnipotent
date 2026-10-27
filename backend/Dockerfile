@@ -29,9 +29,15 @@ RUN corepack enable && corepack prepare "pnpm@${PNPM_VERSION}" --activate
 # Production dependencies.
 FROM pnpm AS deps
 
-# Bind mounts of package.json and pnpm-lock.yaml (no layer for them) and a cache of the pnpm store.
+# Bind mounts of package.json, pnpm-lock.yaml and .npmrc (no layer for them) and a cache of the pnpm
+# store. `.npmrc` names the organization's registry for the `@multisearchad` scope; the token to read it
+# arrives as a BuildKit **secret** mounted as the npmrc of the user, so it belongs to no layer — a token
+# baked into an image is a token published with it. Without the secret, the build fails on the private
+# package, which is the loud failure we want rather than a mystery at runtime.
 RUN --mount=type=bind,source=package.json,target=package.json \
     --mount=type=bind,source=pnpm-lock.yaml,target=pnpm-lock.yaml \
+    --mount=type=bind,source=.npmrc,target=.npmrc \
+    --mount=type=secret,id=npmrc,target=/root/.npmrc \
     --mount=type=cache,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --prod
 
@@ -41,6 +47,8 @@ FROM deps AS build
 
 RUN --mount=type=bind,source=package.json,target=package.json \
     --mount=type=bind,source=pnpm-lock.yaml,target=pnpm-lock.yaml \
+    --mount=type=bind,source=.npmrc,target=.npmrc \
+    --mount=type=secret,id=npmrc,target=/root/.npmrc \
     --mount=type=cache,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile
 

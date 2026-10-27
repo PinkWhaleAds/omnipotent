@@ -40,15 +40,15 @@ describe('Unit::Services::TenancyProvider', () => {
       expect(() => assertTenancyProviderAllowed('local')).toThrow(
         /Access\.provider is "local": production requires "omnipass" \(D43\)/
       );
-      expect(() => assertTenancyProviderAllowed('local')).toThrow(/Deploy omnipass first/);
+      expect(() => assertTenancyProviderAllowed('local')).toThrow(/Set ACCESS_PROVIDER=omnipass/);
     });
 
-    it('should refuse omnipass everywhere while its client is not wired', async (): Promise<void> => {
+    it('should let omnipass run everywhere, production included, now that its client is installed', async (): Promise<void> => {
       for (const env of ['dev', 'test', 'prod']) {
         const { assertTenancyProviderAllowed, PRODUCTION_PROVIDER } = await withEnv(env);
 
         expect(PRODUCTION_PROVIDER).toBe('omnipass');
-        expect(() => assertTenancyProviderAllowed('omnipass')).toThrow(/is not implemented yet/);
+        expect(() => assertTenancyProviderAllowed('omnipass')).not.toThrow();
       }
     });
   });

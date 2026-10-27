@@ -5,7 +5,9 @@ jest.mock('@utils/logger.utils', () => ({
   LoggerBuilder: loggerMock,
 }));
 
-import Fastify, { FastifyInstance } from 'fastify';
+import { OmnipassClient } from '@multisearchad/omnipass-client';
+import Fastify, { FastifyInstance, FastifyPluginAsync } from 'fastify';
+import fastifyPlugin from 'fastify-plugin';
 
 import { AccessConfig } from '@configs';
 import AccessServicePlugin, {
@@ -169,25 +171,90 @@ describe('Unit::Services::LocalAccessService', () => {
   });
 });
 
+/**
+ * The fake `SecretStorePlugin` the access plugin declares as a dependency, since the omnipass client
+ * reads its secret from the store.
+ *
+ * @param secrets - The double the instance is decorated with
+ * @returns The plugin, under the name Fastify resolves the dependency by
+ */
+function fakeSecretStorePlugin(secrets: { get: jest.Mock }): FastifyPluginAsync {
+  return fastifyPlugin(
+    async (instance: FastifyInstance): Promise<void> => {
+      instance.decorate('secretStore', secrets as never);
+    },
+    { name: 'SecretStorePlugin' }
+  );
+}
+
 describe('Unit::Services::AccessServicePlugin', () => {
   let app: FastifyInstance;
+  let secrets: { get: jest.Mock };
 
   beforeEach((): void => {
     jest.clearAllMocks();
+    secrets = { get: jest.fn().mockResolvedValue('the-machine-account-secret') };
   });
 
   afterEach(async (): Promise<void> => {
     await app?.close();
+    jest.resetModules();
+    jest.dontMock('@configs');
   });
 
   it('should decorate the instance and warn that the tenancy is a stub', async (): Promise<void> => {
     app = Fastify();
+    await app.register(fakeSecretStorePlugin(secrets));
     await app.register(AccessServicePlugin);
     await app.ready();
 
     expect(app.accessService).toBeInstanceOf(LocalAccessService);
     expect(loggerMock.warn).toHaveBeenCalledWith(expect.stringContaining('development stub'), {
       code: 'ACCESS::LOCAL_STUB',
+    });
+    // The stub needs no secret: the store is there for the other provider, and stays untouched.
+    expect(secrets.get).not.toHaveBeenCalled();
+  });
+
+  it('should build the omnipass client when that provider is configured, reading its secret from the store', async (): Promise<void> => {
+    await jest.isolateModulesAsync(async (): Promise<void> => {
+      const actual: typeof import('@configs') = jest.requireActual('@configs');
+      jest.doMock('@configs', () => ({
+        ...actual,
+        accessConfig: { ...actual.accessConfig, provider: 'omnipass' },
+        authConfig: { ...actual.authConfig, domain: 'tenant.eu.auth0.com' },
+        omnipassConfig: { ...actual.omnipassConfig, clientId: 'the-machine-account' },
+      }));
+      const plugin: FastifyPluginAsync = (await import('@src/services/access.service')).default;
+
+      app = Fastify();
+      await app.register(fakeSecretStorePlugin(secrets));
+      await app.register(plugin);
+      await app.ready();
+    });
+
+    expect(secrets.get).toHaveBeenCalledWith('omnipass/client-secret');
+    expect(app.accessService).toBeInstanceOf(OmnipassClient);
+    // Nothing is warned: the tenancy is the real one, and a loud line about a stub would be a lie.
+    expect(loggerMock.warn).not.toHaveBeenCalled();
+  });
+
+  it('should refuse to start when the omnipass provider has no machine account', async (): Promise<void> => {
+    await jest.isolateModulesAsync(async (): Promise<void> => {
+      const actual: typeof import('@configs') = jest.requireActual('@configs');
+      jest.doMock('@configs', () => ({
+        ...actual,
+        accessConfig: { ...actual.accessConfig, provider: 'omnipass' },
+        authConfig: { ...actual.authConfig, domain: 'tenant.eu.auth0.com' },
+      }));
+      const plugin: FastifyPluginAsync = (await import('@src/services/access.service')).default;
+
+      const instance: FastifyInstance = Fastify();
+      await instance.register(fakeSecretStorePlugin(secrets));
+      await instance.register(plugin);
+
+      await expect(instance.ready()).rejects.toThrow(/omnipass client is not configured: clientId is missing/);
+      await instance.close();
     });
   });
 });

@@ -66,35 +66,55 @@ par requête. C'est le partage que le socle a posé dès le départ (`CLAUDE.md`
   `omnipass_client_id` est **refusé vide** quand `access_provider = "omnipass"`, pour que l'erreur
   arrive au `plan` et non dans une boucle de redémarrage.
 
-## 4. Ce qu'il manque, et c'est tout
+## 4. Ce qui est fait, le 2026-10-27
 
-Le paquet est sur **GitHub Packages**, qui exige un jeton en lecture. Le jeton de la session `gh` de
-cette machine porte `repo` et `read:org` mais **pas** `read:packages` : le registre répond 403, donc
-`pnpm install` ne peut pas récupérer le paquet, donc la ligne du § 2 ne peut pas être écrite — un
-`import` qui ne compile pas n'est pas un début de code, c'est un build cassé.
+Le paquet est installé — `@multisearchad/omnipass-client@0.1.1`, depuis GitHub Packages — et le
+câblage est celui du § 2 :
 
-Ce qu'il faut, dans l'ordre :
+- **Le registre, sans jeton nulle part dans le dépôt.** `backend/.npmrc` nomme le registre pour le
+  scope `@multisearchad` et rien d'autre : en local le jeton vient de `~/.npmrc`, en CI du jeton du
+  workflow — les deux dépôts sont dans la même organisation, donc aucun secret à créer — et dans
+  l'image d'un **secret BuildKit** monté le temps d'un `RUN`. Vérifié par un vrai `docker build` : le
+  paquet est bien dans l'image, et ni le jeton ni un `.npmrc` n'y subsistent.
+- **Le vrai client derrière le fournisseur.** `AccessServicePlugin` construit `OmnipassClient` quand
+  `ACCESS_PROVIDER=omnipass`, en lisant le secret du magasin au moment de la construction. Une valeur
+  manquante fait échouer le **démarrage** et non la première connexion : un spec le prouve sur
+  `clientId`.
+- **Les types du contrat ne sont plus recopiés.** `src/types/auth.types.ts` les **réexporte** du
+  paquet et ne garde que ce qui est à nous : `AuthMode`, `AccessTokenClaims`, et deux alias
+  **dérivés** du snapshot (`SnapshotOrganization`, `SnapshotSeat`) que le paquet n'expose pas sous un
+  nom. Aucune forme ne peut plus dériver de celle qu'omnipass implémente.
+- **Le plugin d'authentification n'a pas changé d'un caractère**, et le garde-fou de D43 ne refuse
+  plus omnipass — il est implémenté — tout en continuant de refuser la production avec autre chose.
 
-1. un jeton GitHub avec `read:packages`, posé dans `~/.npmrc` — **jamais** dans le dépôt ni dans une
-   conversation. Le dépôt ne portera qu'un `.npmrc` qui nomme le registre et **lit** le jeton dans
-   l'environnement, forme standard et sans secret ;
-2. le **compte machine** d'Omnipotent sur omnipass (`client_credentials`) : son `client_id` peut
-   m'être donné ici, son secret va dans Secrets Manager sous `omnipass/client-secret` ;
-3. la **déclaration des audiences et de l'URL** d'Omnipotent dans la configuration d'omnipass, sans
-   laquelle omnipass refuse le jeton relayé de nos utilisateurs.
+## 5. Le bouchon reste, et c'est une décision à valider
 
-Les trois sont dans `A-FAIRE.md`.
+Le § 2 disait de le supprimer. Je ne l'ai pas fait, pour une raison qui n'existait pas quand ce
+document a été écrit :
 
-## 5. Comment la phase se testera
+1. **omnipass n'a pas encore déclaré nos audiences** dans son registre (point 5 de son
+   `A-FAIRE.md`). Tant que ce n'est pas fait, un jeton que nous lui relayons est refusé — 403
+   `audience_not_allowed` — et supprimer le bouchon rendrait l'application inutilisable en local sans
+   rien apporter en échange.
+2. Le jour où cette déclaration existe, le bouchon part **d'un coup** : `LocalAccessService` et ses
+   tests, l'avertissement de démarrage, les quatre `DEV_ACTOR_*`, le fournisseur `local`, et le
+   garde-fou de D43 qui n'aura plus rien à garder. C'est une demi-journée, pas une phase.
 
-- **Le bouchon n'existe plus** : aucun chemin ne construit un acteur depuis l'environnement, et un
-  test le prouve en lisant les fournisseurs déclarés.
-- **Les erreurs traversent telles quelles** : `OmnipassError` porte `statusCode`, `code`, `params` et
-  les alias que notre gestionnaire d'erreurs lit déjà. Les quatre cas du § 4 de
-  `branchement-omnipotent.md` — identité sans compte, omnipass injoignable à cache chaud puis à cache
-  froid, écriture qui n'arrive pas — sont éprouvés contre un `fetchFn` injecté, **sans** appeler
-  omnipass.
-- **Aucun appel réseau sur une permission** : un `assert*` ne touche ni le réseau ni un cache, ce qui
-  se vérifie en comptant les appels du `fetchFn`.
-- **Le démarrage en production** ne dépend plus d'un garde-fou : il n'y a plus de fournisseur à
-  refuser.
+## 6. Ce qui se vérifie maintenant, et ce qui attend la déclaration
+
+Vérifiable sans omnipass, et vérifié :
+
+- le paquet s'installe, compile et se construit dans l'image ;
+- le plugin construit le client pour `omnipass` et le bouchon pour `local`, et refuse de démarrer
+  sans compte machine ;
+- un `assert*` ne touche ni le réseau ni un cache — c'est le paquet qui le garantit, et ses propres
+  tests le couvrent ;
+- `OmnipassError` traverse l'API **telle quelle** : elle porte `statusCode`, `code`, `params` et les
+  alias que notre gestionnaire d'erreurs lit déjà, donc aucun adaptateur.
+
+En attente de la déclaration des audiences chez omnipass :
+
+- se connecter avec un vrai jeton, lire une ressource d'une Organization, se faire refuser une autre
+  (404) et un rôle trop faible (403) — le scénario que `plan.md` donne pour cette phase ;
+- les quatre cas de dégradation du § 4 de `branchement-omnipotent.md` contre un vrai omnipass ; ils
+  sont déjà couverts chez lui contre un `fetchFn` injecté.
