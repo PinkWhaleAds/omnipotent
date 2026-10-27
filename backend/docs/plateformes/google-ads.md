@@ -3,6 +3,17 @@
 Étude de la plateforme, produite au début de la phase 10 et avant d'écrire son adapter
 (`../../../docs/cadrage-plateforme.md`). Écrite le 2026-10-27.
 
+## À lire avant celui-ci
+
+**`~/OmniAd/multi-search/backend/docs/platforms/google-ads.md`** — l'étude de multi-search, sourcée
+page par page sur la documentation de Google : versions et dates d'arrêt, en-têtes, niveaux d'accès,
+GAQL, `mutate`, ressources d'une campagne Search, validation, Keyword Planner, et une liste de risques
+et d'incohérences relevées dans la documentation. Elle est **à nous** et elle fait référence.
+
+**Ce document-ci ne la recopie pas.** Il porte ce qui est propre à Omnipotent — la projection sur nos
+cinq niveaux, l'éclatement, ce que notre carte d'identifiants garde, le capping — et les décisions que
+cela force. Pour le protocole, c'est l'autre qu'il faut ouvrir.
+
 **Provenance de chaque affirmation**, marquée partout : **[MS]** transcrit de multi-search, qui le fait
 tourner en production (`~/OmniAd/multi-search/backend/src/platforms/google/`, le client, le mapping et
 l'adapter) ; **[DOC]** d'après la documentation de Google ; **[À VOIR]** à constater sur notre compte,
@@ -67,15 +78,15 @@ cumuler.
 
 **[MS]** Ce que le couple `(google_ads, search)` applique vraiment :
 
-| Dimension                                 | Google Search                                                                                                                                                        |
-| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Pays, régions, villes, codes postaux      | **oui**, en `geoTargetConstant`, inclusion et exclusion                                                                                                              |
-| Rayon autour d'un point                   | **oui**, en `proximity`                                                                                                                                              |
-| Intention de lieu                         | **oui** : `PRESENCE` ou `PRESENCE_OR_INTEREST` à l'inclusion ; une exclusion est toujours `PRESENCE`                                                                 |
-| Appareils                                 | **oui** : desktop, mobile, tablette                                                                                                                                  |
-| Mots-clés, types de correspondance        | **oui** : `BROAD`, `PHRASE`, `EXACT`, et les négatifs                                                                                                                |
-| **Langue**                                | **non** — depuis le 2026-09-30 une campagne Search diffuse dans la langue des annonces et de la page de destination **[MS]**. Le ciblage de langue n'est plus envoyé |
-| Audiences, centres d'intérêt, démographie | **[À VOIR]** — multi-search ne les utilise pas, donc rien n'est prouvé ici                                                                                           |
+| Dimension                                 | Google Search                                                                                                                                                                                                                                                                                                                                          |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Pays, régions, villes, codes postaux      | **oui**, en `geoTargetConstant`, inclusion et exclusion                                                                                                                                                                                                                                                                                                |
+| Rayon autour d'un point                   | **oui**, en `proximity`                                                                                                                                                                                                                                                                                                                                |
+| Intention de lieu                         | **oui** : `PRESENCE` ou `PRESENCE_OR_INTEREST` à l'inclusion ; une exclusion est toujours `PRESENCE`                                                                                                                                                                                                                                                   |
+| Appareils                                 | **oui** : desktop, mobile, tablette                                                                                                                                                                                                                                                                                                                    |
+| Mots-clés, types de correspondance        | **oui** : `BROAD`, `PHRASE`, `EXACT`, et les négatifs                                                                                                                                                                                                                                                                                                  |
+| **Langue**                                | **non, et c'est un refus** : créer un `CampaignCriterion.language` sur une campagne Search répond `ContextError.OPERATION_NOT_PERMITTED_FOR_CONTEXT` depuis fin septembre 2026 **[MS]**. Une campagne diffuse dans la langue de ses annonces et de sa page de destination ; les langues restent utiles au Keyword Planner et à la génération de textes |
+| Audiences, centres d'intérêt, démographie | **[À VOIR]** — multi-search ne les utilise pas, donc rien n'est prouvé ici                                                                                                                                                                                                                                                                             |
 
 **Les dimensions dangereuses sont celles que Google ignore en silence** : elles n'échouent pas, elles
 **élargissent** la diffusion. La langue en est une depuis septembre : une campagne qui la demandait
@@ -107,12 +118,17 @@ natures différentes :
 | ---------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | **Compte de service** Google Cloud | Tout : lire, créer, modifier, lire les rapports. Un JWT signé en RS256 échangé contre un jeton d'accès          |
 | **OAuth d'un humain admin du MCC** | **Envoyer, retirer et terminer les invitations de lien manager** : Google les **refuse** à un compte de service |
-| **Developer token**                | En en-tête de chaque appel ; c'est lui que l'accès Basic plafonne                                               |
 | `login-customer-id`                | Notre MCC, en en-tête : c'est par lui que nous agissons sur un compte client                                    |
 
-La deuxième ligne est une surprise qu'il vaut mieux lire ici que découvrir en phase : multi-search a
-une commande dédiée (`pnpm google:connect`) qui fait consentir une fois un humain admin du MCC et garde
-son `refresh_token`. Il faudra l'équivalent, et son secret va dans Secrets Manager.
+**Il n'y a plus de developer token** depuis le 2026-09-09 : l'en-tête est « optional and ignored by the
+API servers », et le **niveau d'accès appartient au projet Google Cloud** du compte de service
+**[MS]**. Les seuls en-têtes sont donc `Authorization: Bearer <jeton>` et `login-customer-id`. Les
+résumés générés par IA en tête de certaines pages de Google disent encore le contraire — c'est le corps
+des pages qui a raison.
+
+La deuxième ligne du tableau est une surprise qu'il vaut mieux lire ici que découvrir en phase :
+multi-search a une commande dédiée (`pnpm google:connect`) qui fait consentir une fois un humain admin
+du MCC et garde son `refresh_token`. Il faudra l'équivalent, et son secret va dans Secrets Manager.
 
 **La hiérarchie, dans notre vocabulaire** (`../../../CADRAGE.md` § 12) :
 
@@ -141,12 +157,12 @@ Et la perte d'accès a ses codes à elle, qui invalident **le compte** et non l'
 
 **[MS]** Correspondance de nos stratégies :
 
-| La nôtre               | Google                 | Montant                                                                         |
-| ---------------------- | ---------------------- | ------------------------------------------------------------------------------- |
-| `max_cpc`              | `MANUAL_CPC`           | **oui**, le CPC maximum, posé sur l'ad group                                    |
-| `maximize_clicks`      | `TARGET_SPEND`         | non                                                                             |
-| `maximize_conversions` | `MAXIMIZE_CONVERSIONS` | **non envoyé** : Google maximise dans le budget, sans coût par conversion cible |
-| `fixed_cpm`, `max_cpm` | —                      | **refusé** : `cpm: false`, le Search n'achète pas au mille                      |
+| La nôtre               | Google                 | Montant                                                                                                                                 |
+| ---------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `max_cpc`              | `MANUAL_CPC`           | **oui**, le CPC maximum, posé sur l'ad group                                                                                            |
+| `maximize_clicks`      | `TARGET_SPEND`         | **facultatif** : un plafond de CPC (`cpcBidCeilingMicros`)                                                                              |
+| `maximize_conversions` | `MAXIMIZE_CONVERSIONS` | **non envoyé** : Google maximise dans le budget, sans coût par conversion cible. **Demande le suivi des conversions**, donc la phase 18 |
+| `fixed_cpm`, `max_cpm` | —                      | **refusé** : `cpm: false`, le Search n'achète pas au mille                                                                              |
 
 **Le budget quotidien** est en **micros**, arrondi à l'unité minimale de la devise du compte : un
 millionième pour les devises à unité entière (`JPY`, `KRW`, `VND`, `CLP`, `COP`, `IDR`, `PKR`, `RSD`,
@@ -171,9 +187,16 @@ voulu — donc pour toutes les plateformes d'un coup.
   le projet Google Cloud** — pas par compte client. Chaque opération d'un `mutate` compte une unité ;
   une requête `search` compte 1, et ses pages suivantes 0 **[MS]**. C'est pour cela que la phase 9
   journalise un nombre d'opérations par appel ;
-- **l'accès Basic plafonne à 15 000 opérations par jour pour tout le projet** **[DOC]**, ce qui devient
-  contraignant avec plusieurs leviers et l'éclatement. L'accès **Standard** lève ce plafond : la
-  demande est au point 4 de `../../../A-FAIRE.md`, environ dix jours ouvrés ;
+- **le niveau d'accès du projet Google Cloud fixe ce plafond**, et un projet neuf démarre au niveau le
+  plus bas **[MS]** : `Test` ne parle qu'à des comptes de test, `Explorer` tombe à **2 880 opérations
+  par jour en production** — un piège —, `Basic` remonte à 15 000, et `Standard` les lève. Il faut donc
+  demander `Basic` **puis** `Standard`, dans cet ordre ;
+- **et ce plafond est partagé.** Il vaut pour tout le projet, tous clients confondus. L'étude de
+  multi-search le chiffre : avec une revue des annonces toutes les dix minutes et des statistiques
+  horaires, **cinquante AdGroups consomment déjà environ 8 400 opérations par jour avant la moindre
+  écriture**. Et comme Omnipotent réutilise le projet de multi-search (décision du 2026-10-27), les
+  deux produits se partagent le **même** plafond : la demande d'accès **Standard** n'est pas une
+  optimisation, c'est une condition pour que les deux tiennent ensemble ;
 - **temporaire contre définitif** : les statuts gRPC `ABORTED`, `DEADLINE_EXCEEDED`, `INTERNAL`,
   `RESOURCE_EXHAUSTED`, `UNAVAILABLE`, `UNKNOWN` ; les codes Google `CONCURRENT_MODIFICATION`,
   `INTERNAL_ERROR`, `TRANSIENT_ERROR`, `RESOURCE_TEMPORARILY_EXHAUSTED` ; et les statuts HTTP 429, 500,

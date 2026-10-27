@@ -44,7 +44,8 @@ Conséquence pratique : les comptes DV360, GAM et Hawk utilisés par MBP étaien
 Omnipotent reprend les quatre plateformes Search de multi-search. Ces accès existent déjà côté MS.
 
 - [ ] Confirmer qu'Omnipotent **réutilise** les mêmes comptes et accès, et ne refait pas la démarche :
-  - **Google Ads** : projet Google Cloud, MCC de production, MCC de test, compte de service, compte Keyword Planner, et le **`refresh_token` OAuth d'un humain admin du MCC** — Google refuse les invitations de lien manager à un compte de service, donc le compte de service seul ne suffit pas (`backend/docs/plateformes/google-ads.md` § 4). Ces credentials vont dans Secrets Manager, jamais dans le chat ; le developer token et le customer id du MCC n'étant pas secrets, tu peux me les donner ici.
+  - **Google Ads** : **décidé le 2026-10-27 — on réutilise les accès de multi-search**, un seul projet Google Cloud et un seul MCC pour les deux produits. Mais ils **n'existent pas encore** : la section 7 de `~/OmniAd/multi-search/A-FAIRE.md` est entièrement à cocher. Il faut donc projet Google Cloud (**compte de facturation payant**, un projet en essai gratuit est refusé), API Google Ads activée, MCC de production, MCC de test avec un compte client dedans, compte de service ajouté comme utilisateur du MCC, compte Keyword Planner, et le **`refresh_token` OAuth d'un humain admin du MCC** — Google refuse les invitations de lien manager à un compte de service (`backend/docs/plateformes/google-ads.md` § 4). **Il n'y a plus de developer token** depuis le 2026-09-09 : le niveau d'accès est celui du projet Cloud. Les clés vont dans Secrets Manager, jamais dans le chat ; le customer id du MCC n'étant pas secret, tu peux me le donner ici.
+    **Conséquence du partage** : le plafond d'opérations est celui du projet, tous clients confondus — les deux produits se le partagent. L'étude de multi-search chiffre cinquante AdGroups à ~8 400 opérations par jour avant la moindre écriture, sur 15 000 en Basic. L'accès **Standard** devient donc une condition, pas une optimisation.
   - **Microsoft Advertising** : compte gestionnaire, sandbox, application Entra ID, developer token.
   - **OpenAI Ads** : compte `OmniAd` et sa clé Ads API.
   - **Thrad** : organisation et clé API.
@@ -65,7 +66,7 @@ Décision prise : un service séparé, dépôt `git@github.com:MultiSearchAd/omn
 
 ## 4. Google Ads — accès Standard
 
-- [ ] Demander l'accès **Standard** à l'API Google Ads (environ 10 jours ouvrés d'après la démarche suivie pour multi-search). L'accès **Basic** est limité à **15 000 opérations par jour pour tout le projet**, ce qui devient contraignant avec plusieurs leviers et l'éclatement des campagnes par TargetingGroup.
+- [ ] Demander l'accès **Basic** dès le projet créé (automatisé, quelques minutes après la vérification de marque), **puis** l'accès **Standard** (revue d'environ 10 jours ouvrés). Un projet neuf démarre au niveau `Test`, qui ne parle qu'à des comptes de test, et `Explorer` tombe à **2 880 opérations par jour en production** : c'est le piège à éviter. `Basic` plafonne à **15 000 opérations par jour pour tout le projet**, partagé avec multi-search depuis la décision de réutiliser ses accès, ce qui rend `Standard` nécessaire plus tôt qu'il n'y paraît.
 - [ ] Rappel : le niveau d'accès d'un projet est retiré après **90 jours sans appel**. Ne pas laisser le projet inactif pendant le développement d'Omnipotent.
 
 ## 5. Limites d'objets Google — vérification
