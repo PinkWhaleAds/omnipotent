@@ -245,6 +245,56 @@ donc à faire **une fois**, et sert les deux.
   **Google Ads API** de la **console Google Cloud**. Le niveau d'accès appartient au **projet Cloud**
   qui possède le compte de service.
 
+### B0. Ce que tu me donnes, et par quel chemin
+
+Le détail de chaque étape est plus bas ; voici d'abord **la liste de ce qui doit me parvenir**, dans
+l'ordre où les étapes la produisent.
+
+**Dans le chat — rien de tout cela n'est un secret.** Un customer id est public sur n'importe quelle
+facture Google, une adresse de compte de service ne permet rien sans sa clé, et un identifiant de
+projet Cloud non plus.
+
+| Ce que tu m'envoies                       | Produit par | Ce que j'en fais                                     |
+| ----------------------------------------- | ----------- | ---------------------------------------------------- |
+| L'**identifiant du projet** Cloud         | B1          | Le journal des appels, et le suivi du quota du projet |
+| L'**adresse du compte de service**        | B3          | Vérifier qu'elle est bien invitée dans les MCC (B5)   |
+| Le **customer id du MCC de production**   | B4          | `GOOGLE_ADS_MANAGER_ID`, l'en-tête `login-customer-id` |
+| Le **customer id du MCC de test**         | B4          | Les huit preuves de la phase 10                       |
+| Le **customer id du compte client de test** | B4        | Le compte sur lequel les preuves écrivent             |
+| Le **customer id du compte Keyword Planner** | B7       | `GOOGLE_ADS_PLANNER_CUSTOMER_ID` (phase 17)           |
+| Le **niveau d'accès atteint**, et la date de la demande Standard | B6 | Le plafond d'opérations que je prends pour vrai, et ce que j'écris dans `A-FAIRE.md` |
+| Les **quatre limites de compte**          | B9          | Régler le plafond d'éclatement, aujourd'hui à 50      |
+
+Écris-les en vrac, une ligne par valeur, en me disant laquelle est laquelle — je les enregistre dans
+`A-FAIRE.md` et dans la configuration. Si tu n'en as qu'une partie, envoie cette partie : rien
+n'attend le lot complet.
+
+**Hors du chat, et c'est la seule chose qui en sort : la clé JSON du compte de service.** Elle ne me
+parvient pas du tout, et c'est voulu — je n'en ai pas besoin pour écrire l'adapter, puisqu'aucun test
+n'appelle une plateforme (`CADRAGE.md` § 14). Elle ne sert qu'aux huit preuves qui closent la phase.
+Son chemin :
+
+1. **laisse le fichier téléchargé où il est**, hors du dépôt. Ne le colle pas dans un fichier du
+   projet, même ignoré par git — et ne me dis pas son contenu, même tronqué ;
+2. le jour où l'adapter sait le lire, une seule commande le pose dans le magasin de secrets local, et
+   je te la donnerai telle quelle :
+
+   ```sh
+   aws --endpoint-url http://localhost:9022 --region eu-north-1 secretsmanager create-secret \
+     --name omnipotent/google-ads/service-account \
+     --secret-string "file:///chemin/vers/la-cle.json"
+   ```
+
+3. en production, le même secret s'appelle `omnipotent/prod/google-ads/service-account`, son conteneur
+   est déclaré par Terraform à la phase 10, et sa valeur se pose à la main, jamais par Terraform ;
+4. une fois posée, **supprime le fichier téléchargé**. Une clé de compte de service ne s'expire pas
+   toute seule : elle vaut jusqu'à ce qu'on la révoque.
+
+**Et une chose que tu ne peux pas me donner, parce qu'elle n'est pas à donner** : le consentement de
+l'humain administrateur du MCC (B8). Il passe par une commande que je dois d'abord transcrire, qui
+ouvre une page Google dans ton navigateur et écrit elle-même le `refresh_token` dans le magasin. Tu ne
+verras jamais ce jeton, et moi non plus.
+
 ### B1. Le projet Google Cloud — _15 minutes, et il doit être payant_
 
 1. **console.cloud.google.com** ;
