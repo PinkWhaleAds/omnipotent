@@ -75,6 +75,8 @@ On n'est pas plus plat que MBP — on lui retire un seul niveau. La simplificati
 
 Le `TargetingGroup` n'a **pas** de dates : il représente un ciblage appliqué, pas une période de diffusion.
 
+La campagne porte en plus une **déclaration de publicité politique**, obligatoire à la création (D53) : le règlement UE 2024/900 oblige chaque plateforme à poser la question, donc c'est l'utilisateur qui répond et jamais nous à sa place.
+
 ---
 
 ## 4. Budget, dates et capping : l'algèbre
@@ -586,6 +588,7 @@ Quatre pièces s'ajoutent à ça, et deux d'entre elles sont des pannes classiqu
 | D50 | **GAM est retiré du périmètre** — serveur publicitaire d'un éditeur, pas un DSP (§ 6) ; le périmètre est celui du § 6 |
 | D51 | **Amazon DSP est retiré du levier `audio`** — sa bibliothèque d'assets n'enregistre pas d'audio (§ 6) |
 | D52 | Nom d'hôte de production **`omnipotent.omnilor.com`** et port local **3002** (§ 19) : `api.omnilor.com` et `localhost:3000` appartiennent à multi-search et à omnipass, et l'identifiant d'une API MCP Auth0 doit être **l'URL exacte** du `/mcp` servi — il en faut donc une par environnement |
+| D53 | La **publicité politique est déclarée par l'utilisateur**, jamais déduite : la campagne porte un champ **obligatoire** à la création (règlement UE 2024/900, que chaque plateforme répercute). Déclarer « oui » est **refusé par la preview** avec un code stable, tant qu'aucune plateforme du périmètre ne l'accepte et que les déclarations de commanditaire ne sont pas modélisées |
 | L1→L24 | Les leviers : voir `backend/docs/leviers.md`, validées le 2026-10-25 |
 | R1→R14 | Le reporting : voir `backend/docs/reporting.md`. **R9 (nos propres conversions) est reporté en V2** |
 | T1 | La tenancy vit dans un service séparé, `omnipass` |

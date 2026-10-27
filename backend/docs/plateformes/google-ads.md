@@ -247,9 +247,13 @@ registre (`src/creatives/creative-formats.ts`, `SEARCH_AD_LIMITS`), transcrites 
   vont par paire. Le logo est envoyé tel quel, ses contraintes non vérifiées — un logo refusé est
   journalisé.
 - **La déclaration de publicité politique européenne** est portée par **chaque** campagne
-  (`DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING`) **[MS]**. Cohérent avec la question ouverte de
-  `../../../A-FAIRE.md` : si Omnipotent refuse la publicité politique tout court, cette valeur est une
-  constante et il n'y a rien à modéliser.
+  (`contains_eu_political_advertising`) **[MS]**. La question ouverte est **tranchée (D53)** : ce n'est
+  pas une constante, c'est **l'utilisateur qui déclare**, et la campagne porte un champ obligatoire
+  `containsPoliticalAdvertising`. L'adapter envoie donc `DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING`
+  quand il vaut `false`, et n'a pas d'autre cas à traiter : `true` ne franchit pas la preview
+  (`preview_political_advertising_unsupported`), parce que les déclarations de commanditaire que Google
+  exige ensuite ne sont pas modélisées — et que Microsoft refuse la publicité politique tout court
+  (`PoliticalCampaignsAreNotSupported`).
 
 ## 9. Les points à valider
 

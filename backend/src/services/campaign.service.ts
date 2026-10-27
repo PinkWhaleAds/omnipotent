@@ -48,6 +48,7 @@ export function toCampaign(entity: CampaignEntity, budget: Campaign['budget'], l
     budget,
     capping: entity.capping ?? [],
     insertionOrderNumber: entity.insertionOrderNumber,
+    containsPoliticalAdvertising: entity.containsPoliticalAdvertising,
     labels,
     createdAt: entity.createdAt.toISOString(),
     updatedAt: entity.updatedAt.toISOString(),
@@ -367,6 +368,7 @@ export class CampaignService {
         currency: body.currency,
         timezone: body.timezone ?? null,
         insertionOrderNumber: body.insertionOrderNumber ?? null,
+        containsPoliticalAdvertising: body.containsPoliticalAdvertising,
         capping: body.capping ?? null,
         ...columns,
       })
@@ -405,6 +407,9 @@ export class CampaignService {
       ...(body.name === undefined ? {} : { name: body.name }),
       ...(body.timezone === undefined ? {} : { timezone: body.timezone }),
       ...(body.insertionOrderNumber === undefined ? {} : { insertionOrderNumber: body.insertionOrderNumber }),
+      ...(body.containsPoliticalAdvertising === undefined
+        ? {}
+        : { containsPoliticalAdvertising: body.containsPoliticalAdvertising }),
       ...columns,
     });
     const [campaign]: Campaign[] = await this.toApi(manager, [saved]);

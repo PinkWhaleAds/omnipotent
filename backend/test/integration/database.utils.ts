@@ -107,6 +107,7 @@ export async function seedTree(
       budgetVolumeUnit: null,
       capping: null,
       insertionOrderNumber: null,
+      containsPoliticalAdvertising: false,
     })
   );
   const levers: Repository<LeverEntity> = dataSource.getRepository(LeverEntity);

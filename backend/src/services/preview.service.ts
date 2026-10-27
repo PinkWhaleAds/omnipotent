@@ -246,6 +246,14 @@ export class PreviewService {
    * @returns Nothing
    */
   private checkStructure(tree: CampaignTree, errors: PreviewFinding[], warnings: PreviewFinding[]): void {
+    // What the user declared, not what we assumed (D53). The refusal is **not** per platform: no
+    // platform of the scope accepts political advertising — Microsoft answers
+    // `PoliticalCampaignsAreNotSupported`, Google and Hawk demand a block of sponsor declarations we
+    // do not model — so a campaign that says yes cannot be launched anywhere. The day one accepts it,
+    // the rule moves to `platform-rules.ts` and this check reads the registry instead.
+    if (tree.campaign.containsPoliticalAdvertising) {
+      errors.push(this.finding('preview_political_advertising_unsupported', {}, null, null));
+    }
     if (tree.levers.length === 0) {
       errors.push(this.finding('preview_lever_missing', {}, null, null));
     }

@@ -62,6 +62,7 @@ const daySchema = z.iso.date();
  * @property budget - What it carries and what it may spend, computed at read time
  * @property capping - The stack of frequency caps; empty means explicitly none
  * @property insertionOrderNumber - Commercial reference of the order (L24)
+ * @property containsPoliticalAdvertising - What the user declared about political advertising (D53)
  * @property labels - The Labels posted on it
  * @property createdAt - Creation date (ISO 8601)
  * @property updatedAt - Last update date (ISO 8601)
@@ -80,6 +81,7 @@ export const campaignSchema = z.object({
   budget: budgetBlockSchema,
   capping: cappingSchema,
   insertionOrderNumber: z.string().nullable(),
+  containsPoliticalAdvertising: z.boolean(),
   labels: z.array(labelSummarySchema),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
@@ -114,6 +116,11 @@ export type ListCampaignsQuery = z.infer<typeof listCampaignsQuerySchema>;
  *   here: it converts through a bid CPM, and the bid lives on the AdGroup
  * @property capping - The stack of frequency caps
  * @property insertionOrderNumber - Commercial reference of the order
+ * @property containsPoliticalAdvertising - **Required**: whether the campaign carries political
+ *   advertising, as the EU regulation 2024/900 makes every platform ask. It is the advertiser's
+ *   declaration, so the API **receives** it and never assumes it (D53); `true` is refused by the
+ *   preview, with a stable code, until the sponsor declarations the platforms then demand are
+ *   modelled
  * @property labelIds - Labels to post on it right away
  */
 export const createCampaignBodySchema = z.strictObject({
@@ -125,6 +132,7 @@ export const createCampaignBodySchema = z.strictObject({
   budgetCents: z.number().int().min(0),
   capping: cappingSchema.optional(),
   insertionOrderNumber: z.string().trim().min(1).max(64).nullable().optional(),
+  containsPoliticalAdvertising: z.boolean(),
   labelIds: z.array(z.uuid()).optional(),
 });
 
@@ -146,6 +154,7 @@ export const updateCampaignBodySchema = z.strictObject({
   budgetCents: z.number().int().min(0).optional(),
   capping: cappingSchema.nullable().optional(),
   insertionOrderNumber: z.string().trim().min(1).max(64).nullable().optional(),
+  containsPoliticalAdvertising: z.boolean().optional(),
 });
 
 /** TypeScript type inferred from {@link updateCampaignBodySchema}. */

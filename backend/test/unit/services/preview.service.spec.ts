@@ -260,6 +260,23 @@ describe('Unit::Services::PreviewService', () => {
       expect(access.assertOrganizationRole).toHaveBeenCalledWith(JANE, IDS.organization, 'viewer');
     });
 
+    it('should refuse a campaign the user declared as political advertising, complete or not', async (): Promise<void> => {
+      seedComplete({ campaign: { containsPoliticalAdvertising: true } });
+      store.seed(KeywordEntity, []);
+
+      const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+      expect(preview.launchable).toBe(false);
+      // The campaign itself is at fault, not a node of it, and the refusal names no platform: none of
+      // them accepts political advertising (D53).
+      expect(preview.errors).toEqual([
+        { code: 'preview_political_advertising_unsupported', params: {}, level: null, nodeId: null, platform: null },
+      ]);
+      // Everything else still answers: the user sees what the campaign would create, and the one thing
+      // that stops it.
+      expect(preview.platforms).toHaveLength(1);
+    });
+
     it('should list what is missing, level by level, on a campaign nobody finished', async (): Promise<void> => {
       store.seed(CampaignEntity, [
         {

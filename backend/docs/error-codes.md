@@ -355,22 +355,23 @@ traduit de la même façon.
 
 ### Les erreurs de la preview, qui bloquent le lancement
 
-| Code                                  | Quand                                                      | `params`                             |
-| ------------------------------------- | ---------------------------------------------------------- | ------------------------------------ |
-| `preview_lever_missing`               | La campagne n'achète sur aucun levier                      | `{}`                                 |
-| `preview_ad_group_missing`            | Un levier sans AdGroup                                     | `lever`                              |
-| `preview_targeting_group_missing`     | Un AdGroup sans TargetingGroup                             | `name`                               |
-| `preview_line_missing`                | Un TargetingGroup sans Line                                | `name`                               |
-| `preview_creative_missing`            | Une Line sans créa, ou dont la créa a été supprimée        | `name`                               |
-| `preview_creative_version_missing`    | Une créa dont aucune version ne diffuse                    | `creative`                           |
-| `preview_keywords_missing`            | Un TargetingGroup Search sans mot-clé positif              | `name`                               |
-| `preview_account_missing`             | Aucun compte relié pour cette plateforme et cette devise   | `platform`, `currency`               |
-| `preview_account_unusable`            | Le compte relié n'est pas actif                            | `platform`, `status`, `statusReason` |
-| `preview_account_credentials_missing` | Le compte n'a pas de credentials                           | `platform`                           |
-| `preview_adapter_missing`             | Le couple `(plateforme, levier)` n'a pas encore d'adapter  | `platform`, `lever`                  |
-| `preview_click_url_missing`           | La plateforme exige une URL de clic que la créa n'a pas    | `creative`                           |
-| `preview_iab_categories_missing`      | La plateforme exige des catégories IAB que la créa n'a pas | `creative`                           |
-| `preview_platform_campaign_cap`       | L'éclatement dépasse le plafond d'objets par AdGroup       | `objects`, `max`                     |
+| Code                                        | Quand                                                                                                  | `params`                             |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------ |
+| `preview_lever_missing`                     | La campagne n'achète sur aucun levier                                                                  | `{}`                                 |
+| `preview_political_advertising_unsupported` | La campagne est déclarée comme publicité politique : aucune plateforme du périmètre n'en accepte (D53) | `{}`                                 |
+| `preview_ad_group_missing`                  | Un levier sans AdGroup                                                                                 | `lever`                              |
+| `preview_targeting_group_missing`           | Un AdGroup sans TargetingGroup                                                                         | `name`                               |
+| `preview_line_missing`                      | Un TargetingGroup sans Line                                                                            | `name`                               |
+| `preview_creative_missing`                  | Une Line sans créa, ou dont la créa a été supprimée                                                    | `name`                               |
+| `preview_creative_version_missing`          | Une créa dont aucune version ne diffuse                                                                | `creative`                           |
+| `preview_keywords_missing`                  | Un TargetingGroup Search sans mot-clé positif                                                          | `name`                               |
+| `preview_account_missing`                   | Aucun compte relié pour cette plateforme et cette devise                                               | `platform`, `currency`               |
+| `preview_account_unusable`                  | Le compte relié n'est pas actif                                                                        | `platform`, `status`, `statusReason` |
+| `preview_account_credentials_missing`       | Le compte n'a pas de credentials                                                                       | `platform`                           |
+| `preview_adapter_missing`                   | Le couple `(plateforme, levier)` n'a pas encore d'adapter                                              | `platform`, `lever`                  |
+| `preview_click_url_missing`                 | La plateforme exige une URL de clic que la créa n'a pas                                                | `creative`                           |
+| `preview_iab_categories_missing`            | La plateforme exige des catégories IAB que la créa n'a pas                                             | `creative`                           |
+| `preview_platform_campaign_cap`             | L'éclatement dépasse le plafond d'objets par AdGroup                                                   | `objects`, `max`                     |
 
 ### Les avertissements, qui ne bloquent rien
 

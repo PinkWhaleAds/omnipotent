@@ -79,6 +79,22 @@ export class CampaignEntity extends BaseEntity {
   insertionOrderNumber!: string | null;
 
   /**
+   * What the **user** declared about political advertising (D53).
+   *
+   * Every platform has to ask the question — the EU regulation 2024/900 obliges them to — so the
+   * campaign has to carry the answer: Google wants it on each of its campaigns
+   * (`contains_eu_political_advertising`) and Microsoft on each of its (`IsPolitical`). It is
+   * **declared, never deduced**: a constant here would make us answer in the advertiser's place.
+   *
+   * `true` is refused by the preview for now (`preview_political_advertising_unsupported`): no
+   * platform of the scope accepts political advertising — Microsoft answers
+   * `PoliticalCampaignsAreNotSupported` — and the sponsor declarations Google and Hawk then require
+   * are not modelled. Refusing with a stable code beats failing at the platform.
+   */
+  @Column({ type: 'boolean' })
+  containsPoliticalAdvertising!: boolean;
+
+  /**
    * When the day's budget must be recomputed next: **this campaign's local midnight**, with a jitter
    * (D34 rule 2, D47).
    *

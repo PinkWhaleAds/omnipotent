@@ -58,6 +58,7 @@ function campaignRow(overrides: Partial<CampaignEntity> = {}): CampaignEntity {
     budgetVolumeUnit: null,
     capping: null,
     insertionOrderNumber: null,
+    containsPoliticalAdvertising: false,
     createdAt: NOW,
     updatedAt: NOW,
     deletedAt: null,
@@ -88,6 +89,7 @@ const AUTOMNE: Campaign = {
   budget: BUDGET,
   capping: [],
   insertionOrderNumber: null,
+  containsPoliticalAdvertising: false,
   labels: [],
   createdAt: ISO,
   updatedAt: ISO,
@@ -215,6 +217,7 @@ describe('Unit::Services::CampaignService', () => {
           startsOn: '2026-11-05',
           endsOn: '2026-11-20',
           budgetCents: 100_000,
+          containsPoliticalAdvertising: false,
           labelIds: [SPRING.id],
         })
       ).resolves.toEqual({ ...AUTOMNE, labels: [SPRING] });
@@ -232,6 +235,7 @@ describe('Unit::Services::CampaignService', () => {
           startsOn: '2026-11-05',
           endsOn: '2026-11-20',
           budgetCents: 100_000,
+          containsPoliticalAdvertising: false,
         })
       ).resolves.toEqual(AUTOMNE);
       expect(db.manager.create).toHaveBeenCalledWith(
@@ -239,6 +243,27 @@ describe('Unit::Services::CampaignService', () => {
         expect.objectContaining({ timezone: null, capping: null, insertionOrderNumber: null, budgetCents: 100_000 })
       );
       expect(labels.setOn).not.toHaveBeenCalled();
+    });
+
+    it('should store the political advertising declaration as the user gave it', async (): Promise<void> => {
+      db.manager.save.mockResolvedValue(campaignRow({ containsPoliticalAdvertising: true }));
+
+      await expect(
+        service.create(JANE, IDS.organization, IDS.advertiser, {
+          name: 'Herbéa — Automne',
+          currency: 'EUR',
+          startsOn: '2026-11-05',
+          endsOn: '2026-11-20',
+          budgetCents: 100_000,
+          containsPoliticalAdvertising: true,
+        })
+      ).resolves.toMatchObject({ containsPoliticalAdvertising: true });
+      // Nothing is assumed here: the declaration is the advertiser's, and the preview is what refuses
+      // it (D53). Saving a draft that says yes is allowed, launching it is not.
+      expect(db.manager.create).toHaveBeenCalledWith(
+        CampaignEntity,
+        expect.objectContaining({ containsPoliticalAdvertising: true })
+      );
     });
 
     it('should accept on a campaign with no lever what a Search lever would refuse', async (): Promise<void> => {
@@ -251,6 +276,7 @@ describe('Unit::Services::CampaignService', () => {
           startsOn: '2026-11-05',
           endsOn: '2026-11-20',
           budgetCents: 100_000,
+          containsPoliticalAdvertising: false,
           capping: [{ maxImpressions: 3, period: 'day' }],
         })
       ).resolves.toMatchObject({ capping: [{ maxImpressions: 3, period: 'day' }] });
@@ -264,6 +290,7 @@ describe('Unit::Services::CampaignService', () => {
           startsOn: '2026-11-20',
           endsOn: '2026-11-05',
           budgetCents: 100_000,
+          containsPoliticalAdvertising: false,
         })
       ).rejects.toMatchObject({ statusCode: 400, errorCode: 'dates_reversed' });
       expect(db.manager.save).not.toHaveBeenCalled();
@@ -279,6 +306,7 @@ describe('Unit::Services::CampaignService', () => {
           startsOn: '2026-11-05',
           endsOn: '2026-11-20',
           budgetCents: 100_000,
+          containsPoliticalAdvertising: false,
         })
       ).rejects.toMatchObject({ statusCode: 404, errorCode: 'advertiser_not_found' });
     });
@@ -295,6 +323,18 @@ describe('Unit::Services::CampaignService', () => {
         service.update(JANE, IDS.organization, CAMPAIGN_ID, { name: 'Herbéa — Hiver' })
       ).resolves.toMatchObject({ name: 'Herbéa — Hiver' });
       expect(db.manager.save).toHaveBeenCalledWith(CampaignEntity, expect.objectContaining({ name: 'Herbéa — Hiver' }));
+    });
+
+    it('should let the political declaration be corrected', async (): Promise<void> => {
+      db.manager.save.mockResolvedValue(campaignRow({ containsPoliticalAdvertising: true }));
+
+      await expect(
+        service.update(JANE, IDS.organization, CAMPAIGN_ID, { containsPoliticalAdvertising: true })
+      ).resolves.toMatchObject({ containsPoliticalAdvertising: true });
+      expect(db.manager.save).toHaveBeenCalledWith(
+        CampaignEntity,
+        expect.objectContaining({ containsPoliticalAdvertising: true })
+      );
     });
 
     it('should change the window, the timezone and the order number', async (): Promise<void> => {
@@ -412,8 +452,22 @@ describe('Unit::Services::CampaignService', () => {
       const result: BulkResult<Campaign> = await service.bulkCreate(JANE, IDS.organization, IDS.advertiser, {
         mode: 'atomic',
         items: [
-          { name: 'Automne', currency: 'EUR', startsOn: '2026-11-05', endsOn: '2026-11-20', budgetCents: 100_000 },
-          { name: 'Hiver', currency: 'EUR', startsOn: '2026-12-01', endsOn: '2026-12-31', budgetCents: 200_000 },
+          {
+            name: 'Automne',
+            currency: 'EUR',
+            startsOn: '2026-11-05',
+            endsOn: '2026-11-20',
+            budgetCents: 100_000,
+            containsPoliticalAdvertising: false,
+          },
+          {
+            name: 'Hiver',
+            currency: 'EUR',
+            startsOn: '2026-12-01',
+            endsOn: '2026-12-31',
+            budgetCents: 200_000,
+            containsPoliticalAdvertising: false,
+          },
         ],
       });
 
@@ -427,8 +481,22 @@ describe('Unit::Services::CampaignService', () => {
       const result: BulkResult<Campaign> = await service.bulkCreate(JANE, IDS.organization, IDS.advertiser, {
         mode: 'partial',
         items: [
-          { name: 'Automne', currency: 'EUR', startsOn: '2026-11-05', endsOn: '2026-11-20', budgetCents: 100_000 },
-          { name: 'À l_envers', currency: 'EUR', startsOn: '2026-12-31', endsOn: '2026-12-01', budgetCents: 100_000 },
+          {
+            name: 'Automne',
+            currency: 'EUR',
+            startsOn: '2026-11-05',
+            endsOn: '2026-11-20',
+            budgetCents: 100_000,
+            containsPoliticalAdvertising: false,
+          },
+          {
+            name: 'À l_envers',
+            currency: 'EUR',
+            startsOn: '2026-12-31',
+            endsOn: '2026-12-01',
+            budgetCents: 100_000,
+            containsPoliticalAdvertising: false,
+          },
         ],
       });
 
@@ -510,6 +578,7 @@ describe('Unit::Services::CampaignService', () => {
           startsOn: '2026-11-05',
           endsOn: '2026-11-20',
           budgetCents: 100_000,
+          containsPoliticalAdvertising: false,
         })
       ).rejects.toMatchObject({ statusCode: 403, errorCode: 'role_required' });
       expect(db.mocks.transaction).not.toHaveBeenCalled();
