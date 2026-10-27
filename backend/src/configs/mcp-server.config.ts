@@ -37,7 +37,7 @@ const DEFAULT_SESSION_IDLE_TIMEOUT_IN_MS = 300000;
 const DEFAULT_MAX_SESSIONS = 100;
 
 /** Default public URL of the MCP endpoint, for local runs. */
-const DEFAULT_RESOURCE_URL = 'http://localhost:3000/mcp';
+const DEFAULT_RESOURCE_URL = 'http://localhost:3002/mcp';
 
 /** Default scopes advertised for the MCP resource. */
 const DEFAULT_SCOPES: string[] = ['mcp:use'];

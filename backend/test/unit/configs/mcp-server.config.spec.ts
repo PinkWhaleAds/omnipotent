@@ -19,7 +19,7 @@ describe('Unit::Configs::McpServer', () => {
         stateful: false,
         sessionIdleTimeout: 300000,
         maxSessions: 100,
-        resourceUrl: 'http://localhost:3000/mcp',
+        resourceUrl: 'http://localhost:3002/mcp',
         scopes: ['mcp:use'],
         claudeClientId: '',
       });

@@ -250,11 +250,11 @@ run "domain_stage_1_requests_the_certificates_only" {
 
   assert {
     condition = (
-      toset([for certificate in aws_acm_certificate.domain : certificate.domain_name]) == toset(["api.omnilor.com"]) &&
+      toset([for certificate in aws_acm_certificate.domain : certificate.domain_name]) == toset(["omnipotent.omnilor.com"]) &&
       alltrue([for certificate in aws_acm_certificate.domain : certificate.validation_method == "DNS"]) &&
       length(aws_acm_certificate_validation.domain) == 0
     )
-    error_message = "Stage 1 requests a DNS-validated certificate for api., and waits for none."
+    error_message = "Stage 1 requests a DNS-validated certificate for omnipotent., and waits for none."
   }
 
   assert {
@@ -304,24 +304,24 @@ run "domain_stage_2_moves_every_url" {
   assert {
     condition = (
       toset(keys(aws_acm_certificate_validation.domain)) == toset(["api"]) &&
-      module.api_edge.hostname == "api.omnilor.com" &&
+      module.api_edge.hostname == "omnipotent.omnilor.com" &&
       module.api_edge.tracking_hostname == null
     )
-    error_message = "Stage 2 waits for the certificate and serves api."
+    error_message = "Stage 2 waits for the certificate and serves omnipotent."
   }
 
   assert {
     condition = (
-      output.api_url == "https://api.omnilor.com" &&
-      output.mcp_url == "https://api.omnilor.com/mcp"
+      output.api_url == "https://omnipotent.omnilor.com" &&
+      output.mcp_url == "https://omnipotent.omnilor.com/mcp"
     )
     error_message = "Stage 2 moves the URLs to the custom hostname."
   }
 
   assert {
     condition = (
-      local.common_environment["MCP_RESOURCE_URL"] == "https://api.omnilor.com/mcp" &&
-      local.api_environment["MCP_RESOURCE_URL"] == "https://api.omnilor.com/mcp"
+      local.common_environment["MCP_RESOURCE_URL"] == "https://omnipotent.omnilor.com/mcp" &&
+      local.api_environment["MCP_RESOURCE_URL"] == "https://omnipotent.omnilor.com/mcp"
     )
     error_message = "The backend builds its public URLs from the custom hostname: the MCP resource is the API's."
   }
@@ -329,7 +329,7 @@ run "domain_stage_2_moves_every_url" {
   assert {
     condition = (
       length(output.auth0_settings.spa_allowed_callback_urls) == 0 &&
-      output.auth0_settings.mcp_api_identifier == "https://api.omnilor.com/mcp" &&
+      output.auth0_settings.mcp_api_identifier == "https://omnipotent.omnilor.com/mcp" &&
       output.auth0_settings.rest_api_identifier == "https://api.omnipotent.app"
     )
     error_message = "Auth0: the MCP API's identifier follows the API's hostname, the REST API's is unchanged."
@@ -338,8 +338,8 @@ run "domain_stage_2_moves_every_url" {
   assert {
     condition = (
       length(output.dns_records) == 2 &&
-      [for record in slice(output.dns_records, 1, 2) : "${record.name} ${record.type} ${record.target}"] == ["api CNAME d123.cloudfront.net"] &&
-      [for record in slice(output.dns_records, 1, 2) : record.fqdn] == ["api.omnilor.com"] &&
+      [for record in slice(output.dns_records, 1, 2) : "${record.name} ${record.type} ${record.target}"] == ["omnipotent CNAME d123.cloudfront.net"] &&
+      [for record in slice(output.dns_records, 1, 2) : record.fqdn] == ["omnipotent.omnilor.com"] &&
       alltrue([for record in output.dns_records : record.proxy_status == "DNS only (grey cloud)"]) &&
       length([for record in output.dns_records : record if startswith(record.purpose, "Stage 1")]) == 1
     )
@@ -591,7 +591,7 @@ run "api_edge_on_custom_hostnames" {
     origin_header_value      = "secret"
     web_acl_arn              = "arn:aws:wafv2:us-east-1:123456789012:global/webacl/omnipotent-prod/abc"
     logs_bucket_domain_name  = "omnipotent-prod-access-logs-123456789012.s3.amazonaws.com"
-    alias                    = "api.omnilor.com"
+    alias                    = "omnipotent.omnilor.com"
     certificate_arn          = "arn:aws:acm:us-east-1:123456789012:certificate/api"
     tracking_alias           = "s.omnilor.com"
     tracking_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/tracking"
@@ -601,7 +601,7 @@ run "api_edge_on_custom_hostnames" {
 
   assert {
     condition = (
-      aws_cloudfront_distribution.this.aliases == toset(["api.omnilor.com"]) &&
+      aws_cloudfront_distribution.this.aliases == toset(["omnipotent.omnilor.com"]) &&
       !aws_cloudfront_distribution.this.viewer_certificate[0].cloudfront_default_certificate &&
       aws_cloudfront_distribution.this.viewer_certificate[0].acm_certificate_arn == "arn:aws:acm:us-east-1:123456789012:certificate/api" &&
       aws_cloudfront_distribution.this.viewer_certificate[0].ssl_support_method == "sni-only" &&
@@ -673,7 +673,7 @@ run "api_edge_on_custom_hostnames" {
 
   assert {
     condition = (
-      output.hostname == "api.omnilor.com" &&
+      output.hostname == "omnipotent.omnilor.com" &&
       output.tracking_hostname == "s.omnilor.com" &&
       output.tracking_domain_name == aws_cloudfront_distribution.tracking[0].domain_name
     )

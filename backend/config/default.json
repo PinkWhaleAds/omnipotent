@@ -10,7 +10,7 @@
   },
   "HttpServer": {
     "host": "0.0.0.0",
-    "port": 3000,
+    "port": 3002,
     "corsOrigins": "",
     "trustProxyHops": 0,
     "trustCloudFrontViewerAddress": false
@@ -21,7 +21,7 @@
     "stateful": false,
     "sessionIdleTimeout": 300000,
     "maxSessions": 100,
-    "resourceUrl": "http://localhost:3000/mcp",
+    "resourceUrl": "http://localhost:3002/mcp",
     "scopes": ["mcp:use"]
   },
   "Docs": {

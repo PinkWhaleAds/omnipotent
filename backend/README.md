@@ -39,12 +39,14 @@ pnpm install
 cp .env.example .env                      # puis remplir les valeurs Auth0 (ci-dessous)
 docker compose up -d postgres rustfs moto # PostgreSQL sur 5442, S3 (RustFS) sur 9012, Secrets Manager (moto) sur 9022
 pnpm migration:run                        # crée le schéma (aucune migration encore : la table `migrations` seule)
-pnpm start:dev                            # API sur http://localhost:3000 (Swagger : /documentation)
+pnpm start:dev                            # API sur http://localhost:3002 (Swagger : /documentation)
 pnpm start:worker                         # optionnel : le worker de jobs, dans un autre terminal
 ```
 
 Les ports publiés sont ceux de multi-search décalés de un, pour que les deux piles cohabitent sur la
-même machine. `docker compose up --build` lance toute la pile en conteneurs (étape de migration, API,
+même machine — **le port HTTP compris** : 3002, pendant que multi-search et omnipass gardent 3000. Un
+identifiant d'API Auth0 étant unique dans le tenant partagé, `http://localhost:3000/mcp` est déjà pris
+par eux, et sans ce décalage Omnipotent n'aurait pas d'API MCP locale. `docker compose up --build` lance toute la pile en conteneurs (étape de migration, API,
 worker, Grafana sur http://localhost:3012).
 
 ### Auth0
@@ -53,12 +55,18 @@ Auth0 prouve **seulement qui appelle** ; les droits vivent ailleurs (omnipass). 
 **partagé** avec multi-search (D42) et Omnipotent y a ses propres audiences. Dans le tenant :
 
 1. **Une API pour l'API REST** (Applications > APIs) : identifiant = `AUTH0_AUDIENCE`, RS256.
-2. **Une API pour le serveur MCP** : identifiant = exactement `MCP_RESOURCE_URL`
-   (`http://localhost:3000/mcp` en local), RS256, _Allow Offline Access_, permission `mcp:use`.
-3. **Une Single Page Application** pour le Swagger UI : ajouter
-   `http://localhost:3000/documentation/static/oauth2-redirect.html` à ses _Allowed Callback URLs_,
-   et mettre son client id dans `AUTH0_SWAGGER_CLIENT_ID`.
-4. Facultatif : une application **Native** pour les connecteurs Claude (claude.ai et Claude Desktop
+2. **Une API pour le serveur MCP, par environnement** : son identifiant est exactement
+   `MCP_RESOURCE_URL` — l'URL servie, que le client envoie comme indicateur de ressource — donc
+   `http://localhost:3002/mcp` en local et l'URL publique ailleurs. RS256, _Allow Offline Access_,
+   permission `mcp:use`.
+3. **Une Single Page Application** pour le Swagger UI : celle de multi-search fait l'affaire, il suffit
+   d'ajouter `http://localhost:3002/documentation/static/oauth2-redirect.html` à ses _Allowed Callback
+   URLs_ et `http://localhost:3002` à ses _Allowed Web Origins_, sans rien retirer de ce qui y est
+   déjà. Son client id va dans `AUTH0_SWAGGER_CLIENT_ID`.
+4. **Sur chaque API, section `User-delegated access` : ajouter cette application navigateur.** Sans
+   ça, Auth0 refuse la demande de jeton avant même d'afficher la page de connexion, et son message ne
+   dit pas pourquoi.
+5. Facultatif : une application **Native** pour les connecteurs Claude (claude.ai et Claude Desktop
    ne peuvent pas enregistrer leur propre client) : _Allowed Callback URLs_
    `https://claude.ai/api/mcp/auth_callback` et `https://claude.com/api/mcp/auth_callback`,
    _Authentication Method_ `None` (PKCE). Son client id va dans `MCP_CLAUDE_CLIENT_ID`.
@@ -124,7 +132,7 @@ d'avancer la phase 2 d'omnipass — **jamais** d'ajouter des tables ici.
 
 ## Appeler l'API
 
-Le Swagger UI est servi en local sur http://localhost:3000/documentation (bouton **Authorize**), et
+Le Swagger UI est servi en local sur http://localhost:3002/documentation (bouton **Authorize**), et
 le document OpenAPI sur `/documentation/json`. Il est **coupé en production** (`APP_DOCS_ENABLED`) :
 ces routes répondent 404.
 

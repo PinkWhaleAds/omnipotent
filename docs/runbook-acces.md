@@ -130,20 +130,45 @@ constaté chez eux sur un vrai appel.
 **Les deux identifiants doivent différer** : l'application refuse de démarrer s'ils sont égaux, et ce
 garde-fou existe parce qu'un jeton MCP ne doit jamais ouvrir l'API REST.
 
-**Avant l'API MCP, deux noms à trancher** — je ne les décide pas seul :
+**Les deux noms sont tranchés** (D52, le 2026-10-27), donc les identifiants sont connus :
+`omnipotent.omnilor.com` en production, `localhost:3002` en local. C'est déjà posé dans le code et dans
+l'infrastructure, tu n'as rien à en déduire.
 
-- **le nom d'hôte de production.** L'infrastructure d'Omnipotent a pour défaut l'étiquette `api` sous
-  `domain_name`, or `api.omnilor.com` est déjà l'API de multi-search et `app.omnilor.com` son front. Je
-  propose **`omnipotent.omnilor.com`**, dans la même forme qu'`omnipass.omnilor.com` ; l'identifiant de
-  l'API MCP de production serait alors `https://omnipotent.omnilor.com/mcp`.
-- **le port local.** multi-search et omnipass servent tous deux sur `localhost:3000`, donc
-  `http://localhost:3000/mcp` est **déjà pris** dans le tenant — un identifiant d'API y est unique. Je
-  propose de passer Omnipotent sur **`localhost:3002`** (sa base est déjà sur 5442 quand celle de
-  multi-search est sur 5440), ce qui libère `http://localhost:3002/mcp` et permet surtout de faire
-  tourner les deux back-ends en même temps.
+#### Le pas à pas
 
-**Ce que tu me donnes dans le chat** : les identifiants créés et le `client_id` de la SPA. Rien de tout
-ça n'est secret.
+1. **manage.auth0.com**. Vérifie en haut à gauche que le tenant est bien celui de multi-search :
+   `dev-3rwjfrn4yf3tar80.eu.auth0.com`.
+2. Menu de gauche → **Applications** → **APIs** → bouton **Create API**, en haut à droite.
+3. **L'API REST.** **Name** `Omnipotent REST` ; **Identifier** `https://api.omnipotent.app` ;
+   **Signing Algorithm** `RS256` → **Create**. Il n'y a rien d'autre à régler sur celle-là.
+4. **L'API MCP locale.** **Create API** → **Name** `Omnipotent MCP (local)` ; **Identifier**
+   `http://localhost:3002/mcp`, exactement, sans barre oblique finale ; **RS256** → **Create**. Puis,
+   sur cette API : onglet **Settings** → interrupteur **Allow Offline Access** → **Save** ; onglet
+   **Permissions** → **Permission** `mcp:use`, **Description** `Use the MCP server` → **Add**.
+5. **L'API MCP de production.** La même chose, avec **Name** `Omnipotent MCP` et **Identifier**
+   `https://omnipotent.omnilor.com/mcp`. Autant la créer maintenant : elle ne sert à rien avant le
+   déploiement, et ça évite un aller-retour. Il en faudra une troisième le jour où l'environnement de
+   test sera en ligne, avec son adresse CloudFront — un identifiant vaut pour **une** URL servie, c'est
+   la leçon qu'omnipass a payée.
+6. **Sur chacune des trois API** : section **`User-delegated access`** → ajoute l'**application
+   navigateur de multi-search**. C'est l'étape qui manque quand Auth0 refuse avant même d'afficher la
+   page de connexion.
+7. **Sur l'application navigateur de multi-search** : **Applications** → **Applications** → la SPA →
+   onglet **Settings**. Ajoute à **Allowed Callback URLs**
+   `http://localhost:3002/documentation/static/oauth2-redirect.html`, et à **Allowed Web Origins**
+   `http://localhost:3002`. Les listes sont séparées par des virgules : **n'enlève rien** de ce qui y
+   est déjà, c'est multi-search qui s'en sert. → **Save Changes**, en bas de la page.
+8. **Demande à la session omnipass** d'ajouter Omnipotent à son registre, avec les deux audiences de
+   production — `https://api.omnipotent.app` et `https://omnipotent.omnilor.com/mcp` — et notre URL de
+   front, qui est celle de multi-search (`https://app.omnilor.com`), puisque c'est son front qui nous
+   consommera (`CADRAGE.md` § 18). Sans cette déclaration, omnipass refuse le jeton que nous lui
+   relayons : 403 `audience_not_allowed`. Si un jour on veut exercer le MCP **local** contre un vrai
+   omnipass, il faudra lui déclarer `http://localhost:3002/mcp` aussi.
+
+**Ce que tu me rapportes dans le chat** : « les trois API sont créées », le `client_id` de
+l'application navigateur de multi-search, et le domaine du tenant s'il n'est pas celui que j'ai écrit
+ci-dessus. Aucun des trois n'est secret. Le **Client Secret** du compte machine, lui, ne passe pas par
+le chat : il va dans le magasin de secrets (A3 et A4).
 
 ### A3. Autoriser le compte machine, et déclarer Omnipotent chez omnipass — _5 minutes + une demande_
 

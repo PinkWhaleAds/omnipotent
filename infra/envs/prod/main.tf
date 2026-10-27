@@ -77,7 +77,7 @@ locals {
   # no curl (slim base): Node itself makes the request.
   health_check_command = [
     "CMD", "node", "-e",
-    "fetch('http://127.0.0.1:3000/livez',{signal:AbortSignal.timeout(4000)}).then(r=>process.exit(r.ok?0:1),()=>process.exit(1))",
+    "fetch('http://127.0.0.1:3002/livez',{signal:AbortSignal.timeout(4000)}).then(r=>process.exit(r.ok?0:1),()=>process.exit(1))",
   ]
 
   # The API and the worker sign in to PostgreSQL as this role with RDS IAM tokens (db_iam_auth); the migration
@@ -278,7 +278,7 @@ module "alb" {
   vpc_id                   = module.network.vpc_id
   subnet_ids               = module.network.private_subnet_ids
   target_security_group_id = module.ecs_cluster.tasks_security_group_id
-  target_port              = 3000
+  target_port              = 3002
   deregistration_delay     = var.alb_deregistration_delay
   access_logs_bucket       = var.edge_access_logs_enabled ? module.access_logs.bucket_name : null
   access_logs_prefix       = module.access_logs.alb_prefix
@@ -384,7 +384,7 @@ module "api" {
   image              = local.image
   cpu                = var.api_cpu
   memory             = var.api_memory
-  container_port     = 3000
+  container_port     = 3002
   task_role_arn      = module.task_roles.task_role_arn
   execution_role_arn = module.task_roles.execution_role_arn
   log_group_name     = "${local.log_group_prefix}api"

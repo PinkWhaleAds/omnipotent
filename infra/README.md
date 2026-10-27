@@ -13,7 +13,7 @@ consumes it (§18) and is deployed from its own repository. The modules here are
 its `frontend` one.
 
 ```
-                                    https://api.omnilor.com (API, MCP)
+                                    https://omnipotent.omnilor.com (API, MCP)
                                  without the domain: yyyy.cloudfront.net
                                                     │
                                  AWS WAF (rate limits per IP, AWS managed rules)
@@ -502,7 +502,7 @@ Without them, the login steps are skipped.
 2. **REST API**: Omnipotent's own API in the shared tenant (its identifier is `auth0_audience`; _Allow Offline
    Access_ on). It is not multi-search's: a token of one is never accepted by the other (D42).
 3. **MCP API**: create a new API whose identifier is exactly the MCP URL
-   (`https://<api domain>/mcp`, `https://api.omnilor.com/mcp` with the custom domain), RS256, _Allow Offline Access_,
+   (`https://<api domain>/mcp`, `https://omnipotent.omnilor.com/mcp` with the custom domain), RS256, _Allow Offline Access_,
    permission `mcp:use`. Auth0 cannot change the identifier of an API: for another URL, create another API.
 
 ### 7. First deploy
@@ -538,7 +538,7 @@ it moves to a subdomain:
 
 | Hostname          | Serves                                | Distribution |
 | ----------------- | ------------------------------------- | ------------ |
-| `api.omnilor.com` | the API and the MCP endpoint (`/mcp`) | the API's    |
+| `omnipotent.omnilor.com` | the API and the MCP endpoint (`/mcp`) | the API's    |
 
 The labels are `domain_subdomains` (default `{ api = "api" }`). The DNS zone stays at Cloudflare: Terraform
 **never touches it** and outputs the records to add by hand (`terraform output dns_records`). A phase serving public
@@ -561,10 +561,10 @@ CloudFront refuses a certificate that is not `ISSUED`:
    ```hcl
    [
      {
-       "fqdn"         = "_3f2a….api.omnilor.com"
+       "fqdn"         = "_3f2a….omnipotent.omnilor.com"
        "name"         = "_3f2a….api"
        "proxy_status" = "DNS only (grey cloud)"
-       "purpose"      = "Stage 1: validation of the certificate of api.omnilor.com. Keep it: ACM renews the certificate with it."
+       "purpose"      = "Stage 1: validation of the certificate of omnipotent.omnilor.com. Keep it: ACM renews the certificate with it."
        "target"       = "_9b1c….xlfgrmvvlj.acm-validations.aws"
        "type"         = "CNAME"
      },
@@ -600,7 +600,7 @@ For each record of `dns_records` not yet in the zone:
 1. [dash.cloudflare.com](https://dash.cloudflare.com) → the account → the domain `omnilor.com` → **DNS** →
    **Records** → **Add record**.
 2. **Type**: `CNAME`.
-3. **Name**: the record's `name` (`_3f2a….api`, `api`…); Cloudflare adds `.omnilor.com` itself (its `fqdn` works
+3. **Name**: the record's `name` (`_3f2a….omnipotent`, `omnipotent`…); Cloudflare adds `.omnilor.com` itself (its `fqdn` works
    too).
 4. **Target**: the record's `target`, copied whole.
 5. **Proxy status**: click the orange cloud so that it turns **grey: _DNS only_**. Cloudflare proxies a new CNAME by
@@ -622,17 +622,17 @@ itself would need the same.
 ### Checking
 
 ```sh
-dig +short CNAME _3f2a….api.omnilor.com @1.1.1.1   # _9b1c….xlfgrmvvlj.acm-validations.aws.
-dig +short api.omnilor.com @1.1.1.1                 # dxxxx.cloudfront.net. first, then CloudFront's addresses
-curl -fsS https://api.omnilor.com/readyz            # {"status":"ok",...}
-curl -fsS https://api.omnilor.com/status            # the deployed commit
+dig +short CNAME _3f2a….omnipotent.omnilor.com @1.1.1.1   # _9b1c….xlfgrmvvlj.acm-validations.aws.
+dig +short omnipotent.omnilor.com @1.1.1.1                 # dxxxx.cloudfront.net. first, then CloudFront's addresses
+curl -fsS https://omnipotent.omnilor.com/readyz            # {"status":"ok",...}
+curl -fsS https://omnipotent.omnilor.com/status            # the deployed commit
 ```
 
 A record answering Cloudflare's addresses (`104.*`, `172.67.*`) is proxied: set its proxy status to _DNS only_.
 
 ### After stage 2
 
-- **Auth0** (`terraform output auth0_settings`): the MCP API's identifier becomes `https://api.omnilor.com/mcp`.
+- **Auth0** (`terraform output auth0_settings`): the MCP API's identifier becomes `https://omnipotent.omnilor.com/mcp`.
   Auth0 cannot change an identifier: **create a new API** with the final one, and keep the old one only while a
   client still holds its tokens. The REST API's identifier does not change — it is an identifier, not a URL.
 - **Deploy** (step 7): the tasks take their new environment at the next deploy, so the public URLs the backend
@@ -643,8 +643,8 @@ Where each URL is read:
 
 | Output                                                                            | Without a domain                  | With it                       |
 | --------------------------------------------------------------------------------- | --------------------------------- | ----------------------------- |
-| `api_url`: the base of every public URL the backend builds                        | `https://yyyy.cloudfront.net`     | `https://api.omnilor.com`     |
-| `mcp_url`: `MCP_RESOURCE_URL` and the identifier of the Auth0 MCP API              | `https://yyyy.cloudfront.net/mcp` | `https://api.omnilor.com/mcp` |
+| `api_url`: the base of every public URL the backend builds                        | `https://yyyy.cloudfront.net`     | `https://omnipotent.omnilor.com`     |
+| `mcp_url`: `MCP_RESOURCE_URL` and the identifier of the Auth0 MCP API              | `https://yyyy.cloudfront.net/mcp` | `https://omnipotent.omnilor.com/mcp` |
 
 ## Operating
 
@@ -926,8 +926,8 @@ names.
 - OpenTelemetry collector (`APP_TELEMETRY_ENABLED=false`).
 - CloudFront → ALB is plain HTTP. The ALB is internal and CloudFront reaches it as a VPC origin, so that hop never
   leaves AWS's private network and the ALB has no public endpoint. To encrypt it too, once the custom domain is in
-  place: a regional ACM certificate (eu-north-1) covering `api.omnilor.com` and `s.omnilor.com` (one more validation
-  record each), a 443 listener with the same 403 default and header rule, 443 open to the CloudFront prefix list, the
+  place: a regional ACM certificate (eu-north-1) covering `omnipotent.omnilor.com` (one more validation
+  record), a 443 listener with the same 403 default and header rule, 443 open to the CloudFront prefix list, the
   VPC origin in `https-only`, then the port 80 listener removed. The API's origin request policy forwards the
   viewer's `Host`, against which CloudFront then checks the ALB's certificate; a second host's would have to
   forward it too.

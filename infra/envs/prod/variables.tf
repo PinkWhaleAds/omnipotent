@@ -334,9 +334,9 @@ variable "domain_name" {
 }
 
 variable "domain_subdomains" {
-  description = "Labels of the hostnames under domain_name: api (the API, MCP at /mcp). A phase serving public files to clients' sites or to a platform adds its own label here."
+  description = "Labels of the hostnames under domain_name: omnipotent (the API, MCP at /mcp). The label is not api: api.omnilor.com is multi-search's API, and the two live in the same zone until the switch (CADRAGE § 18). A phase serving public files to clients' sites or to a platform adds its own label here."
   type = object({
-    api = optional(string, "api")
+    api = optional(string, "omnipotent")
   })
   default  = {}
   nullable = false
@@ -346,7 +346,7 @@ variable "domain_subdomains" {
       alltrue([for label in values(var.domain_subdomains) : can(regex("^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$", label))]) &&
       length(distinct(values(var.domain_subdomains))) == length(values(var.domain_subdomains))
     )
-    error_message = "domain_subdomains holds different DNS labels (lower-case letters, digits, inner hyphens), e.g. api."
+    error_message = "domain_subdomains holds different DNS labels (lower-case letters, digits, inner hyphens), e.g. omnipotent."
   }
 
   validation {

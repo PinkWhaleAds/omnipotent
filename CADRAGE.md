@@ -521,6 +521,11 @@ Quatre pièces s'ajoutent à ça, et deux d'entre elles sont des pannes classiqu
 - **Même compte AWS** que multi-search (le compte Omnilor partagé), région **`eu-north-1`** (Stockholm), avec un **Terraform séparé** et sa **propre instance RDS**. MS sera coupé dans un second temps.
 - CI **GitHub Actions**. Secrets dans **Secrets Manager**, chiffrement KMS, images dans ECR, base RDS, fichiers S3.
 - Rien de l'infrastructure Azerion ou Hawk.
+- **Nom d'hôte et ports.** L'API répond sur **`omnipotent.omnilor.com`** : `api.omnilor.com` est celle de
+  multi-search, et les deux cohabitent dans la même zone jusqu'à la bascule (§ 18). En local, Omnipotent
+  décale les ports de multi-search — HTTP **3002**, Postgres 5442, Grafana 3012 — et le décalage n'est pas
+  qu'un confort : un identifiant d'API Auth0 est **unique dans le tenant partagé**, donc
+  `http://localhost:3000/mcp` appartient déjà à multi-search et à omnipass.
 - Développement local en Docker Compose (Postgres + émulation S3 et Secrets Manager).
 
 ---
@@ -578,8 +583,9 @@ Quatre pièces s'ajoutent à ça, et deux d'entre elles sont des pannes classiqu
 | D47 | Un **jitter** sur le rafraîchissement du pacing à minuit local |
 | D48 | Un **réplica de lecture** pour les rapports quand le volume l'exigera |
 | D49 | Le budget est **toujours en argent**. Un **objectif en volume** (impressions, diffusions, complétions) est une **façon de le saisir** : il est converti en argent à la saisie via le CPM, et c'est le montant qui est stocké. L'algèbre du budget ne change pas |
-| D50 | **GAM est retiré du périmètre** — serveur publicitaire d'un éditeur, pas un DSP (§ 6). **Onze plateformes** |
+| D50 | **GAM est retiré du périmètre** — serveur publicitaire d'un éditeur, pas un DSP (§ 6) ; le périmètre est celui du § 6 |
 | D51 | **Amazon DSP est retiré du levier `audio`** — sa bibliothèque d'assets n'enregistre pas d'audio (§ 6) |
+| D52 | Nom d'hôte de production **`omnipotent.omnilor.com`** et port local **3002** (§ 19) : `api.omnilor.com` et `localhost:3000` appartiennent à multi-search et à omnipass, et l'identifiant d'une API MCP Auth0 doit être **l'URL exacte** du `/mcp` servi — il en faut donc une par environnement |
 | L1→L24 | Les leviers : voir `backend/docs/leviers.md`, validées le 2026-10-25 |
 | R1→R14 | Le reporting : voir `backend/docs/reporting.md`. **R9 (nos propres conversions) est reporté en V2** |
 | T1 | La tenancy vit dans un service séparé, `omnipass` |

@@ -81,7 +81,7 @@ COPY config ./config
 USER node
 
 # Expose the ports that the application listens on.
-EXPOSE 3000
+EXPOSE 3002
 
 ENV NODE_CONFIG_DIR=./config
 
