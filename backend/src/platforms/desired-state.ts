@@ -188,6 +188,8 @@ export type DesiredUnit = {
  * @property timezone - The account's timezone
  * @property fxRate - Units of the account currency for one of the campaign currency, frozen (D22)
  * @property live - Whether the campaign is `active`; anything else pauses every object
+ * @property today - Today, in the campaign's timezone (`YYYY-MM-DD`): what tells an object whose
+ *   window has not started, or has ended, from one that delivers
  * @property minDailyBudgetCents - The platform's floor, in the account's currency: a platform refuses
  *   a budget below it **even on a paused object**, so a paused one sends the larger of this and the
  *   planned average
@@ -204,6 +206,7 @@ export type DesiredInput = {
   timezone: string;
   fxRate: number;
   live: boolean;
+  today: string;
   minDailyBudgetCents: number;
 };
 
@@ -251,6 +254,31 @@ export function toMicros(cents: number, fxRate: number): number {
 }
 
 /**
+ * Whether a node can deliver today at all.
+ *
+ * Three reasons it cannot, and none of them is a status someone set:
+ *
+ * - **its window has not started, or has ended** — a platform that received a start date in the past
+ *   would deliver immediately, and one whose end has passed would keep going;
+ * - **its budget of today is zero** — what the pacing answers once the planned total is spent, and
+ *   what a platform either refuses or, worse, replaces with yesterday's amount;
+ * - **its budget of today is under the platform's floor** — refused outright.
+ *
+ * Only the level that holds a budget over there is asked about money: the others carry none, and the
+ * pause of the one above reaches them anyway.
+ *
+ * @param node - The node
+ * @param input - What the state depends on
+ * @param floorMicros - The platform's floor, in micros, never below one
+ * @returns `true` when nothing stops it from delivering today
+ */
+function delivers(node: DesiredNode, input: DesiredInput, floorMicros: number): boolean {
+  if (input.today < node.startsOn || input.today > node.endsOn) return false;
+  if (node.dailyBudgetCents === null) return true;
+  return toMicros(node.dailyBudgetCents, input.fxRate) >= floorMicros;
+}
+
+/**
  * What one unit must be at its platform, and its fingerprint.
  *
  * The amounts sent are the **paced budget of today**, converted to the account's currency at the
@@ -271,6 +299,7 @@ export function desiredUnit(input: DesiredInput): { desired: DesiredUnit; hash: 
   const projected: ProjectedObject[] = projectObjects(input.projection, structureOf(input.campaign));
   const nodes = new Map<string, { node: DesiredNode; paused: boolean }>();
   const keywords = new Map<string, DesiredKeyword>();
+  const floorMicros: number = Math.max(1, input.minDailyBudgetCents * MICROS_PER_CENT);
 
   /**
    * Index the tree by node id, carrying down whether anything above is paused.
@@ -280,14 +309,12 @@ export function desiredUnit(input: DesiredInput): { desired: DesiredUnit; hash: 
    * @returns Nothing
    */
   const index: (node: DesiredNode, paused: boolean) => void = (node: DesiredNode, paused: boolean): void => {
-    const own: boolean = paused || node.status === 'paused';
+    const own: boolean = paused || node.status === 'paused' || !delivers(node, input, floorMicros);
     nodes.set(node.id, { node, paused: own });
     for (const keyword of node.keywords) keywords.set(keyword.id, keyword);
     for (const child of node.children) index(child, own);
   };
   index(input.campaign, !input.live);
-
-  const floorMicros: number = input.minDailyBudgetCents * MICROS_PER_CENT;
   const objects: DesiredObject[] = projected.map((object: ProjectedObject): DesiredObject => {
     // Every projected object comes from a node of this very tree, so both lookups are total.
     const { node, paused } = nodes.get(object.nodeId) as { node: DesiredNode; paused: boolean };

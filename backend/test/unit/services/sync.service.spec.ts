@@ -534,6 +534,26 @@ describe('Unit::Services::SyncService', () => {
       expect(apply).not.toHaveBeenCalled();
     });
 
+    it('should pause a unit whose day has nothing left to spend', async (): Promise<void> => {
+      seedTree();
+      seedUnit();
+      curves.pacedDay.mockResolvedValue({ todayCents: 0, averageCents: 1_400 });
+
+      await service.syncCampaign(CAMPAIGN_ID);
+
+      // The pacing answers 0 once the planned total is spent: nothing must deliver on such a day.
+      expect((apply.mock.calls[0] as [unknown, DesiredUnit])[1].status).toBe('paused');
+    });
+
+    it('should pause a unit whose window has not come', async (): Promise<void> => {
+      seedTree({ campaign: { startsOn: '2027-02-01', endsOn: '2027-02-07' } });
+      seedUnit();
+
+      await service.syncCampaign(CAMPAIGN_ID);
+
+      expect((apply.mock.calls[0] as [unknown, DesiredUnit])[1].status).toBe('paused');
+    });
+
     it('should send a paused node, and everything under it, paused', async (): Promise<void> => {
       seedTree({ node: { status: 'paused' } });
       seedUnit();

@@ -81,6 +81,13 @@ Le budget envoyé est le **budget pacé du jour**, converti dans la devise du co
 unité en pause envoie le maximum du minimum de la plateforme et de la moyenne planifiée, parce qu'une
 plateforme refuse un budget sous son minimum même sur un objet en pause.
 
+**Et un objet qui ne peut pas diffuser aujourd'hui part en pause**, pour trois raisons qui ne sont pas
+un statut que quelqu'un a posé : sa fenêtre n'a pas commencé ou s'est terminée, son budget du jour est
+à zéro — ce que le pacing répond une fois le total planifié dépensé —, ou ce budget est sous le minimum
+de la plateforme. Les trois sont des règles du **moteur** et valent donc pour toutes les plateformes
+d'un coup ; sans elles, une plateforme reçoit un budget de zéro, qu'elle refuse ou, pire, qu'elle
+remplace par celui de la veille (`plateformes/google-ads.md` § 5).
+
 Deux choses que l'état voulu **ne fait pas**, et qui décident du coût d'une synchro : l'arbre est lu
 **une fois** par campagne, et la fenêtre de diffusion de chaque nœud est héritée **en mémoire** depuis
 le nœud du dessus au lieu d'être redemandée à la base. La demander par nœud coûterait une requête par

@@ -50,7 +50,7 @@ import {
   readCampaignTree,
   targetingGroupsOf,
 } from './campaign-tree.helpers';
-import { nextLocalMidnight, resolveCampaignTimezone } from './pacing.helpers';
+import { dayAt, nextLocalMidnight, resolveCampaignTimezone } from './pacing.helpers';
 import { SecretStore } from './secret-store.service';
 import { markCampaignDirty } from './sync.helpers';
 import { resolvePlatformShares } from './tree.helpers';
@@ -521,6 +521,7 @@ export class SyncService {
       timezone: account.timezone,
       fxRate: unit.fxRate,
       live: campaign.status === 'active',
+      today: dayAt(this.now(), timezone),
       minDailyBudgetCents: rulesOf(unit.platform, unit.lever).minDailyBudgetCents,
     });
   }

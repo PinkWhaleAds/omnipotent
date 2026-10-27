@@ -44,7 +44,7 @@ Conséquence pratique : les comptes DV360, GAM et Hawk utilisés par MBP étaien
 Omnipotent reprend les quatre plateformes Search de multi-search. Ces accès existent déjà côté MS.
 
 - [ ] Confirmer qu'Omnipotent **réutilise** les mêmes comptes et accès, et ne refait pas la démarche :
-  - **Google Ads** : projet Google Cloud, MCC de production, MCC de test, compte de service, compte Keyword Planner.
+  - **Google Ads** : projet Google Cloud, MCC de production, MCC de test, compte de service, compte Keyword Planner, et le **`refresh_token` OAuth d'un humain admin du MCC** — Google refuse les invitations de lien manager à un compte de service, donc le compte de service seul ne suffit pas (`backend/docs/plateformes/google-ads.md` § 4). Ces credentials vont dans Secrets Manager, jamais dans le chat ; le developer token et le customer id du MCC n'étant pas secrets, tu peux me les donner ici.
   - **Microsoft Advertising** : compte gestionnaire, sandbox, application Entra ID, developer token.
   - **OpenAI Ads** : compte `OmniAd` et sa clé Ads API.
   - **Thrad** : organisation et clé API.
@@ -228,7 +228,7 @@ Et sept relevés que le cadrage des leviers a fait remonter (`backend/docs/levie
 - [ ] **Hawk, DV360, Amazon DSP** : acceptent-ils un événement de conversion envoyé par un navigateur, et savent-ils l'attribuer à une exposition **audio** ou **CTV** (attribution post-vue) ?
 - [ ] **Hawk** : comment mesure-t-il sa `conversion` et sa `visit` — panel de mobilité, pixel, postback ? Existe-t-il une déclaration d'objectif de conversion côté Hawk ?
 - [ ] **Hawk, décisif pour le DOOH, et le plus urgent des six** : lequel de ses référentiels **liste des écrans** — `tagId` (placements), `supplyIds`, `appSiteName`, geohash ? Omniscient étant hors périmètre (L28), c'est le **seul** chemin vers l'inventaire DOOH. MBP a une route de découverte pour chacun des quatre, donc la réponse tient en un appel sur un compte réel.
-- [ ] **Google** : le capping est-il bien réservé aux campagnes Display et Vidéo, à l'exclusion du Search ? (Décide si on refuse en 400 ou si on avertit.)
+- [x] ~~**Google** : le capping est-il bien réservé aux campagnes Display et Vidéo, à l'exclusion du Search ?~~ — **répondu** : il n'existe aucun champ de capping sur une campagne `SEARCH`, et multi-search n'en déclare aucun pour Google. Conformément à CADRAGE § 10, on **avertit dans la preview**, on ne refuse pas (`backend/docs/plateformes/google-ads.md` § 3).
 - [ ] **Hawk** : dans quelle devise l'argent d'une Line est-il exprimé, et peut-on l'imposer ? Chez Hawk l'argent est **par Line**, pas par compte — ce qui change la portée du taux figé de D22.
 - [ ] **Meta, TikTok, Snap** : quels objectifs ouvrent l'enchère sur conversion, et lesquels sont immuables après création ?
 

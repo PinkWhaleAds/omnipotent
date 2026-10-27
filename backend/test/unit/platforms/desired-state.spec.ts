@@ -105,6 +105,8 @@ function input(overrides: Partial<DesiredInput> = {}): DesiredInput {
     timezone: 'Europe/Paris',
     fxRate: 1,
     live: true,
+    // Inside the window every node of `branch()` declares.
+    today: '2027-01-03',
     minDailyBudgetCents: 0,
     ...overrides,
   };
@@ -223,6 +225,47 @@ describe('Unit::Platforms::DesiredState', () => {
       expect(
         objectOf(desiredUnit({ ...paused, minDailyBudgetCents: 100 }).desired, 'ad_group:g1').dailyBudgetMicros
       ).toBe(1_400 * MICROS_PER_CENT);
+    });
+
+    it('should pause an object whose budget of today is nothing', (): void => {
+      const { desired } = desiredUnit(
+        input({ campaign: branch({ adGroup: { dailyBudgetCents: 0, averageDailyCents: 1_400 } }) })
+      );
+
+      // What the pacing answers once the planned total is spent. A platform either refuses a zero
+      // budget or, worse, keeps yesterday's amount.
+      expect(objectOf(desired, 'ad_group:g1').status).toBe('paused');
+      expect(objectOf(desired, 'line:l1').status).toBe('paused');
+      expect(desired.status).toBe('paused');
+    });
+
+    it('should pause an object whose budget of today is under the platform floor', (): void => {
+      const { desired } = desiredUnit(
+        input({
+          campaign: branch({ adGroup: { dailyBudgetCents: 500, averageDailyCents: 1_400 } }),
+          minDailyBudgetCents: 1_000,
+        })
+      );
+
+      expect(objectOf(desired, 'ad_group:g1').status).toBe('paused');
+      // And it is sent the floor rather than its real amount, which the platform would refuse.
+      expect(objectOf(desired, 'ad_group:g1').dailyBudgetMicros).toBe(1_400 * MICROS_PER_CENT);
+    });
+
+    it('should pause an object whose window has not started, and one whose window has ended', (): void => {
+      expect(objectOf(desiredUnit(input({ today: '2026-12-31' })).desired, 'ad_group:g1').status).toBe('paused');
+      expect(objectOf(desiredUnit(input({ today: '2027-01-08' })).desired, 'ad_group:g1').status).toBe('paused');
+      expect(objectOf(desiredUnit(input({ today: '2027-01-07' })).desired, 'ad_group:g1').status).toBe('active');
+    });
+
+    it('should pause only the branch whose own window has ended', (): void => {
+      const { desired } = desiredUnit(
+        input({ campaign: branch({ targetingGroup: { startsOn: '2027-01-01', endsOn: '2027-01-02' } }) })
+      );
+
+      expect(objectOf(desired, 'ad_group:g1').status).toBe('active');
+      expect(objectOf(desired, 'targeting_group:t1').status).toBe('paused');
+      expect(objectOf(desired, 'line:l1').status).toBe('paused');
     });
 
     it('should pause everything below a paused node', (): void => {
