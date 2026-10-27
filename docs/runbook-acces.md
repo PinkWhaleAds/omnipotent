@@ -55,6 +55,25 @@ printf '//npm.pkg.github.com/:_authToken=%s\n' 'ghp_xxx' >> ~/.npmrc
 Le fichier est créé s'il n'existe pas. **Ne me donne pas le jeton** : la commande ci-dessus suffit, et
 je vérifierai seulement que `pnpm install` récupère le paquet.
 
+**Vérifié le 2026-10-27, et c'est le piège de cette étape** : un jeton « fine-grained » — il commence
+par `github_pat_` — est **refusé** par le registre npm de GitHub Packages, avec un message qui
+n'explique rien : `403 permission_denied: The token provided does not match expected scopes`. La
+documentation de GitHub est explicite : ce registre n'accepte qu'un **personal access token
+(classic)**. C'est pour ça que l'étape 3 ci-dessus insiste.
+
+Si `~/.npmrc` contient déjà une ligne refusée, **remplace-la** au lieu d'en ajouter une seconde — avec
+deux lignes pour le même registre, plus personne ne sait laquelle sert :
+
+```sh
+sed -i '/npm\.pkg\.github\.com/d' ~/.npmrc
+printf '//npm.pkg.github.com/:_authToken=%s\n' 'ghp_xxx' >> ~/.npmrc
+```
+
+Et **un jeton qui a transité par une conversation, un fichier ouvert dans l'éditeur ou un
+copier-coller partagé est à considérer comme perdu** : supprime-le (Settings → Developer settings →
+Tokens (classic) → l'icône de corbeille) et régénères-en un. Ça coûte deux minutes, et c'est la seule
+réaction juste.
+
 **A1b. Pour la CI, qui n'a besoin d'aucun jeton.** Les deux dépôts sont dans la même organisation,
 donc le `GITHUB_TOKEN` d'Actions suffit — à condition d'autoriser le dépôt à lire le paquet :
 
@@ -66,25 +85,65 @@ donc le `GITHUB_TOKEN` d'Actions suffit — à condition d'autoriser le dépôt 
 C'est le point 9.2 de l'`A-FAIRE.md` d'omnipass, et il attendait que le paquet soit publié — c'est
 fait depuis le 2026-10-26.
 
-### A2. Les deux API Auth0 d'Omnipotent — _10 minutes_
+### A2. Les API Auth0 d'Omnipotent — ce qui se réutilise, et ce qui ne se réutilise pas — _15 minutes_
 
-Celles-là n'existent pas encore, et il en faut deux : une pour l'API REST, une pour le serveur MCP
-(D42). Une **API** n'est pas une **application** : le plan gratuit ne les limite pas comme les
-applications, donc ça devrait passer.
+Le tenant est celui de multi-search (`dev-3rwjfrn4yf3tar80.eu.auth0.com`), et **presque tout s'y
+réutilise**.
 
-1. **manage.auth0.com**, choisis le tenant partagé avec multi-search ;
-2. menu de gauche → **Applications** → **APIs** → **Create API** ;
-3. l'API REST : **Name** `Omnipotent REST`, **Identifier** `https://api.omnipotent.app`,
-   **Signing Algorithm** `RS256` → **Create** ;
-4. recommence pour le MCP : **Name** `Omnipotent MCP`, **Identifier** = **exactement l'URL `/mcp` de
-   l'API**, par exemple `https://api.omnipotent.app/mcp`, **RS256** → **Create** ;
-5. sur l'API MCP : onglet **Settings** → active **Allow Offline Access** ; onglet **Permissions** →
-   ajoute la permission `mcp:use` avec pour description `Use the MCP server`.
+**Ce qui se réutilise, sans rien créer :**
+
+- le **tenant** lui-même, donc les comptes des personnes : la même connexion ouvre les deux produits ;
+- l'**Action post-login** du tenant, qui ajoute l'e-mail aux jetons : elle appartient au tenant et sert
+  déjà omnipass. Nous n'en dépendons pas — le socle ne lit du jeton que son `sub` — mais elle est là ;
+- l'**application navigateur (SPA)** de multi-search : son `client_id` va dans `auth0_spa_client_id` et
+  dans `AUTH0_SWAGGER_CLIENT_ID`. Une SPA peut demander un jeton pour n'importe quelle API du tenant,
+  et c'est son front qui consommera Omnipotent après la bascule (`CADRAGE.md` § 18) : une seconde SPA
+  n'apporterait rien ;
+- l'application **Native** des connecteurs Claude, si elle existe déjà (`mcp_claude_client_id`) : ses
+  URL de retour sont celles de Claude, pas celles d'un produit ;
+- le **compte machine** vers omnipass : déjà créé, et déjà partagé (A0).
+
+**Ce qui ne se réutilise pas : les audiences.** Une audience est l'identité de l'API, et chez omnipass
+c'est elle — signée — qui dit **quel produit** appelle : « un jeton émis pour l'API de multi-search
+appartient à multi-search, quel que soit le compte qui l'a relayé ». Partager l'audience de
+multi-search ferait donc passer chaque appel d'Omnipotent pour un appel de multi-search : même entrée
+de registre, même produit nommé dans les invitations, même URL de connexion dans leurs e-mails. Et un
+jeton volé sur un produit ouvrirait l'autre. Il faut créer :
+
+1. **l'API REST** : **Name** `Omnipotent REST`, **Identifier** `https://api.omnipotent.app` — la valeur
+   déjà écrite dans `backend/.env.example`. Elle n'a pas besoin de résoudre : omnipass fait de même avec
+   `https://api.omnipass.app` tout en servant sur `omnipass.omnilor.com` ;
+2. **une API MCP par environnement**. omnipass l'a appris en mettant la sienne en service : l'identifiant
+   doit être **l'URL exacte** du `/mcp` servi, parce que le client l'envoie comme indicateur de
+   ressource. Il en faut donc une pour le local et une par environnement en ligne, et celle de
+   production attend la décision de nom d'hôte ci-dessous. Sur chacune : onglet **Settings** → active
+   **Allow Offline Access** ; onglet **Permissions** → ajoute `mcp:use`, description `Use the MCP server`.
+
+Le chemin d'écran, pour chaque API : **manage.auth0.com** → **Applications** → **APIs** →
+**Create API** → **Name**, **Identifier**, **Signing Algorithm** `RS256` → **Create**.
+
+**L'étape qu'on oublie, et qui fait échouer avant même la page de connexion** : sur chaque API créée,
+section **`User-delegated access`** → ajoute l'**application navigateur**. Sans ça Auth0 refuse la
+demande de jeton, et son message ne dit pas pourquoi. C'est le point 8 de l'`A-FAIRE.md` d'omnipass,
+constaté chez eux sur un vrai appel.
 
 **Les deux identifiants doivent différer** : l'application refuse de démarrer s'ils sont égaux, et ce
 garde-fou existe parce qu'un jeton MCP ne doit jamais ouvrir l'API REST.
 
-**Ce que tu me donnes dans le chat** : les deux `Identifier`. Ils ne sont pas secrets.
+**Avant l'API MCP, deux noms à trancher** — je ne les décide pas seul :
+
+- **le nom d'hôte de production.** L'infrastructure d'Omnipotent a pour défaut l'étiquette `api` sous
+  `domain_name`, or `api.omnilor.com` est déjà l'API de multi-search et `app.omnilor.com` son front. Je
+  propose **`omnipotent.omnilor.com`**, dans la même forme qu'`omnipass.omnilor.com` ; l'identifiant de
+  l'API MCP de production serait alors `https://omnipotent.omnilor.com/mcp`.
+- **le port local.** multi-search et omnipass servent tous deux sur `localhost:3000`, donc
+  `http://localhost:3000/mcp` est **déjà pris** dans le tenant — un identifiant d'API y est unique. Je
+  propose de passer Omnipotent sur **`localhost:3002`** (sa base est déjà sur 5442 quand celle de
+  multi-search est sur 5440), ce qui libère `http://localhost:3002/mcp` et permet surtout de faire
+  tourner les deux back-ends en même temps.
+
+**Ce que tu me donnes dans le chat** : les identifiants créés et le `client_id` de la SPA. Rien de tout
+ça n'est secret.
 
 ### A3. Autoriser le compte machine, et déclarer Omnipotent chez omnipass — _5 minutes + une demande_
 
