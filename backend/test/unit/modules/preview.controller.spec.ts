@@ -77,6 +77,7 @@ const CAMPAIGN = {
   },
   capping: null,
   insertionOrderNumber: null,
+  containsPoliticalAdvertising: false,
   labels: [],
   createdAt: ISO,
   updatedAt: ISO,

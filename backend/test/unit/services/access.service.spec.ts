@@ -5,7 +5,6 @@ jest.mock('@utils/logger.utils', () => ({
   LoggerBuilder: loggerMock,
 }));
 
-import { OmnipassClient } from '@multisearchad/omnipass-client';
 import Fastify, { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import fastifyPlugin from 'fastify-plugin';
 
@@ -231,10 +230,15 @@ describe('Unit::Services::AccessServicePlugin', () => {
       await app.register(fakeSecretStorePlugin(secrets));
       await app.register(plugin);
       await app.ready();
+
+      // The class has to come from **this** registry: an isolated import loads its own copy of the
+      // package, and `toBeInstanceOf` against the one imported at the top of the file would compare
+      // two distinct constructors of the same name — a confusing failure for a correct wiring.
+      const { OmnipassClient: Isolated } = await import('@multisearchad/omnipass-client');
+      expect(app.accessService).toBeInstanceOf(Isolated);
     });
 
     expect(secrets.get).toHaveBeenCalledWith('omnipass/client-secret');
-    expect(app.accessService).toBeInstanceOf(OmnipassClient);
     // Nothing is warned: the tenancy is the real one, and a loud line about a stub would be a lie.
     expect(loggerMock.warn).not.toHaveBeenCalled();
   });
@@ -249,12 +253,17 @@ describe('Unit::Services::AccessServicePlugin', () => {
       }));
       const plugin: FastifyPluginAsync = (await import('@src/services/access.service')).default;
 
-      const instance: FastifyInstance = Fastify();
-      await instance.register(fakeSecretStorePlugin(secrets));
-      await instance.register(plugin);
-
-      await expect(instance.ready()).rejects.toThrow(/omnipass client is not configured: clientId is missing/);
-      await instance.close();
+      // The whole boot is the subject, not `ready()` alone: awaiting a `register` already starts
+      // loading the plugins, so the refusal may come from either call. What matters is that the
+      // application does not come up.
+      await expect(
+        (async (): Promise<void> => {
+          const instance: FastifyInstance = Fastify();
+          await instance.register(fakeSecretStorePlugin(secrets));
+          await instance.register(plugin);
+          await instance.ready();
+        })()
+      ).rejects.toThrow(/omnipass client is not configured: clientId is missing/);
     });
   });
 });

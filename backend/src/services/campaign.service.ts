@@ -396,6 +396,17 @@ export class CampaignService {
     body: UpdateCampaignBody
   ): Promise<Campaign> {
     const current: TreeNodeRow = await findNodeOrFail(manager, LEVEL, organizationId, id);
+    // A draft may say yes — the preview is what then refuses to launch it (D53). A campaign that is
+    // already out there may not: the platforms hold our declaration that it carries no political
+    // advertising, and flipping the field here would leave them with a statement we no longer make.
+    // Stopping a live campaign because of a late declaration is a feature of its own, not a silent
+    // consequence of a PATCH.
+    if (body.containsPoliticalAdvertising === true && (current as CampaignEntity).status !== 'draft') {
+      throw httpError(400, 'A launched campaign cannot be declared as political advertising', {
+        code: 'campaign_political_advertising_unsupported',
+        params: { status: (current as CampaignEntity).status },
+      });
+    }
     const columns: ObjectLiteral = await normalizeNodeWrite(
       manager,
       { level: LEVEL, levers: await this.leversOf(manager, id), parentId: null, nodeId: id, current, campaignId: id },

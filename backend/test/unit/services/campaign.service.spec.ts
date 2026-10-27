@@ -337,6 +337,19 @@ describe('Unit::Services::CampaignService', () => {
       );
     });
 
+    it('should refuse to declare a launched campaign as political advertising', async (): Promise<void> => {
+      db.manager.findOne.mockResolvedValue(campaignRow({ status: 'active' }));
+
+      await expect(
+        service.update(JANE, IDS.organization, CAMPAIGN_ID, { containsPoliticalAdvertising: true })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        errorCode: 'campaign_political_advertising_unsupported',
+        errorParams: { status: 'active' },
+      });
+      expect(db.manager.save).not.toHaveBeenCalled();
+    });
+
     it('should change the window, the timezone and the order number', async (): Promise<void> => {
       await service.update(JANE, IDS.organization, CAMPAIGN_ID, {
         startsOn: '2026-11-06',

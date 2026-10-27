@@ -174,6 +174,7 @@ const TREE_LEVELS: TreeLevelCase[] = [
       startsOn: '2026-11-05',
       endsOn: '2026-11-20',
       budgetCents: 100_000,
+      containsPoliticalAdvertising: false,
     },
     updateBody: { name: 'Herbéa — Hiver' },
     resource: {
@@ -187,6 +188,7 @@ const TREE_LEVELS: TreeLevelCase[] = [
       endsOn: '2026-11-20',
       capping: [],
       insertionOrderNumber: null,
+      containsPoliticalAdvertising: false,
       budget: { ...BUDGET, source: 'explicit', explicitCents: 100_000, perPlatform: [] },
     },
     bulk: true,
