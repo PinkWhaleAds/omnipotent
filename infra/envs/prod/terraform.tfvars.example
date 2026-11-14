@@ -21,7 +21,7 @@ monthly_budget_usd = 250
 
 # Omnipotent serves no front of its own yet: after the switch it is multi-search's (CADRAGE §18). Also the
 # URLs set on the Auth0 SPA application (terraform output auth0_settings). Empty: server-to-server and MCP only.
-# cors_origins = ["https://app.omnilor.com"]
+# cors_origins = ["https://ms.pinkwhale.co"]
 
 # --- Identity and rights --------------------------------------------------------------------------
 
@@ -37,7 +37,7 @@ monthly_budget_usd = 250
 # --- Custom domain (infra/README.md, "Custom domain (Cloudflare)") --------------------------------
 
 # Stage 1: request the certificate, then add the records of `terraform output dns_records` in Cloudflare.
-# domain_name = "omnilor.com"
+# domain_name = "pinkwhale.co"
 # Stage 2, once the certificate is ISSUED: the hostname and every public URL move to the domain.
 # domain_certificates_validated = true
 # domain_subdomains             = { api = "api" }   # the default

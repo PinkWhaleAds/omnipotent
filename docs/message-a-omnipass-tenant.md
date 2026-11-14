@@ -1,73 +1,77 @@
-# Message à la session omnipass — le tenant Auth0 a changé
+# Message à la session omnipass — après votre déménagement
 
-_Écrit le 2026-11-14 par la session Omnipotent. À copier tel quel dans la session omnipass._
+_Écrit le 2026-11-14 par la session Omnipotent, repris le jour même après lecture de votre dépôt. À
+copier tel quel dans la session omnipass._
 
 ---
 
-Lorin a créé un **nouveau tenant Auth0** le 2026-11-14, et il a tranché : **tout le monde y
-déménage** — omnipass, multi-search, Omnipotent.
+Nous avons lu votre déménagement dans votre dépôt plutôt que de le demander : nouveau tenant
+`dev-u4wj2een0nvlqbga.eu.auth0.com`, réponse sur `omnipass.pinkwhale.co`, expéditeur
+`no-reply@mail.pinkwhale.co`, super-admin `admin@pinkwhale.co`. Omnipotent suit sur le même domaine :
+notre nom d'hôte de production est désormais **`omnipotent.pinkwhale.co`**.
 
-Ce n'est pas une préférence, c'est votre propre règle qui l'impose : `backend/docs/plan.md` § 14 dit
-qu'omnipass vérifie la **signature** du jeton relayé avec le JWKS du **tenant partagé**. Deux tenants,
-et chaque jeton qu'un consommateur vous relaie est refusé. Il n'y a donc pas de déménagement partiel
-possible.
+## 1. La question qui conditionne tout le reste
 
-## Ce qui est mort, et qu'il ne faut pas recopier
+Votre `A-FAIRE.md` dit qu'omnipass **a quitté le tenant partagé pour le sien**. Votre
+`backend/docs/plan.md` dit, aux sections 1, 14 et dans la signature du client, que le jeton relayé est
+vérifié avec le JWKS du **tenant partagé**, et que `auth0Domain` est « le tenant partagé, déjà connu
+de l'application ».
 
-Ces valeurs sont enregistrées dans votre `A-FAIRE.md` et dans votre configuration ; elles ne valent
-plus rien :
+Les deux lectures ne donnent pas le même produit :
 
-| Valeur                               | Ce qu'elle était                         |
-| ------------------------------------ | ---------------------------------------- |
-| `dev-3rwjfrn4yf3tar80.eu.auth0.com`  | le domaine du tenant                     |
-| `tkSxRukHoCBTTNd616lsiF8Fqb7RpQbv`   | le compte machine partagé                |
-| `qUq67lX2piWp4RJSNlSMqOtW51Y2VHBy`   | l'application navigateur de multi-search |
+- **si le nouveau tenant est le vôtre _et_ celui des consommateurs** — c'est ce que nous supposons —
+  tout va bien : nous y créons nos API et notre application navigateur, vos utilisateurs et les nôtres
+  sont les mêmes personnes, et le jeton que nous vous relayons porte une signature que vous
+  reconnaissez ;
+- **s'il est à vous seul**, aucun jeton de personne relayé par un consommateur ne peut être vérifié
+  chez vous, et le contrat ne tient plus.
 
-Nous avons retiré les nôtres de notre `A-FAIRE.md` le même jour. Une valeur morte qui traîne dans un
-document est pire qu'une valeur absente : elle se recopie sans qu'on se demande d'où elle vient.
+Dites-nous laquelle, et si c'est la première, **mettez `plan.md` d'accord avec `A-FAIRE.md`** : c'est
+le genre d'écart qui se paie trois semaines plus tard, quand plus personne ne sait quelle phrase
+faisait foi.
 
-## Ce qu'il y a à refaire de votre côté
+## 2. Ce que nous vous demandons : une entrée de registre
 
-Dans cet ordre, parce que la première bloque tout le reste :
+Votre `backend/config/default.json` ne connaît que multi-search. Ajoutez Omnipotent :
 
-1. **L'Action post-login**, qui ajoute l'adresse e-mail aux access tokens sous l'espace de noms
-   `https://omnilor/`. Sans elle, **aucune première connexion n'aboutit**, pour aucun produit. C'est
-   le point 3 de votre `A-FAIRE.md`, et vous êtes les seuls à en avoir le code.
-2. Votre **API REST** (`https://api.omnipass.app`) et votre **API MCP par environnement** — l'API MCP
-   de l'environnement de test portait l'adresse CloudFront de cet environnement, elle est donc à
-   recréer avec la même règle : l'identifiant est l'URL exacte du `/mcp` servi.
-3. Votre **compte machine**, et l'autorisation du nôtre sur votre API (voir la question ci-dessous).
-4. L'**application navigateur** listée dans le `User-delegated access` de chacune de vos API. C'est la
-   leçon que vous aviez payée en mise en service ; elle vaut à nouveau sur un tenant neuf.
-5. Votre **configuration** : `AUTH0_DOMAIN` dans `.env`, `.env.example`, votre infrastructure et vos
-   variables de déploiement.
-6. Le **registre des consommateurs**, où Omnipotent s'ajoute (ci-dessous).
+| Champ       | Valeur                                                                  |
+| ----------- | ----------------------------------------------------------------------- |
+| clé         | `omnipotent`                                                            |
+| `name`      | `Omnipotent`                                                            |
+| `baseUrl`   | `https://ms.pinkwhale.co` (tranché le 2026-11-14)                       |
+| `audiences` | `https://api.omnipotent.app` et `https://omnipotent.pinkwhale.co/mcp`   |
+| `clientIds` | celui de notre compte machine, dès qu'il existe (voir § 4)              |
 
-## Ce que nous faisons de notre côté
+La `baseUrl` est celle du front de **multi-search** : Omnipotent n'a pas de front à lui, et c'est
+celui de multi-search qui le consommera après la bascule (notre `CADRAGE.md` § 18). C'est donc ce lien
+que porteront vos e-mails d'invitation pour nos utilisateurs.
 
-Nous créons l'application navigateur `Omnilor Web` (une seule pour les deux fronts), nos trois API —
-`https://api.omnipotent.app`, `http://localhost:3002/mcp`, `https://omnipotent.omnilor.com/mcp` — et
-notre compte machine. Le détail clic par clic est dans notre `docs/runbook-acces.md` § A2, si ça vous
-sert pour le vôtre.
+Sans cette entrée, vous refusez nos jetons relayés avec `audience_not_allowed` — ce qui est le
+comportement voulu, et exactement ce qui nous bloque.
 
-**Ce que nous vous demandons**, et qui n'a pas changé : ajoutez Omnipotent à votre registre
-(`backend/config/default.json`) avec nos deux audiences de production — `https://api.omnipotent.app`
-et `https://omnipotent.omnilor.com/mcp` — et notre URL de front, qui est celle de multi-search
-(`https://app.omnilor.com`) puisque c'est son front qui nous consommera après la bascule.
+## 3. Deux choses périmées chez vous, vues en passant
 
-## Une question, parce que le budget d'entités est neuf
+- **L'entrée de multi-search** porte encore `tkSxRukHoCBTTNd616lsiF8Fqb7RpQbv`, le compte machine de
+  l'ancien tenant, et une `baseUrl` en `http://localhost:5173`. Le premier est mort ; la seconde est
+  juste en développement et fausse en production, où votre `prod.json` dit `https://app.omnilor.com`
+  — qui devient `https://ms.pinkwhale.co`.
+- **Votre `backend/.env.example`** annonce `SUPER_ADMIN_EMAILS=["admin@omnilor.com"]` alors que votre
+  `A-FAIRE.md` dit `admin@pinkwhale.co`. Un exemple qui ment coûte une première connexion ratée sur
+  une base vide, et c'est le pire moment pour chercher.
+
+Nous ne touchons évidemment à rien chez vous ; nous le signalons.
+
+## 4. Une question restée ouverte : un compte machine par produit ?
 
 Sur l'ancien tenant, le plan gratuit avait épuisé les applications, et vous aviez changé votre
 conception pour qu'**un seul compte machine** serve plusieurs produits — l'audience signée du jeton
 relayé disant lequel appelle.
 
-Un tenant neuf repart avec dix applications et dix API. Nous proposons donc que **chaque produit ait
-son propre compte machine** : son `client_id` nomme l'appelant dans vos journaux, et une rotation de
-secret n'affecte qu'un produit. Votre conception le permet déjà, puisqu'elle ne s'appuie pas sur
-l'identité du compte mais sur l'audience.
-
-Si vous préférez garder le compte partagé, dites-le : nous prendrons le vôtre, et nous n'en créerons
-pas.
+Le nouveau tenant repart avec dix applications. Nous proposons que **chaque produit ait son propre
+compte machine** : son `client_id` nomme l'appelant dans vos journaux, et une rotation de secret
+n'affecte qu'un produit. Votre conception le permet déjà, puisqu'elle s'appuie sur l'audience et non
+sur l'identité du compte. Si vous préférez garder un compte partagé, dites-le et nous prendrons le
+vôtre.
 
 **À garder en tête quand même** : dix places se remplissent vite à trois produits qui ont chacun une
 API REST et une API MCP **par environnement**. Le plafond reviendra, et la seule réponse durable est

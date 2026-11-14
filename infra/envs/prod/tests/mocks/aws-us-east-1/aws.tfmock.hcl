@@ -13,8 +13,8 @@ mock_resource "aws_acm_certificate" {
     arn    = "arn:aws:acm:us-east-1:123456789012:certificate/11111111-2222-3333-4444-555555555555"
     status = "ISSUED"
     domain_validation_options = [{
-      domain_name           = "app.omnilor.com"
-      resource_record_name  = "_0a1b2c3d4e5f.app.omnilor.com."
+      domain_name           = "omnipotent.pinkwhale.co"
+      resource_record_name  = "_0a1b2c3d4e5f.omnipotent.pinkwhale.co."
       resource_record_type  = "CNAME"
       resource_record_value = "_9f8e7d6c5b4a.xlfgrmvvlj.acm-validations.aws."
     }]

@@ -245,12 +245,12 @@ run "domain_stage_1_requests_the_certificates_only" {
   command = apply
 
   variables {
-    domain_name = "omnilor.com"
+    domain_name = "pinkwhale.co"
   }
 
   assert {
     condition = (
-      toset([for certificate in aws_acm_certificate.domain : certificate.domain_name]) == toset(["omnipotent.omnilor.com"]) &&
+      toset([for certificate in aws_acm_certificate.domain : certificate.domain_name]) == toset(["omnipotent.pinkwhale.co"]) &&
       alltrue([for certificate in aws_acm_certificate.domain : certificate.validation_method == "DNS"]) &&
       length(aws_acm_certificate_validation.domain) == 0
     )
@@ -280,8 +280,8 @@ run "domain_stage_1_requests_the_certificates_only" {
 
   assert {
     condition = (
-      output.dns_records[0].name == "_0a1b2c3d4e5f.app" &&
-      output.dns_records[0].fqdn == "_0a1b2c3d4e5f.app.omnilor.com" &&
+      output.dns_records[0].name == "_0a1b2c3d4e5f.omnipotent" &&
+      output.dns_records[0].fqdn == "_0a1b2c3d4e5f.omnipotent.pinkwhale.co" &&
       output.dns_records[0].target == "_9f8e7d6c5b4a.xlfgrmvvlj.acm-validations.aws"
     )
     error_message = "A record is given as Cloudflare's form takes it: the name relative to the zone, no final dot."
@@ -297,14 +297,14 @@ run "domain_stage_2_moves_every_url" {
   command = apply
 
   variables {
-    domain_name                   = "omnilor.com"
+    domain_name                   = "pinkwhale.co"
     domain_certificates_validated = true
   }
 
   assert {
     condition = (
       toset(keys(aws_acm_certificate_validation.domain)) == toset(["api"]) &&
-      module.api_edge.hostname == "omnipotent.omnilor.com" &&
+      module.api_edge.hostname == "omnipotent.pinkwhale.co" &&
       module.api_edge.tracking_hostname == null
     )
     error_message = "Stage 2 waits for the certificate and serves omnipotent."
@@ -312,16 +312,16 @@ run "domain_stage_2_moves_every_url" {
 
   assert {
     condition = (
-      output.api_url == "https://omnipotent.omnilor.com" &&
-      output.mcp_url == "https://omnipotent.omnilor.com/mcp"
+      output.api_url == "https://omnipotent.pinkwhale.co" &&
+      output.mcp_url == "https://omnipotent.pinkwhale.co/mcp"
     )
     error_message = "Stage 2 moves the URLs to the custom hostname."
   }
 
   assert {
     condition = (
-      local.common_environment["MCP_RESOURCE_URL"] == "https://omnipotent.omnilor.com/mcp" &&
-      local.api_environment["MCP_RESOURCE_URL"] == "https://omnipotent.omnilor.com/mcp"
+      local.common_environment["MCP_RESOURCE_URL"] == "https://omnipotent.pinkwhale.co/mcp" &&
+      local.api_environment["MCP_RESOURCE_URL"] == "https://omnipotent.pinkwhale.co/mcp"
     )
     error_message = "The backend builds its public URLs from the custom hostname: the MCP resource is the API's."
   }
@@ -329,7 +329,7 @@ run "domain_stage_2_moves_every_url" {
   assert {
     condition = (
       length(output.auth0_settings.spa_allowed_callback_urls) == 0 &&
-      output.auth0_settings.mcp_api_identifier == "https://omnipotent.omnilor.com/mcp" &&
+      output.auth0_settings.mcp_api_identifier == "https://omnipotent.pinkwhale.co/mcp" &&
       output.auth0_settings.rest_api_identifier == "https://api.omnipotent.app"
     )
     error_message = "Auth0: the MCP API's identifier follows the API's hostname, the REST API's is unchanged."
@@ -339,7 +339,7 @@ run "domain_stage_2_moves_every_url" {
     condition = (
       length(output.dns_records) == 2 &&
       [for record in slice(output.dns_records, 1, 2) : "${record.name} ${record.type} ${record.target}"] == ["omnipotent CNAME d123.cloudfront.net"] &&
-      [for record in slice(output.dns_records, 1, 2) : record.fqdn] == ["omnipotent.omnilor.com"] &&
+      [for record in slice(output.dns_records, 1, 2) : record.fqdn] == ["omnipotent.pinkwhale.co"] &&
       alltrue([for record in output.dns_records : record.proxy_status == "DNS only (grey cloud)"]) &&
       length([for record in output.dns_records : record if startswith(record.purpose, "Stage 1")]) == 1
     )
@@ -358,7 +358,7 @@ run "domain_stage_2_refuses_a_certificate_not_issued" {
   state_key = "certificate_pending"
 
   variables {
-    domain_name                   = "omnilor.com"
+    domain_name                   = "pinkwhale.co"
     domain_certificates_validated = true
   }
 
@@ -369,8 +369,8 @@ run "domain_stage_2_refuses_a_certificate_not_issued" {
       arn    = "arn:aws:acm:us-east-1:123456789012:certificate/11111111-2222-3333-4444-555555555555"
       status = "PENDING_VALIDATION"
       domain_validation_options = [{
-        domain_name           = "app.omnilor.com"
-        resource_record_name  = "_0a1b2c3d4e5f.app.omnilor.com."
+        domain_name           = "ms.pinkwhale.co"
+        resource_record_name  = "_0a1b2c3d4e5f.ms.pinkwhale.co."
         resource_record_type  = "CNAME"
         resource_record_value = "_9f8e7d6c5b4a.xlfgrmvvlj.acm-validations.aws."
       }]
@@ -394,7 +394,7 @@ run "refuse_a_domain_that_is_a_url" {
   command = plan
 
   variables {
-    domain_name = "https://omnilor.com/"
+    domain_name = "https://pinkwhale.co/"
   }
 
   expect_failures = [var.domain_name]
@@ -404,7 +404,7 @@ run "refuse_the_label_of_the_website" {
   command = plan
 
   variables {
-    domain_name       = "omnilor.com"
+    domain_name       = "pinkwhale.co"
     domain_subdomains = { api = "www" }
   }
 
@@ -591,9 +591,9 @@ run "api_edge_on_custom_hostnames" {
     origin_header_value      = "secret"
     web_acl_arn              = "arn:aws:wafv2:us-east-1:123456789012:global/webacl/omnipotent-prod/abc"
     logs_bucket_domain_name  = "omnipotent-prod-access-logs-123456789012.s3.amazonaws.com"
-    alias                    = "omnipotent.omnilor.com"
+    alias                    = "omnipotent.pinkwhale.co"
     certificate_arn          = "arn:aws:acm:us-east-1:123456789012:certificate/api"
-    tracking_alias           = "s.omnilor.com"
+    tracking_alias           = "s.pinkwhale.co"
     tracking_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/tracking"
     # What the phase serving public files to clients' sites will pass, so its behaviour is proven here.
     cached_path_patterns = ["/t/*"]
@@ -601,7 +601,7 @@ run "api_edge_on_custom_hostnames" {
 
   assert {
     condition = (
-      aws_cloudfront_distribution.this.aliases == toset(["omnipotent.omnilor.com"]) &&
+      aws_cloudfront_distribution.this.aliases == toset(["omnipotent.pinkwhale.co"]) &&
       !aws_cloudfront_distribution.this.viewer_certificate[0].cloudfront_default_certificate &&
       aws_cloudfront_distribution.this.viewer_certificate[0].acm_certificate_arn == "arn:aws:acm:us-east-1:123456789012:certificate/api" &&
       aws_cloudfront_distribution.this.viewer_certificate[0].ssl_support_method == "sni-only" &&
@@ -620,7 +620,7 @@ run "api_edge_on_custom_hostnames" {
 
   assert {
     condition = (
-      aws_cloudfront_distribution.tracking[0].aliases == toset(["s.omnilor.com"]) &&
+      aws_cloudfront_distribution.tracking[0].aliases == toset(["s.pinkwhale.co"]) &&
       aws_cloudfront_distribution.tracking[0].viewer_certificate[0].acm_certificate_arn == "arn:aws:acm:us-east-1:123456789012:certificate/tracking" &&
       aws_cloudfront_distribution.tracking[0].viewer_certificate[0].ssl_support_method == "sni-only" &&
       aws_cloudfront_distribution.tracking[0].viewer_certificate[0].minimum_protocol_version == "TLSv1.2_2021"
@@ -673,8 +673,8 @@ run "api_edge_on_custom_hostnames" {
 
   assert {
     condition = (
-      output.hostname == "omnipotent.omnilor.com" &&
-      output.tracking_hostname == "s.omnilor.com" &&
+      output.hostname == "omnipotent.pinkwhale.co" &&
+      output.tracking_hostname == "s.pinkwhale.co" &&
       output.tracking_domain_name == aws_cloudfront_distribution.tracking[0].domain_name
     )
     error_message = "The module gives the hostnames and the tracking distribution's domain (the CNAME target)."
@@ -694,7 +694,7 @@ run "api_edge_refuses_a_tracking_hostname_without_certificate" {
     alb_arn             = "arn:aws:elasticloadbalancing:eu-north-1:123456789012:loadbalancer/app/api/1"
     origin_header_name  = "X-Origin-Verify"
     origin_header_value = "secret"
-    tracking_alias      = "s.omnilor.com"
+    tracking_alias      = "s.pinkwhale.co"
   }
 
   expect_failures = [var.tracking_certificate_arn]

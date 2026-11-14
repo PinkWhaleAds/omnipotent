@@ -3,7 +3,7 @@
 The AWS production infrastructure of Omnipotent, in Terraform, and how to deploy it. The decisions are
 in [`../CADRAGE.md`](../CADRAGE.md) §19 and D42: ECS Fargate on Graviton (ARM64), region `eu-north-1`
 (Stockholm), **its own RDS instance**, a Terraform separate from multi-search's, in the same AWS account.
-HTTPS on the default CloudFront domain until the custom domain is set up (`omnilor.com`, DNS at
+HTTPS on the default CloudFront domain until the custom domain is set up (`pinkwhale.co`, DNS at
 Cloudflare: [Custom domain](#custom-domain-cloudflare)). A smaller **test environment** of the same
 configuration runs in a test account, deployed from a Mac:
 [Test environment](#test-environment-simplified-aws-account).
@@ -13,7 +13,7 @@ consumes it (§18) and is deployed from its own repository. The modules here are
 its `frontend` one.
 
 ```
-                                    https://omnipotent.omnilor.com (API, MCP)
+                                    https://omnipotent.pinkwhale.co (API, MCP)
                                  without the domain: yyyy.cloudfront.net
                                                     │
                                  AWS WAF (rate limits per IP, AWS managed rules)
@@ -99,7 +99,7 @@ The account belongs to an organization whose policies AWS manages and nobody can
 | AWS WAF                     | on                                              | off (`waf_enabled`)                                           | "If you use CloudFront, certain features that would create resources outside of your selected Region aren't available. This includes using AWS WAF with CloudFront", and the SCP denies `wafv2:AssociateWebACL` in us-east-1. The API's own rate limits (per user, per IP) remain. |
 | CloudFront and ALB logs     | on                                              | off (`edge_access_logs_enabled`)                              | CloudFront's standard logs are written by an AWS account outside the organization, which its resource control policy refuses on S3; the ALB tests the bucket when it is created. The VPC flow logs (an AWS service principal, allowed) stay on.                                    |
 | Way out to the internet     | NAT gateway, fixed egress IP                    | tasks in the public subnets, a public IP each (`task_egress`) | About 30 USD a month less. Their security group still only accepts the load balancer. No fixed egress IP: a platform allow list cannot be tested (`task_egress = "nat"` for that). The internal ALB, CloudFront's VPC origin and the database stay in the private subnets.    |
-| Custom domain               | omnilor.com, two stages                         | none: `*.cloudfront.net`                                      | The hostname is production's.                                                                                                                                                                                                                                                    |
+| Custom domain               | pinkwhale.co, two stages                         | none: `*.cloudfront.net`                                      | The hostname is production's.                                                                                                                                                                                                                                                    |
 | Database                    | db.t4g.small, backups 7 days                    | db.t4g.small (2 GB), backups 1 day, changes applied at once   | A db.t4g.micro (1 GB) swapped 270 MB idle. Single-AZ in both.                                                                                                                                                                                                                      |
 | Tasks                       | API 0.5 vCPU / 1 GB (1 to 4), worker 0.5 / 1 GB | API 0.25 vCPU / 0.5 GB (1 to 2), worker 0.25 / 1 GB           | Cost. If a task runs short of memory (exit code 137 in the service's events), set `api_cpu = 512` and `api_memory = 1024` in `terraform.tfvars`.                                                                                                                                   |
 | Container Insights          | on                                              | off                                                           | About 8 USD a month; the "no running task" alarms go with it (the ECS console still shows the tasks).                                                                                                                                                                              |
@@ -331,8 +331,8 @@ What survives, on purpose or because Terraform never created it:
   vCPUs, RDS instances, CloudFront distributions. Elastic IPs: none in test.
 - Terraform only changes what is in its state: what it created, named `omnipotent-test…`, in an account it is pinned
   to. It reads, without changing them, the account id, the zones, CloudFront's managed policies and prefix list, and
-  the Elastic Load Balancing account of the region. The buckets `omnilor.com` and `popy-sauvegardes-903305161052`, the
-  role `popy-test-serveur`, the certificate of `omnilor.com` (us-east-1) and the AWS-managed roles are never read or
+  the Elastic Load Balancing account of the region. The buckets `pinkwhale.co` and `popy-sauvegardes-903305161052`, the
+  role `popy-test-serveur`, the certificate of `pinkwhale.co` (us-east-1) and the AWS-managed roles are never read or
   touched (no custom domain in test).
 - `force_destroy` makes `terraform destroy` delete this stack's data without asking twice: never point `envs/test` at
   data that matters (it is refused for prod).
@@ -504,7 +504,7 @@ Without them, the login steps are skipped.
 2. **REST API**: Omnipotent's own API in the shared tenant (its identifier is `auth0_audience`; _Allow Offline
    Access_ on). It is not multi-search's: a token of one is never accepted by the other (D42).
 3. **MCP API**: create a new API whose identifier is exactly the MCP URL
-   (`https://<api domain>/mcp`, `https://omnipotent.omnilor.com/mcp` with the custom domain), RS256, _Allow Offline Access_,
+   (`https://<api domain>/mcp`, `https://omnipotent.pinkwhale.co/mcp` with the custom domain), RS256, _Allow Offline Access_,
    permission `mcp:use`. Auth0 cannot change the identifier of an API: for another URL, create another API.
 
 ### 7. First deploy
@@ -535,12 +535,12 @@ add the Auth0 callback of step 6, and undo all three afterwards. Locally they st
 
 ## Custom domain (Cloudflare)
 
-Without a domain, the API answers on its `*.cloudfront.net` address. With `domain_name = "omnilor.com"`,
+Without a domain, the API answers on its `*.cloudfront.net` address. With `domain_name = "pinkwhale.co"`,
 it moves to a subdomain:
 
 | Hostname          | Serves                                | Distribution |
 | ----------------- | ------------------------------------- | ------------ |
-| `omnipotent.omnilor.com` | the API and the MCP endpoint (`/mcp`) | the API's    |
+| `omnipotent.pinkwhale.co` | the API and the MCP endpoint (`/mcp`) | the API's    |
 
 The labels are `domain_subdomains` (default `{ api = "api" }`). The DNS zone stays at Cloudflare: Terraform
 **never touches it** and outputs the records to add by hand (`terraform output dns_records`). A phase serving public
@@ -556,17 +556,17 @@ CloudFront refuses a certificate that is not `ISSUED`:
 
 ### Stage 1: the certificate
 
-1. In `terraform.tfvars`: `domain_name = "omnilor.com"`.
+1. In `terraform.tfvars`: `domain_name = "pinkwhale.co"`.
 2. `terraform apply` (it only creates the certificate), then `terraform output dns_records`: one record, as
    Cloudflare's form takes it.
 
    ```hcl
    [
      {
-       "fqdn"         = "_3f2a….omnipotent.omnilor.com"
+       "fqdn"         = "_3f2a….omnipotent.pinkwhale.co"
        "name"         = "_3f2a….api"
        "proxy_status" = "DNS only (grey cloud)"
-       "purpose"      = "Stage 1: validation of the certificate of omnipotent.omnilor.com. Keep it: ACM renews the certificate with it."
+       "purpose"      = "Stage 1: validation of the certificate of omnipotent.pinkwhale.co. Keep it: ACM renews the certificate with it."
        "target"       = "_9b1c….xlfgrmvvlj.acm-validations.aws"
        "type"         = "CNAME"
      },
@@ -599,10 +599,10 @@ CloudFront refuses a certificate that is not `ISSUED`:
 
 For each record of `dns_records` not yet in the zone:
 
-1. [dash.cloudflare.com](https://dash.cloudflare.com) → the account → the domain `omnilor.com` → **DNS** →
+1. [dash.cloudflare.com](https://dash.cloudflare.com) → the account → the domain `pinkwhale.co` → **DNS** →
    **Records** → **Add record**.
 2. **Type**: `CNAME`.
-3. **Name**: the record's `name` (`_3f2a….omnipotent`, `omnipotent`…); Cloudflare adds `.omnilor.com` itself (its `fqdn` works
+3. **Name**: the record's `name` (`_3f2a….omnipotent`, `omnipotent`…); Cloudflare adds `.pinkwhale.co` itself (its `fqdn` works
    too).
 4. **Target**: the record's `target`, copied whole.
 5. **Proxy status**: click the orange cloud so that it turns **grey: _DNS only_**. Cloudflare proxies a new CNAME by
@@ -616,7 +616,7 @@ If Cloudflare says a record of that name exists already, look at it before delet
 use by the website.
 
 **CAA records.** They list the authorities allowed to issue certificates for the domain (**DNS** → **Records**, type
-`CAA`, or `dig +short CAA omnilor.com`). None: nothing to do. Some (for instance `letsencrypt.org` for the website):
+`CAA`, or `dig +short CAA pinkwhale.co`). None: nothing to do. Some (for instance `letsencrypt.org` for the website):
 Amazon must be allowed too, or the certificate ends `FAILED`. **Add record** → **Type** `CAA`, **Name** `@`, **Tag**
 _Only allow hostnames_ (`issue`), **CA domain name** `amazon.com`, **Save**; keep the others. A CAA record on `api`
 itself would need the same.
@@ -624,17 +624,17 @@ itself would need the same.
 ### Checking
 
 ```sh
-dig +short CNAME _3f2a….omnipotent.omnilor.com @1.1.1.1   # _9b1c….xlfgrmvvlj.acm-validations.aws.
-dig +short omnipotent.omnilor.com @1.1.1.1                 # dxxxx.cloudfront.net. first, then CloudFront's addresses
-curl -fsS https://omnipotent.omnilor.com/readyz            # {"status":"ok",...}
-curl -fsS https://omnipotent.omnilor.com/status            # the deployed commit
+dig +short CNAME _3f2a….omnipotent.pinkwhale.co @1.1.1.1   # _9b1c….xlfgrmvvlj.acm-validations.aws.
+dig +short omnipotent.pinkwhale.co @1.1.1.1                 # dxxxx.cloudfront.net. first, then CloudFront's addresses
+curl -fsS https://omnipotent.pinkwhale.co/readyz            # {"status":"ok",...}
+curl -fsS https://omnipotent.pinkwhale.co/status            # the deployed commit
 ```
 
 A record answering Cloudflare's addresses (`104.*`, `172.67.*`) is proxied: set its proxy status to _DNS only_.
 
 ### After stage 2
 
-- **Auth0** (`terraform output auth0_settings`): the MCP API's identifier becomes `https://omnipotent.omnilor.com/mcp`.
+- **Auth0** (`terraform output auth0_settings`): the MCP API's identifier becomes `https://omnipotent.pinkwhale.co/mcp`.
   Auth0 cannot change an identifier: **create a new API** with the final one, and keep the old one only while a
   client still holds its tokens. The REST API's identifier does not change — it is an identifier, not a URL.
 - **Deploy** (step 7): the tasks take their new environment at the next deploy, so the public URLs the backend
@@ -645,8 +645,8 @@ Where each URL is read:
 
 | Output                                                                            | Without a domain                  | With it                       |
 | --------------------------------------------------------------------------------- | --------------------------------- | ----------------------------- |
-| `api_url`: the base of every public URL the backend builds                        | `https://yyyy.cloudfront.net`     | `https://omnipotent.omnilor.com`     |
-| `mcp_url`: `MCP_RESOURCE_URL` and the identifier of the Auth0 MCP API              | `https://yyyy.cloudfront.net/mcp` | `https://omnipotent.omnilor.com/mcp` |
+| `api_url`: the base of every public URL the backend builds                        | `https://yyyy.cloudfront.net`     | `https://omnipotent.pinkwhale.co`     |
+| `mcp_url`: `MCP_RESOURCE_URL` and the identifier of the Auth0 MCP API              | `https://yyyy.cloudfront.net/mcp` | `https://omnipotent.pinkwhale.co/mcp` |
 
 ## Operating
 
@@ -928,7 +928,7 @@ names.
 - OpenTelemetry collector (`APP_TELEMETRY_ENABLED=false`).
 - CloudFront → ALB is plain HTTP. The ALB is internal and CloudFront reaches it as a VPC origin, so that hop never
   leaves AWS's private network and the ALB has no public endpoint. To encrypt it too, once the custom domain is in
-  place: a regional ACM certificate (eu-north-1) covering `omnipotent.omnilor.com` (one more validation
+  place: a regional ACM certificate (eu-north-1) covering `omnipotent.pinkwhale.co` (one more validation
   record), a 443 listener with the same 403 default and header rule, 443 open to the CloudFront prefix list, the
   VPC origin in `https-only`, then the port 80 listener removed. The API's origin request policy forwards the
   viewer's `Host`, against which CloudFront then checks the ALB's certificate; a second host's would have to

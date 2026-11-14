@@ -28,6 +28,20 @@ vérifie la **signature** du jeton que nous lui relayons avec le JWKS du **tenan
 `backend/docs/plan.md` § 14). Deux tenants, et chaque jeton relayé est refusé — Omnipotent ne pourrait
 résoudre aucun appelant.
 
+**omnipass a déménagé le premier, le 2026-11-14**, et c'est donc chez lui que tout se crée :
+
+| Ce qui est désormais vrai        | Valeur                                |
+| --------------------------------- | ------------------------------------- |
+| Le tenant                         | `dev-u4wj2een0nvlqbga.eu.auth0.com`   |
+| L'URL d'omnipass                  | `https://omnipass.pinkwhale.co`       |
+| Son audience REST (inchangée)     | `https://api.omnipass.app`            |
+| Le domaine du groupe              | `pinkwhale.co`                        |
+
+Le groupe ayant changé de domaine, **D52 est amendée** : notre nom d'hôte de production est
+`omnipotent.pinkwhale.co`, et l'identifiant de l'API MCP de production suit. L'audience REST, elle, ne
+bouge pas — `https://api.omnipotent.app` est un nom, pas une adresse, exactement comme omnipass garde
+`https://api.omnipass.app` en servant sur `omnipass.pinkwhale.co`.
+
 **Les valeurs d'avant ne valent plus rien. Ne les recolle nulle part :**
 
 | Valeur de l'ancien tenant             | Ce qu'elle était                              |
@@ -127,7 +141,8 @@ code (point 3 de son `A-FAIRE.md`). Elle est en tête de la liste A5.
 front de multi-search qui consommera Omnipotent après la bascule (`CADRAGE.md` § 18) : une seule
 suffit pour les deux produits.
 
-1. **manage.auth0.com**, vérifie en haut à gauche que tu es bien sur le **nouveau** tenant ;
+1. **manage.auth0.com**, vérifie en haut à gauche que tu es bien sur le nouveau tenant,
+   `dev-u4wj2een0nvlqbga.eu.auth0.com` ;
 2. **Applications** → **Applications** → **Create Application** ;
 3. **Name** : `Omnilor Web` ; type **Single Page Web Applications** → **Create** ;
 4. onglet **Settings** → **Allowed Callback URLs** :
@@ -143,13 +158,13 @@ suffit pour les deux produits.
 | ------------------------ | ------------------------------------- | ------------------------------------------------- |
 | `Omnipotent REST`        | `https://api.omnipotent.app`          | aucun                                             |
 | `Omnipotent MCP (local)` | `http://localhost:3002/mcp`           | _Allow Offline Access_ ; permission `mcp:use`     |
-| `Omnipotent MCP`         | `https://omnipotent.omnilor.com/mcp`  | _Allow Offline Access_ ; permission `mcp:use`     |
+| `Omnipotent MCP`         | `https://omnipotent.pinkwhale.co/mcp`  | _Allow Offline Access_ ; permission `mcp:use`     |
 
 Trois choses à savoir sur ce tableau, et chacune a coûté une erreur à quelqu'un :
 
 - **l'identifiant REST n'a pas besoin de résoudre.** `https://api.omnipotent.app` est un nom, pas une
   adresse ; omnipass fait pareil avec `https://api.omnipass.app` tout en servant sur
-  `omnipass.omnilor.com` ;
+  `omnipass.pinkwhale.co` ;
 - **un identifiant MCP, si.** Il doit être **l'URL exacte** du `/mcp` servi, sans barre oblique
   finale, parce que le client l'envoie comme indicateur de ressource (RFC 8707). D'où une API **par
   environnement** : celle de l'environnement de test s'ajoutera avec son adresse CloudFront, le jour
@@ -157,7 +172,7 @@ Trois choses à savoir sur ce tableau, et chacune a coûté une erreur à quelqu
 - **les identifiants REST et MCP doivent différer.** L'application refuse de démarrer s'ils sont
   égaux : un jeton de client MCP ne doit jamais ouvrir toute l'API REST.
 
-Les deux noms, `omnipotent.omnilor.com` et le port `3002`, sont tranchés (D52) et déjà posés dans le
+Les deux noms, `omnipotent.pinkwhale.co` et le port `3002`, sont tranchés (D52) et déjà posés dans le
 code et l'infrastructure : tu n'as rien à en déduire.
 
 **3. L'étape qu'on oublie, et qui fait échouer _avant_ la page de connexion.** Sur **chacune** des
@@ -181,9 +196,9 @@ Dans les deux cas, la création est la même : **Applications** → **Create App
 d'omnipass (`https://api.omnipass.app`) dans la liste d'autorisation. Le `Client ID` n'est pas secret
 et peut m'être donné ; le **Client Secret** ne passe pas par le chat (A4).
 
-**Ce que tu me rapportes dans le chat** : le **domaine du nouveau tenant**, le `Client ID` de
-`Omnilor Web`, celui du compte machine, et « les trois API sont créées ». Rien de tout ça n'est un
-secret.
+**Ce que tu me rapportes dans le chat** : le `Client ID` de `Omnilor Web`, celui du compte machine, et
+« les trois API sont créées ». Ni l'un ni l'autre n'est un secret. Le domaine du tenant, je l'ai —
+je l'ai lu dans la configuration d'omnipass.
 
 ### A3. Déclarer Omnipotent chez omnipass — _une demande_
 
@@ -192,10 +207,10 @@ ce qui empêche une application de relayer le jeton d'une autre, et ça s'appliq
 
 Demande à la session omnipass d'ajouter Omnipotent à son registre (`backend/config/default.json`)
 avec les deux audiences de production — `https://api.omnipotent.app` et
-`https://omnipotent.omnilor.com/mcp` — et notre URL de front, qui est celle de multi-search
-(`https://app.omnilor.com`) puisque c'est son front qui nous consommera. Son propre document le dit :
-« trois lignes de configuration et un déploiement ». Sans cette déclaration : 403
-`audience_not_allowed`.
+`https://omnipotent.pinkwhale.co/mcp` — et notre URL de front, qui est celle de multi-search :
+**`https://ms.pinkwhale.co`** (tranché le 2026-11-14). C'est le lien que portent ses e-mails
+d'invitation. Son propre document le dit : « trois lignes de configuration et un déploiement ». Sans
+cette déclaration : 403 `audience_not_allowed`.
 
 Si un jour on veut exercer le MCP **local** contre un vrai omnipass, il faudra lui déclarer
 `http://localhost:3002/mcp` aussi.
@@ -216,22 +231,28 @@ va dans le conteneur que Terraform a déjà créé, `omnipotent/prod/omnipass/cl
 viendra avec le premier `apply` ; en local, je te donnerai la forme exacte quand on branchera
 `ACCESS_PROVIDER=omnipass`.
 
-### A5. Ce qu'omnipass doit refaire, et que je ne peux pas faire d'ici
+### A5. Ce qu'omnipass a déjà fait, et ce qu'il nous reste à lui demander
 
-Le tenant est partagé, donc le déménagement est le sien autant que le nôtre. À transmettre à la
-session omnipass — j'en ai fait un message prêt à copier,
-[`message-a-omnipass-tenant.md`](message-a-omnipass-tenant.md) :
+**Fait de son côté le 2026-11-14** — je l'ai lu dans son dépôt, pas sur parole : il a quitté le tenant
+partagé pour le nouveau, répond sur `omnipass.pinkwhale.co`, expédie depuis `no-reply@mail.pinkwhale.co`
+avec un nouveau compte Resend, et son super-admin est `admin@pinkwhale.co`. L'Action post-login, ses
+deux API et son compte machine sont refaits chez lui.
 
-1. **l'Action post-login** sur le nouveau tenant (espace de noms `https://omnilor/`) — sans elle,
-   **aucune première connexion n'aboutit**, pour personne ;
-2. son **API REST** (`https://api.omnipass.app`) et son **API MCP par environnement** ;
-3. son **compte machine**, et l'autorisation de celui d'Omnipotent sur son API ;
-4. l'**application navigateur** listée dans le `User-delegated access` de chacune de ses API ;
-5. sa configuration : `AUTH0_DOMAIN` dans son `.env`, son `.env.example` et son infrastructure ;
-6. et le registre des consommateurs, où Omnipotent s'ajoute (A3).
+**Ce qui reste, et qui tient en une entrée de configuration** : son registre des consommateurs ne
+connaît que multi-search. Il faut y ajouter Omnipotent avec nos deux audiences et
+`https://ms.pinkwhale.co`. Le message prêt à copier est
+[`message-a-omnipass-tenant.md`](message-a-omnipass-tenant.md), et il porte aussi deux choses que j'ai
+vues en lisant son dépôt et qu'il vaut mieux lui dire :
 
-Le même travail attend **multi-search** s'il doit continuer de tourner : son front et son back sont
-gelés (D30), mais leur `AUTH0_DOMAIN` et leur `client_id` de SPA sont de la configuration, pas du
+- **son `plan.md` parle encore de « tenant partagé » partout**, alors que son `A-FAIRE.md` dit qu'il a
+  pris « le sien ». Les deux lectures ne donnent pas le même produit : si le tenant est le sien **et**
+  celui des consommateurs, tout va bien et c'est ce que je suppose ; s'il est à lui seul, aucun jeton
+  de personne relayé par nous ne peut être vérifié. C'est la question à lui poser en premier ;
+- **l'entrée de multi-search dans son registre porte encore le `client_id` mort** de l'ancien tenant,
+  et une `baseUrl` en `localhost:5173`.
+
+Le même déménagement attend **multi-search** s'il doit continuer de tourner : son front et son back
+sont gelés (D30), mais leur `AUTH0_DOMAIN` et leur `client_id` de SPA sont de la configuration, pas du
 code.
 
 ---

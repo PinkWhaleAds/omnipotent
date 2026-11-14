@@ -523,8 +523,10 @@ Quatre pièces s'ajoutent à ça, et deux d'entre elles sont des pannes classiqu
 - **Même compte AWS** que multi-search (le compte Omnilor partagé), région **`eu-north-1`** (Stockholm), avec un **Terraform séparé** et sa **propre instance RDS**. MS sera coupé dans un second temps.
 - CI **GitHub Actions**. Secrets dans **Secrets Manager**, chiffrement KMS, images dans ECR, base RDS, fichiers S3.
 - Rien de l'infrastructure Azerion ou Hawk.
-- **Nom d'hôte et ports.** L'API répond sur **`omnipotent.omnilor.com`** : `api.omnilor.com` est celle de
-  multi-search, et les deux cohabitent dans la même zone jusqu'à la bascule (§ 18). En local, Omnipotent
+- **Nom d'hôte et ports.** L'API répond sur **`omnipotent.pinkwhale.co`** — le groupe est passé à
+  `pinkwhale.co` le 2026-11-14, omnipass le premier avec `omnipass.pinkwhale.co`. Le nom d'hôte porte le
+  produit plutôt que son rôle, parce que multi-search vit dans la même zone jusqu'à la bascule (§ 18) et
+  qu'un `api` nu entrerait en collision. En local, Omnipotent
   décale les ports de multi-search — HTTP **3002**, Postgres 5442, Grafana 3012 — et le décalage n'est pas
   qu'un confort : un identifiant d'API Auth0 est **unique dans le tenant partagé**, donc
   `http://localhost:3000/mcp` appartient déjà à multi-search et à omnipass.
@@ -587,7 +589,7 @@ Quatre pièces s'ajoutent à ça, et deux d'entre elles sont des pannes classiqu
 | D49 | Le budget est **toujours en argent**. Un **objectif en volume** (impressions, diffusions, complétions) est une **façon de le saisir** : il est converti en argent à la saisie via le CPM, et c'est le montant qui est stocké. L'algèbre du budget ne change pas |
 | D50 | **GAM est retiré du périmètre** — serveur publicitaire d'un éditeur, pas un DSP (§ 6) ; le périmètre est celui du § 6 |
 | D51 | **Amazon DSP est retiré du levier `audio`** — sa bibliothèque d'assets n'enregistre pas d'audio (§ 6) |
-| D52 | Nom d'hôte de production **`omnipotent.omnilor.com`** et port local **3002** (§ 19) : `api.omnilor.com` et `localhost:3000` appartiennent à multi-search et à omnipass, et l'identifiant d'une API MCP Auth0 doit être **l'URL exacte** du `/mcp` servi — il en faut donc une par environnement |
+| D52 | Nom d'hôte de production **`omnipotent.pinkwhale.co`** et port local **3002** (§ 19) : le nom d'hôte porte le produit, parce que multi-search occupe la même zone, et `localhost:3000` appartient à multi-search et à omnipass. L'identifiant d'une API MCP Auth0 doit être **l'URL exacte** du `/mcp` servi — il en faut donc une par environnement. _Amendée le 2026-11-14_ : le domaine était `omnilor.com`, le groupe est passé à `pinkwhale.co` |
 | D53 | La **publicité politique est déclarée par l'utilisateur**, jamais déduite : la campagne porte un champ **obligatoire** à la création (règlement UE 2024/900, que chaque plateforme répercute). Déclarer « oui » est **refusé par la preview** avec un code stable, tant qu'aucune plateforme du périmètre ne l'accepte et que les déclarations de commanditaire ne sont pas modélisées |
 | L1→L24 | Les leviers : voir `backend/docs/leviers.md`, validées le 2026-10-25 |
 | R1→R14 | Le reporting : voir `backend/docs/reporting.md`. **R9 (nos propres conversions) est reporté en V2** |

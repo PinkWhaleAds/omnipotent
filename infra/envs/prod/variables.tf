@@ -127,9 +127,9 @@ variable "access_provider" {
 }
 
 variable "omnipass_url" {
-  description = "Base URL of omnipass, without a trailing slash (OMNIPASS_URL). omnipass is the single writer of the tenancy (T5), and this backend holds no table of its own for it (T4)."
+  description = "Base URL of omnipass, without a trailing slash (OMNIPASS_URL). Its hostname, never its audience: https://api.omnipass.app is the identifier of its Auth0 API and resolves to nothing. omnipass is the single writer of the tenancy (T5), and this backend holds no table of its own for it (T4)."
   type        = string
-  default     = "https://api.omnipass.app"
+  default     = "https://omnipass.pinkwhale.co"
 
   validation {
     condition     = can(regex("^https://[^/]+$", var.omnipass_url)) || var.node_env != "prod"
@@ -155,14 +155,14 @@ variable "omnipass_client_id" {
 }
 
 variable "cors_origins" {
-  description = "Origins of the web front ends allowed to call the API from a browser (APP_CORS_ORIGINS), and the URLs set on the Auth0 SPA application (output auth0_settings). Omnipotent serves no front of its own yet: after the switch it is multi-search's, e.g. [\"https://app.omnilor.com\"]. None by default: only server-to-server and MCP callers reach the API."
+  description = "Origins of the web front ends allowed to call the API from a browser (APP_CORS_ORIGINS), and the URLs set on the Auth0 SPA application (output auth0_settings). Omnipotent serves no front of its own yet: after the switch it is multi-search's, e.g. [\"https://ms.pinkwhale.co\"]. None by default: only server-to-server and MCP callers reach the API."
   type        = list(string)
   default     = []
   nullable    = false
 
   validation {
     condition     = alltrue([for origin in var.cors_origins : can(regex("^https?://[^/]+$", origin))])
-    error_message = "each origin is a scheme and a host without a path, e.g. https://app.omnilor.com."
+    error_message = "each origin is a scheme and a host without a path, e.g. https://ms.pinkwhale.co."
   }
 }
 
@@ -322,19 +322,19 @@ variable "db_app_username" {
 # ---------------------------------------------------------------------------------------------------
 
 variable "domain_name" {
-  description = "Domain whose subdomains serve the application, the API and the tracking scripts (e.g. omnilor.com). Its DNS zone stays where it is (Cloudflare): Terraform outputs the records to add by hand (dns_records). Setting it is stage 1: the certificates are requested, nothing else changes. Empty: no custom domain, everything on the default *.cloudfront.net addresses."
+  description = "Domain whose subdomains serve the application, the API and the tracking scripts (e.g. pinkwhale.co). Its DNS zone stays where it is (Cloudflare): Terraform outputs the records to add by hand (dns_records). Setting it is stage 1: the certificates are requested, nothing else changes. Empty: no custom domain, everything on the default *.cloudfront.net addresses."
   type        = string
   default     = ""
   nullable    = false
 
   validation {
     condition     = var.domain_name == "" || can(regex("^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$", var.domain_name))
-    error_message = "domain_name is a bare lower-case domain such as omnilor.com (no scheme, no trailing dot), or empty."
+    error_message = "domain_name is a bare lower-case domain such as pinkwhale.co (no scheme, no trailing dot), or empty."
   }
 }
 
 variable "domain_subdomains" {
-  description = "Labels of the hostnames under domain_name: omnipotent (the API, MCP at /mcp). The label is not api: api.omnilor.com is multi-search's API, and the two live in the same zone until the switch (CADRAGE § 18). A phase serving public files to clients' sites or to a platform adds its own label here."
+  description = "Labels of the hostnames under domain_name: omnipotent (the API, MCP at /mcp). The label names the product rather than its role, because multi-search lives in the same zone until the switch (CADRAGE § 18) and a bare api would collide with it. A phase serving public files to clients' sites or to a platform adds its own label here."
   type = object({
     api = optional(string, "omnipotent")
   })
