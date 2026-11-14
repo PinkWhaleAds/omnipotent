@@ -234,7 +234,9 @@ that needs a credential declares its container in `envs/prod/main.tf`, and its v
 the commands of [step 4 of the first installation](#4-secret-values) and `omnipotent/test/` instead of
 `omnipotent/prod/`.
 
-**6. Auth0** (tenant `dev-3rwjfrn4yf3tar80.eu.auth0.com`). `tf envs/test output auth0_settings` lists the values.
+**6. Auth0** (the **shared tenant**, whose domain is `auth0_domain`; the tenant changed on 2026-11-14 and the
+old one is dead, so take the domain from the variable rather than from memory — `docs/runbook-acces.md` § A0).
+`tf envs/test output auth0_settings` lists the values.
 
 1. **Applications** → the Single Page Application → **Settings**: **add** (keep the existing entries,
    comma-separated) the Swagger UI's redirect `<api_url>/documentation/static/oauth2-redirect.html` to _Allowed
