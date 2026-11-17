@@ -248,7 +248,7 @@ printf 'OMNIPASS_CLIENT_ID=%s\n' '<le client id du compte machine>' >> .env
 Et le secret, **jamais dans le `.env` d'un environnement partagé ni dans le chat** : en production il
 va dans le conteneur que Terraform a déjà créé, `omnipotent/prod/omnipass/client-secret`. La commande
 viendra avec le premier `apply` ; en local, je te donnerai la forme exacte quand on branchera
-`ACCESS_PROVIDER=omnipass`.
+le vrai omnipass.
 
 ### A5. Où en est omnipass — _sa réponse du 2026-11-17_
 

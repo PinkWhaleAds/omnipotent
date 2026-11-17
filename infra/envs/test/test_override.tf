@@ -125,14 +125,9 @@ variable "docs_enabled" {
   default = true
 }
 
-# A disposable account holding no real data, and omnipass is not built yet: the backend runs its local
-# implementations of the identity and the rights, which let any Auth0 identity with a verified email sign in and
-# grant every Organization. NODE_ENV=dev is what the backend's own guard allows that under (D43), and production
-# keeps NODE_ENV=prod with omnipass — so a production deploy fails loudly rather than serving everything.
+# A disposable account holding no real data: readable 5xx messages rather than the opaque ones production
+# serves. The identity and the rights come from omnipass here as everywhere else — its client secret has to be
+# in this environment's Secrets Manager, like production's.
 variable "node_env" {
   default = "dev"
-}
-
-variable "access_provider" {
-  default = "local"
 }

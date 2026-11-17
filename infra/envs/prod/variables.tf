@@ -88,7 +88,7 @@ variable "auth0_spa_client_id" {
 # ---------------------------------------------------------------------------------------------------
 
 variable "node_env" {
-  description = "What the backend runs as (NODE_ENV): prod, the opaque 5xx messages and the production configuration, or dev, for a disposable environment holding no real data (it is also what lets access_provider be the local implementation). Production is prod."
+  description = "What the backend runs as (NODE_ENV): prod, the opaque 5xx messages and the production configuration, or dev, for a disposable environment holding no real data. Production is prod."
   type        = string
   default     = "prod"
 
@@ -98,21 +98,6 @@ variable "node_env" {
   }
 }
 
-variable "access_provider" {
-  description = "Where the identity and the roles of a caller come from (ACCESS_PROVIDER): omnipass, its client package, the only provider production accepts (D43). The local implementation grants every Organization to every caller and reads no membership, so the backend itself refuses to start with it under NODE_ENV=prod; this variable only keeps Terraform from configuring what would then crash-loop."
-  type        = string
-  default     = "omnipass"
-
-  validation {
-    condition     = contains(["omnipass", "local"], var.access_provider)
-    error_message = "access_provider is omnipass or local."
-  }
-
-  validation {
-    condition     = var.access_provider == "omnipass" || var.node_env != "prod"
-    error_message = "access_provider = \"local\" needs node_env = \"dev\": production never serves real data with the local implementation of the rights (D43)."
-  }
-}
 
 variable "omnipass_url" {
   description = "Base URL of omnipass, without a trailing slash (OMNIPASS_URL). Its hostname, never its audience: https://api.omnipass.app is the identifier of its Auth0 API and resolves to nothing. omnipass is the single writer of the tenancy (T5), and this backend holds no table of its own for it (T4)."
@@ -137,8 +122,8 @@ variable "omnipass_client_id" {
   default     = ""
 
   validation {
-    condition     = var.omnipass_client_id != "" || var.access_provider != "omnipass"
-    error_message = "omnipass_client_id is required when access_provider = \"omnipass\": without a machine account the backend cannot resolve a single caller."
+    condition     = var.omnipass_client_id != ""
+    error_message = "omnipass_client_id is required: without a machine account the backend cannot resolve a single caller, and it refuses to start."
   }
 }
 

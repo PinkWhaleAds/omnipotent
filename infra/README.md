@@ -515,9 +515,9 @@ as a one-off ECS task (and stops if they fail; the same task creates or updates 
 application, see [Database access](#database-access)), registers the new API and worker revisions, waits
 for the services to be stable on them, and fails if the circuit breaker rolled one back.
 
-**It will fail until omnipass answers** (D43): with `NODE_ENV=prod` the API and the worker refuse to start with
-anything but `access_provider = "omnipass"`, and the message says so. That is deliberate — the local implementation
-grants every Organization to every caller.
+**It will fail without the omnipass machine account**: the API and the worker read its client secret from Secrets
+Manager when they start, and refuse to come up without it. That is deliberate — a deployment that forgot the
+account is told in its first seconds rather than by its first user.
 
 ### 8. Check
 

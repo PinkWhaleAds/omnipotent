@@ -48,11 +48,7 @@
     "swaggerClientId": ""
   },
   "Access": {
-    "provider": "local",
-    "cacheTtl": 60000,
-    "devActorUserId": "00000000-0000-4000-8000-000000000002",
-    "devActorEmail": "dev@omnipotent.local",
-    "devActorSuperAdmin": true
+    "cacheTtl": 60000
   },
   "Storage": {
     "endpoint": "http://localhost:9012",

@@ -9,6 +9,10 @@ auth0_domain        = "your-tenant.eu.auth0.com"
 auth0_audience      = "https://api.omnipotent.test"
 auth0_spa_client_id = "SPA-client-id"
 
+# The machine account Omnipotent calls omnipass with, shared by the products. Not a secret; its secret is
+# written by hand into this environment's Secrets Manager, under omnipass/client-secret.
+omnipass_client_id = "wyPvM8SDC6ZSYwzOUJSHDIGhYn4YQ1kY"
+
 # --- Recommended ----------------------------------------------------------------------------------
 
 # Alarm e-mails (confirm the subscription e-mail AWS sends). The spending is capped by the project's spend limit in AWS
@@ -23,6 +27,5 @@ auth0_spa_client_id = "SPA-client-id"
 # log_level    = "debug"
 # task_egress  = "nat"             # a NAT gateway and a fixed egress IP (allow-list tests), about 35 USD a month
 # waf_enabled  = true              # refused by this account's policies (README); try it only to check
-# Once omnipass answers, the test environment can run it too (and then NODE_ENV may go back to "prod"):
-# access_provider = "omnipass"
-# node_env        = "prod"
+# Readable 5xx messages here; "prod" serves the opaque ones:
+# node_env = "prod"

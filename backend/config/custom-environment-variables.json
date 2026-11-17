@@ -82,15 +82,8 @@
     "swaggerClientId": "AUTH0_SWAGGER_CLIENT_ID"
   },
   "Access": {
-    "provider": "ACCESS_PROVIDER",
     "cacheTtl": {
       "__name": "ACCESS_CACHE_TTL",
-      "__format": "json"
-    },
-    "devActorUserId": "DEV_ACTOR_USER_ID",
-    "devActorEmail": "DEV_ACTOR_EMAIL",
-    "devActorSuperAdmin": {
-      "__name": "DEV_ACTOR_SUPER_ADMIN",
       "__format": "json"
     }
   },

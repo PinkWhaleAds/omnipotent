@@ -580,7 +580,7 @@ Quatre pièces s'ajoutent à ça, et deux d'entre elles sont des pannes classiqu
 | D40 | Changer la projection après le lancement est **autorisé** : restructuration idempotente, anciens objets mis en pause et archivés, historique append-only des identifiants externes, conséquences annoncées par la preview |
 | D41 | Les listes restent au niveau Organization ; un `seat_admin` peut les dupliquer et les déplacer entre Organizations de son Seat, le déplacement étant refusé si la liste est référencée |
 | D42 | Infra : `eu-north-1`, propre instance RDS, Terraform séparé, tenant Auth0 partagé avec celui de multi-search et des audiences propres |
-| D43 | omnipass est développé **en parallèle** ; Omnipotent démarre derrière l'interface `AccessService` avec une implémentation locale, et **refuse de démarrer en production** sans omnipass |
+| D43 | omnipass est développé **en parallèle** ; Omnipotent démarre derrière l'interface `AccessService` avec une implémentation locale, et **refuse de démarrer en production** sans omnipass — **amendé le 2026-11-17** : le chemin relayé ayant été vérifié contre le vrai service, l'implémentation locale est supprimée et il n'y en a plus qu'une. L'application refuse désormais de démarrer **partout** sans compte machine, ce qui rend le garde-fou d'environnement sans objet |
 | D44 | Un **pooler de connexions** dès qu'on dépasse quelques réplicas |
 | D45 | Un **limiteur de débit partagé entre réplicas** par plateforme — les quotas sont globaux au projet |
 | D46 | Un **verrou par campagne** pour la synchro |

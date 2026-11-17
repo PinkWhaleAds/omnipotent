@@ -63,8 +63,8 @@ par requête. C'est le partage que le socle a posé dès le départ (`CLAUDE.md`
 - **L'infrastructure** : le conteneur `omnipass/client-secret` est déclaré dans
   `infra/envs/prod/main.tf` (`module "secrets"`), sa valeur posée **à la main** et jamais par
   Terraform ; les trois variables non secrètes sont dans l'environnement des tâches ; et
-  `omnipass_client_id` est **refusé vide** quand `access_provider = "omnipass"`, pour que l'erreur
-  arrive au `plan` et non dans une boucle de redémarrage.
+  `omnipass_client_id` est **refusé vide**, pour que l'erreur arrive au `plan` et non dans une boucle
+  de redémarrage.
 
 ## 4. Ce qui est fait, le 2026-10-27
 
@@ -76,8 +76,8 @@ câblage est celui du § 2 :
   workflow — les deux dépôts sont dans la même organisation, donc aucun secret à créer — et dans
   l'image d'un **secret BuildKit** monté le temps d'un `RUN`. Vérifié par un vrai `docker build` : le
   paquet est bien dans l'image, et ni le jeton ni un `.npmrc` n'y subsistent.
-- **Le vrai client derrière le fournisseur.** `AccessServicePlugin` construit `OmnipassClient` quand
-  `ACCESS_PROVIDER=omnipass`, en lisant le secret du magasin au moment de la construction. Une valeur
+- **Le vrai client, et le seul.** `AccessServicePlugin` construit `OmnipassClient` au démarrage, en
+  lisant le secret du magasin au moment de la construction. Une valeur
   manquante fait échouer le **démarrage** et non la première connexion : un spec le prouve sur
   `clientId`.
 - **Les types du contrat ne sont plus recopiés.** `src/types/auth.types.ts` les **réexporte** du
@@ -87,22 +87,25 @@ câblage est celui du § 2 :
 - **Le plugin d'authentification n'a pas changé d'un caractère**, et le garde-fou de D43 ne refuse
   plus omnipass — il est implémenté — tout en continuant de refuser la production avec autre chose.
 
-## 5. Le bouchon reste, et je recommande maintenant qu'il reste pour de bon
+## 5. Le bouchon est supprimé
 
-Ce document disait, au § 2, de le supprimer dès qu'omnipass aurait déclaré nos audiences. C'est fait
-depuis le 2026-11-17 — l'entrée `pinkwhale` de son registre porte l'audience commune — et la
-condition est donc levée. **Je recommande quand même de le garder**, et c'est un changement d'avis
-qu'il faut dire plutôt que laisser passer.
+Ce document a hésité deux fois. Le § 2 disait de le supprimer dès qu'omnipass aurait déclaré nos
+audiences ; j'ai ensuite recommandé de le garder, au motif qu'exiger le secret du compte machine de
+**chaque personne** qui touche au dépôt coûterait plus cher. Lorin a tranché le 2026-11-17, avec le
+fait qui manquait à mon raisonnement : il est seul à développer, il détient déjà ce secret, et aucun
+client ne verra le produit avant qu'il soit terminé. L'argument tombe.
 
-La raison a changé de nature. Elle n'est plus « le relais ne marche pas », puisqu'il marche (§ 6).
-Elle est que démarrer contre le vrai omnipass demande désormais **le secret du compte machine**, dans
-un magasin, et que ce secret ne doit pas être entre toutes les mains. Un bouchon explicite, bruyant au
-démarrage et interdit en production par D43, coûte moins cher que d'obliger chaque personne qui
-touche au dépôt à détenir une clé de production.
+Sont partis d'un coup : `LocalAccessService` et ses tests, l'avertissement de démarrage, les quatre
+`DEV_ACTOR_*`, le fournisseur `local` et toute la variable `ACCESS_PROVIDER`, et
+`tenancy-provider.ts` avec le garde-fou de D43 — qui n'avait plus rien à garder une fois qu'il
+n'existe qu'une implémentation.
 
-Ce qui part le jour où quelqu'un tranche l'inverse, et d'un coup : `LocalAccessService` et ses tests,
-l'avertissement de démarrage, les quatre `DEV_ACTOR_*`, le fournisseur `local`, et le garde-fou de D43
-qui n'aurait plus rien à garder. Une demi-journée, pas une phase.
+Ce que le refus devient : l'application ne démarre **nulle part** sans compte machine ni secret dans
+le magasin, et plus seulement en production. C'est un garde-fou plus simple et plus large que celui
+qu'il remplace.
+
+Ce que ça coûte, et qu'il faut savoir : l'environnement de test a besoin, lui aussi, du secret dans
+son Secrets Manager. Son `terraform.tfvars.example` le dit.
 
 ## 6. Ce qui se vérifie maintenant, et ce qui attend encore
 

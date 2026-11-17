@@ -107,10 +107,6 @@ locals {
     AUTH0_AUDIENCE          = var.auth0_audience
     AUTH0_SWAGGER_CLIENT_ID = var.auth0_spa_client_id
 
-    # Where the caller's identity and roles come from. With NODE_ENV=prod the backend accepts omnipass only
-    # and refuses to start otherwise (D43): the local implementation grants every Organization to every caller.
-    ACCESS_PROVIDER = var.access_provider
-
     # How to reach omnipass. The client secret is **not** here: the backend reads it from Secrets
     # Manager under OMNIPASS_SECRET_NAME, whose container is declared in `module "secrets"`.
     OMNIPASS_URL         = var.omnipass_url

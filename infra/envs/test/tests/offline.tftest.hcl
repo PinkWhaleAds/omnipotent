@@ -25,9 +25,10 @@ mock_provider "random" {}
 
 # What terraform.tfvars.example sets.
 variables {
-  auth0_domain        = "dev-3rwjfrn4yf3tar80.eu.auth0.com"
+  auth0_domain        = "dev-u4wj2een0nvlqbga.eu.auth0.com"
   auth0_audience      = "https://api.pinkwhale.app"
-  auth0_spa_client_id = "MGIJ9s9qF7FYuhT6KCFlPjYFo5ndhP6H"
+  auth0_spa_client_id = "7E8vA7Svbz317jd5zDrOw8zrmiCLPuRn"
+  omnipass_client_id  = "wyPvM8SDC6ZSYwzOUJSHDIGhYn4YQ1kY"
 }
 
 run "apply_with_test_defaults" {
@@ -137,11 +138,8 @@ run "apply_with_test_defaults" {
   # A disposable account holding no real data: the backend may run its local implementations of the identity and
   # the rights there, which production refuses (D43).
   assert {
-    condition = (
-      local.common_environment["NODE_ENV"] == "dev" &&
-      local.common_environment["ACCESS_PROVIDER"] == "local"
-    )
-    error_message = "The test environment runs the local implementation of the rights, under NODE_ENV=dev."
+    condition     = local.common_environment["NODE_ENV"] == "dev"
+    error_message = "The test environment runs under NODE_ENV=dev: readable 5xx messages, and no production configuration."
   }
 }
 

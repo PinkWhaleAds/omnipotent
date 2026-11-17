@@ -88,7 +88,7 @@ Sur `POST /mcp`, une 401 porte en plus l'en-tête `WWW-Authenticate`, qui pointe
 
 Les `assert*` sont du **calcul pur** sur l'instantané que `resolve` a rapporté : vérifier un droit ne coûte aucun appel réseau — un refus de rôle ne dépend donc **pas** de la disponibilité d'omnipass.
 
-Ces quatre codes sont levés par `@pinkwhaleads/omnipass-client`, sous la forme d'une `OmnipassError` qui porte `statusCode`, `code`, `params` et les alias `errorCode` / `errorParams` que le gestionnaire d'erreurs lit déjà : elle traverse l'API telle quelle, **sans adaptateur**. Le bouchon de développement du socle accorde tout — `admin` sur toute Organization, `seat_admin` sur tout Seat — et n'émet donc que `super_admin_required`, parce que `DEV_ACTOR_SUPER_ADMIN` peut être `false`. C'est voulu, et c'est pourquoi la production refuse de démarrer avec lui (D43).
+Ces quatre codes sont levés par `@pinkwhaleads/omnipass-client`, sous la forme d'une `OmnipassError` qui porte `statusCode`, `code`, `params` et les alias `errorCode` / `errorParams` que le gestionnaire d'erreurs lit déjà : elle traverse l'API telle quelle, **sans adaptateur**. Ils viennent tous du vrai service : il n'y a plus de bouchon local depuis le 2026-11-17 (D43, amendé), précisément parce qu'un bouchon qui accorde tout ne peut émettre aucun de ces refus.
 
 Une Organization disparue chez omnipass répond **404**, jamais 500 (T4).
 

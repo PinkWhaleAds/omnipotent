@@ -68,11 +68,6 @@ run "apply_with_defaults" {
   }
 
   assert {
-    condition     = local.common_environment["ACCESS_PROVIDER"] == "omnipass"
-    error_message = "Production reads the identity and the roles from omnipass (D43): the API refuses to start otherwise."
-  }
-
-  assert {
     condition     = local.db_password_secret["DB_PASSWORD"] == "arn:aws:secretsmanager:eu-north-1:123456789012:secret:rds!db-1-AbCdEf:password::"
     error_message = "DB_PASSWORD must read the password key of the RDS-managed secret."
   }

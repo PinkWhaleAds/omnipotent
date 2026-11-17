@@ -34,6 +34,5 @@ export * from './sync.helpers';
 export * from './sync.service';
 export * from './targeting-group.service';
 export * from './targeting.service';
-export * from './tenancy-provider';
 export * from './token-verifier.service';
 export * from './tree.helpers';

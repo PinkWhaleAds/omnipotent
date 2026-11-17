@@ -27,10 +27,8 @@ monthly_budget_usd = 250
 # through here: it is written by hand into Secrets Manager (infra/README.md, step 4).
 omnipass_client_id = "wyPvM8SDC6ZSYwzOUJSHDIGhYn4YQ1kY"
 
-# omnipass is the only provider production accepts (D43), and the default. The backend refuses to start with
-# the local implementation under NODE_ENV=prod, so a production deploy without omnipass fails loudly.
-# access_provider = "omnipass"
-# node_env        = "prod"
+# What the backend runs as. Production is prod: opaque 5xx messages and the production configuration.
+# node_env = "prod"
 
 # --- AI assistants --------------------------------------------------------------------------------
 

@@ -43,9 +43,8 @@ pnpm start:dev                            # API sur http://localhost:3002 (Swagg
 pnpm start:worker                         # optionnel : le worker de jobs, dans un autre terminal
 ```
 
-Avec `ACCESS_PROVIDER=local`, le bouchon suffit et il n'y a rien d'autre à poser. Pour tourner contre
-**le vrai omnipass** (`ACCESS_PROVIDER=omnipass`), il faut en plus le secret du compte machine dans le
-magasin local — moto, sur 9022, et non AWS : `config/default.json` y pointe en développement. Il se
+Il faut enfin le secret du compte machine dans le magasin local — sans lui l'application ne démarre
+pas — moto, sur 9022, et non AWS : `config/default.json` y pointe en développement. Il se
 pose une fois par vie du conteneur, et un `docker compose down` l'efface :
 
 ```sh
@@ -99,7 +98,7 @@ Ce qui **n'est pas** à régler ici : l'Action post-login qui ajoute l'adresse a
 connexions dont `email_verified` est cru, et les adresses qui reçoivent le drapeau super-admin. Tout
 cela appartient à omnipass — le socle ne lit du jeton que son `sub`.
 
-### Identité et droits : le bouchon de développement
+### Identité et droits : omnipass, et rien d'autre
 
 `AccessService` (`src/services/access.service.ts`) est **l'unique porte vers omnipass**, et son
 interface est **le contrat des deux projets**, figée signature par signature
@@ -124,33 +123,20 @@ Le partage est net :
   coûte aucun appel réseau. Rien des droits ne voyage dans le jeton (T3) : un administrateur révoqué
   perd ses droits à l'expiration du cache, pas à celle de son JWT.
 
-`ACCESS_PROVIDER` choisit : avec `omnipass`, le plugin construit le vrai client et lit le secret du
-compte machine dans le magasin, au démarrage. Avec `local`, il livre un **bouchon**, pas une tenancy
-— pour développer sans omnipass sous la main, et tant qu'omnipass n'a pas déclaré nos audiences dans
-son registre. `CADRAGE.md` § 8 parlait d'une « implémentation locale (mêmes tables) » ; c'est
-incompatible avec l'interdiction de porter la tenancy, et omnipass a tranché pour le bouchon :
+Il n'y a **qu'une implémentation**, et c'est celle d'omnipass. Le plugin construit le client au
+démarrage, en lisant le secret du compte machine dans le magasin ; sans ce compte, ou sans son
+secret, **l'application ne démarre pas**. C'est voulu : un déploiement qui l'a oublié l'apprend dans
+ses premières secondes, pas par son premier utilisateur.
 
-- un acteur de développement **fixe**, lu dans l'environnement (`DEV_ACTOR_USER_ID`,
-  `DEV_ACTOR_EMAIL`, `DEV_ACTOR_SUPER_ADMIN`) ;
-- `admin` sur **toute** Organization, `seat_admin` sur **tout** Seat — rien n'est caché, aucun
-  membership n'est lu, et aucun rôle n'est réellement refusé ;
-- un `warn` explicite au démarrage, pour que personne ne croie que la tenancy fonctionne.
+Un **bouchon** a vécu ici jusqu'au 2026-11-17, le temps que le chemin relayé soit vérifié contre le
+vrai service (D43, amendé). Il accordait `admin` sur toute Organization et ne lisait aucun
+membership : la seule chose qu'il pouvait cacher était un refus, c'est-à-dire précisément ce qui
+compte. `CADRAGE.md` § 8 parlait d'une « implémentation locale (mêmes tables) » ; c'était incompatible
+avec l'interdiction de porter la tenancy, et il n'en reste rien.
 
-Il ne dégrade pas les tests : un test de service bouchonne `AccessService`, comme chez multi-search.
-Il ne sert qu'à faire tourner l'application à la main.
-
-Et le garde-fou de **D43** : avec `NODE_ENV=prod` et autre chose qu'omnipass, le démarrage **échoue**
-(`src/services/tenancy-provider.ts` lève, `App.start` termine par `killProcess`, code de sortie 1) :
-
-```
-Access.provider is "local": production requires "omnipass" (D43). The local implementation grants
-every Organization to every caller and reads no membership, so it must never serve real data.
-Deploy omnipass first.
-```
-
-Câbler le client omnipass est donc ce qui débloque une mise en production. D'ici là, seul un
-environnement local ou jetable tourne. Et si un bouchon ne suffit plus pour une phase, la réponse est
-d'avancer la phase 2 d'omnipass — **jamais** d'ajouter des tables ici.
+Il ne manque à personne dans les tests : un test de service bouchonne `AccessService` lui-même,
+comme chez multi-search. Et si joindre omnipass devient gênant pour une phase, la réponse reste de
+résoudre par omnipass — **jamais** d'ajouter des tables ici.
 
 ## Appeler l'API
 
