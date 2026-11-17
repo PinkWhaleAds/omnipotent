@@ -30,3 +30,6 @@ crash.*.log
 
 # Screenshots shared during manual tests (never committed)
 screenshots/
+
+# Le PDF du runbook est régénéré à la demande depuis le Markdown, pas suivi.
+docs/*.pdf
