@@ -153,12 +153,14 @@ suffit pour les deux produits.
    celles de multi-search. Les listes sont séparées par des virgules ;
 5. **Save Changes**, en bas de la page, et **note le `Client ID`** : non secret, donne-le moi.
 
-> **⚠️ Périmé depuis le 2026-11-17, ne clique pas encore.** omnipass a abandonné « une audience par
-> produit » : les produits partagent désormais **une seule** audience REST, `https://api.pinkwhale.app`,
-> et `https://api.omnipotent.app` est abandonnée. Ce que ça change pour toi : **tu ne crées pas d'API
-> REST à nous** — tu crées cette API commune, une fois, et tu y autorises la SPA dans
-> `User-delegated access`. L'API MCP ci-dessous reste la nôtre, le protocole l'impose. Le tableau est
-> réécrit dès que tu valides les déductions que je t'ai présentées.
+> **⚠️ Réécrit le 2026-11-17, et il ne te reste presque rien.** omnipass a abandonné « une audience
+> par produit » : les produits partagent **une seule** audience REST, `https://api.pinkwhale.app`,
+> et `https://api.omnipotent.app` est abandonnée. Cette API **existe déjà**, omnipass l'a créée, et la
+> SPA `PinkWhale` y est autorisée. **Tu ne crées donc aucune API aujourd'hui.** Ce qui te reste : sur
+> la SPA `PinkWhale`, ajouter nos adresses de retour (point 1 ci-dessus) et me donner son `Client ID`.
+> **Notre API MCP** reste à nous, le protocole l'impose — mais elle se crée le jour où on sert
+> vraiment un `/mcp`, avec l'URL exacte servie, pas avant : déclarer une audience que personne ne peut
+> émettre ne protège de rien. Le tableau ci-dessous est donc en attente, pas à exécuter.
 
 **2. Les API.** Le chemin est le même pour chacune : **Applications** → **APIs** → **Create API** →
 **Name**, **Identifier**, **Signing Algorithm** `RS256` → **Create**.

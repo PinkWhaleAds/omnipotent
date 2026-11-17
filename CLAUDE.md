@@ -19,10 +19,14 @@ The reference projects it draws from:
 - **`~/OmniAd/multi-search`** — **ours**, and therefore freely reusable. It has 36 phases of hardened
   conventions; this repository's socle is a transcription of its own. Its front and back are frozen
   (D30).
-- **`~/OmniAd/omnipass`** — the identity and tenancy service, built in parallel (T1). It owns `User`,
-  `Seat`, `Organization` and the memberships; **nothing here does**. Its contract with this
-  repository is `~/OmniAd/omnipass/docs/message-socle-omnipotent.md`, and it is binding: a signature
-  that gets in the way is raised with Lorin, never adapted locally.
+- **omnipass** — the identity and tenancy service, built in parallel (T1). It owns `User`, `Seat`,
+  `Organization` and the memberships; **nothing here does**. It lives in `PinkWhaleAds/omnipass` since
+  the move of 2026-11-17, is **no longer cloned here**, and `~/OmniAd/omnipass` is an empty leftover.
+  Its contract with this repository is `docs/consuming.md` (the wiring, the Auth0 prerequisites, the
+  error table) and `docs/architecture.md` (the invariants), and it is binding: a signature that gets in
+  the way is raised with Lorin, never adapted locally. `docs/message-socle-omnipotent.md`, which used
+  to hold it, is deleted. **That repository answers 404 to our account**: until it grants us read
+  access, the contract is only what their messages say, and what they say is in `docs/`.
 - **`~/OmniAd/mbp`** and `meta-dsp-lib` — **Azerion's**. They are read to understand, and **never
   copied** (D36).
 
@@ -60,9 +64,9 @@ uuids**, with no foreign key across the two databases (T4), and omnipass is thei
 
 `AccessService` (`backend/src/services/access.service.ts`) is the **only door to omnipass**, and its
 interface is **the contract of the two projects**, frozen signature by signature:
-`~/OmniAd/omnipass/docs/message-socle-omnipotent.md` § 2. Read that document before touching
-anything on this path. omnipass publishes `@multisearchad/omnipass-client` with exactly these signatures,
-so wiring it replaces one line and nothing in the domain.
+`docs/consuming.md` of `PinkWhaleAds/omnipass`. Read it before touching anything on this path.
+omnipass publishes `@pinkwhaleads/omnipass-client` with exactly these signatures, so wiring it replaces
+one line and nothing in the domain.
 
 What this repository **never** carries: a `User`, `Seat`, `Organization`, membership or invitation
 entity; an `IdentityService`; a role model of its own. Resolving an Auth0 `sub` into a user needs
