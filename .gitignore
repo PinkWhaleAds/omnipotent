@@ -33,3 +33,6 @@ screenshots/
 
 # Le PDF du runbook est régénéré à la demande depuis le Markdown, pas suivi.
 docs/*.pdf
+
+# Scripts de passage écrits à la main, gardés hors du dépôt.
+gitsh.sh
