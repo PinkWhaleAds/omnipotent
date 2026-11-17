@@ -87,20 +87,24 @@ câblage est celui du § 2 :
 - **Le plugin d'authentification n'a pas changé d'un caractère**, et le garde-fou de D43 ne refuse
   plus omnipass — il est implémenté — tout en continuant de refuser la production avec autre chose.
 
-## 5. Le bouchon reste, et c'est une décision à valider
+## 5. Le bouchon reste, et je recommande maintenant qu'il reste pour de bon
 
-Le § 2 disait de le supprimer. Je ne l'ai pas fait, pour une raison qui n'existait pas quand ce
-document a été écrit :
+Ce document disait, au § 2, de le supprimer dès qu'omnipass aurait déclaré nos audiences. C'est fait
+depuis le 2026-11-17 — l'entrée `pinkwhale` de son registre porte l'audience commune — et la
+condition est donc levée. **Je recommande quand même de le garder**, et c'est un changement d'avis
+qu'il faut dire plutôt que laisser passer.
 
-1. **omnipass n'a pas encore déclaré nos audiences** dans son registre (point 5 de son
-   `A-FAIRE.md`). Tant que ce n'est pas fait, un jeton que nous lui relayons est refusé — 403
-   `audience_not_allowed` — et supprimer le bouchon rendrait l'application inutilisable en local sans
-   rien apporter en échange.
-2. Le jour où cette déclaration existe, le bouchon part **d'un coup** : `LocalAccessService` et ses
-   tests, l'avertissement de démarrage, les quatre `DEV_ACTOR_*`, le fournisseur `local`, et le
-   garde-fou de D43 qui n'aura plus rien à garder. C'est une demi-journée, pas une phase.
+La raison a changé de nature. Elle n'est plus « le relais ne marche pas », puisqu'il marche (§ 6).
+Elle est que démarrer contre le vrai omnipass demande désormais **le secret du compte machine**, dans
+un magasin, et que ce secret ne doit pas être entre toutes les mains. Un bouchon explicite, bruyant au
+démarrage et interdit en production par D43, coûte moins cher que d'obliger chaque personne qui
+touche au dépôt à détenir une clé de production.
 
-## 6. Ce qui se vérifie maintenant, et ce qui attend la déclaration
+Ce qui part le jour où quelqu'un tranche l'inverse, et d'un coup : `LocalAccessService` et ses tests,
+l'avertissement de démarrage, les quatre `DEV_ACTOR_*`, le fournisseur `local`, et le garde-fou de D43
+qui n'aurait plus rien à garder. Une demi-journée, pas une phase.
+
+## 6. Ce qui se vérifie maintenant, et ce qui attend encore
 
 Vérifiable sans omnipass, et vérifié :
 
@@ -112,9 +116,22 @@ Vérifiable sans omnipass, et vérifié :
 - `OmnipassError` traverse l'API **telle quelle** : elle porte `statusCode`, `code`, `params` et les
   alias que notre gestionnaire d'erreurs lit déjà, donc aucun adaptateur.
 
-En attente de la déclaration des audiences chez omnipass :
+**Contre le vrai omnipass, le 2026-11-17** — premier appel relayé réel des deux côtés :
 
-- se connecter avec un vrai jeton, lire une ressource d'une Organization, se faire refuser une autre
-  (404) et un rôle trop faible (403) — le scénario que `plan.md` donne pour cette phase ;
+- le compte machine obtient son jeton (`aud` `https://api.omnipass.app`, 24 h) ;
+- `POST /identity/resolve`, jeton de la personne relayé en `X-End-User-Token` : **200**, instantané
+  complet — l'utilisateur, son Seat, son Organization avec son rôle effectif, ses invitations ;
+- une lecture dans une Organization où la personne a un rôle : **200** ;
+- une Organization qu'elle ne voit pas : **404 `organization_not_found`**, et c'est la preuve que le
+  vrai service répond — le bouchon fait de l'appelant un `admin` de **toute** Organization et aurait
+  répondu 200.
+
+Ce qui reste à vérifier, et pourquoi :
+
+- **un rôle trop faible : 403 `role_required`.** Intestable aujourd'hui : le seul compte dont nous
+  disposons est super-admin, donc `admin` de toute Organization par la règle des rôles effectifs. Il
+  faut une **deuxième personne**, avec un rôle `viewer`, invitée par omnipass ;
+- **le même parcours par le MCP**, qui attend que notre API MCP existe et que son audience soit
+  ajoutée à l'entrée `pinkwhale` ;
 - les quatre cas de dégradation du § 4 de `branchement-omnipotent.md` contre un vrai omnipass ; ils
   sont déjà couverts chez lui contre un `fetchFn` injecté.
