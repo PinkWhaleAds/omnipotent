@@ -83,18 +83,6 @@ variable "auth0_spa_client_id" {
   }
 }
 
-variable "auth0_claim_namespace" {
-  description = "Namespace of the email claims added by the Auth0 post-login Action (AUTH0_CLAIM_NAMESPACE)."
-  type        = string
-  default     = "https://omnipotent/"
-}
-
-variable "super_admin_emails" {
-  description = "Emails that become super-admins on their first verified sign-in (SUPER_ADMIN_EMAILS)."
-  type        = list(string)
-  default     = []
-}
-
 # ---------------------------------------------------------------------------------------------------
 # Backend settings
 # ---------------------------------------------------------------------------------------------------

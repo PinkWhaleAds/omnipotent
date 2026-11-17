@@ -10,9 +10,6 @@ auth0_domain        = "dev-u4wj2een0nvlqbga.eu.auth0.com"
 auth0_audience      = "https://api.pinkwhale.app"
 auth0_spa_client_id = "7E8vA7Svbz317jd5zDrOw8zrmiCLPuRn"
 
-# Get the super-admin flag on their first verified sign-in.
-super_admin_emails = ["you@example.com"]
-
 # --- Recommended ----------------------------------------------------------------------------------
 
 alarm_email        = "ops@example.com"

@@ -21,7 +21,6 @@ variables {
   auth0_domain        = "tenant.eu.auth0.com"
   auth0_audience      = "https://api.pinkwhale.app"
   auth0_spa_client_id = "spa-client-id"
-  super_admin_emails  = ["admin@example.com"]
   alarm_email         = "ops@example.com"
   monthly_budget_usd  = 200
   # Production resolves its callers through omnipass (D43), which needs a machine account: the
@@ -71,11 +70,6 @@ run "apply_with_defaults" {
   assert {
     condition     = local.common_environment["ACCESS_PROVIDER"] == "omnipass"
     error_message = "Production reads the identity and the roles from omnipass (D43): the API refuses to start otherwise."
-  }
-
-  assert {
-    condition     = local.common_environment["SUPER_ADMIN_EMAILS"] == "[\"admin@example.com\"]"
-    error_message = "SUPER_ADMIN_EMAILS must be a JSON array."
   }
 
   assert {

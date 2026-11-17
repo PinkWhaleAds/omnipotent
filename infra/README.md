@@ -214,7 +214,7 @@ The workspace `test` refuses any other account. Its state is `infra/bootstrap/te
 
 ```sh
 cp infra/envs/test/terraform.tfvars.example infra/envs/test/terraform.tfvars
-#   edit it: super_admin_emails (your sign-in e-mail), alarm_email if wanted
+#   edit it: alarm_email if wanted
 tf envs/test init
 tf envs/test plan -out=test.tfplan                      # *.tfplan is git-ignored: a plan holds secret values
 tf envs/test apply test.tfplan

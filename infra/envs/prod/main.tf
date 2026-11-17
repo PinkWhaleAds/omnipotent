@@ -105,9 +105,7 @@ locals {
 
     AUTH0_DOMAIN            = var.auth0_domain
     AUTH0_AUDIENCE          = var.auth0_audience
-    AUTH0_CLAIM_NAMESPACE   = var.auth0_claim_namespace
     AUTH0_SWAGGER_CLIENT_ID = var.auth0_spa_client_id
-    SUPER_ADMIN_EMAILS      = jsonencode(var.super_admin_emails)
 
     # Where the caller's identity and roles come from. With NODE_ENV=prod the backend accepts omnipass only
     # and refuses to start otherwise (D43): the local implementation grants every Organization to every caller.

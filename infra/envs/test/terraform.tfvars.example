@@ -9,10 +9,6 @@ auth0_domain        = "your-tenant.eu.auth0.com"
 auth0_audience      = "https://api.omnipotent.test"
 auth0_spa_client_id = "SPA-client-id"
 
-# Get the super-admin flag on their first verified sign-in (Auth0 database or Google connection). With the local
-# implementation of the rights (test_override.tf), every other verified identity signs in as well.
-super_admin_emails = ["you@example.com"]
-
 # --- Recommended ----------------------------------------------------------------------------------
 
 # Alarm e-mails (confirm the subscription e-mail AWS sends). The spending is capped by the project's spend limit in AWS
