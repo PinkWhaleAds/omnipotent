@@ -59,11 +59,13 @@ valeur absente, parce qu'elle se recopie sans qu'on se demande d'où elle vient.
 servi, l'Action post-login sans laquelle aucune première connexion n'aboutit. Le pas à pas ci-dessous
 les intègre, dans l'ordre.
 
-**Et une bonne nouvelle** : un tenant neuf repart avec son budget d'entités intact — 10 API et 10
-applications. Le mur du 2026-10-27, qui avait déjà fait changer la conception du compte machine
-d'omnipass, ne nous gêne pas aujourd'hui. Il reviendra : trois produits qui ont chacun une API REST et
-une API MCP **par environnement** mangent dix places vite. La seule réponse durable reste le plan
-payant, et ce n'est pas urgent.
+**Et une bonne nouvelle** : un tenant neuf repart avec son budget d'entités intact — **10
+applications _et_ 10 API**, plafonds distincts (omnipass a corrigé notre lecture commune le
+2026-11-17 : les API comptent aussi). Le compte tient largement à trois produits, puisque le compte
+machine est partagé et que chaque produit n'apporte que son front et ses API. Ce qui fera déborder un
+jour n'est pas l'audience par produit : c'est une API MCP **par produit et par environnement**, API
+locales comprises. Ce jour-là, la réponse est le plan payant — pas le sacrifice de la provenance
+signée.
 
 ### A1. Le jeton GitHub pour installer le paquet — _fait, sauf un clic_
 
@@ -154,11 +156,14 @@ suffit pour les deux produits.
 **2. Les API.** Le chemin est le même pour chacune : **Applications** → **APIs** → **Create API** →
 **Name**, **Identifier**, **Signing Algorithm** `RS256` → **Create**.
 
-| Name                     | Identifier                            | Réglages en plus                                  |
-| ------------------------ | ------------------------------------- | ------------------------------------------------- |
-| `Omnipotent REST`        | `https://api.omnipotent.app`          | aucun                                             |
-| `Omnipotent MCP (local)` | `http://localhost:3002/mcp`           | _Allow Offline Access_ ; permission `mcp:use`     |
-| `Omnipotent MCP`         | `https://omnipotent.pinkwhale.co/mcp`  | _Allow Offline Access_ ; permission `mcp:use`     |
+| Name              | Identifier                            | Réglages en plus                              |
+| ----------------- | ------------------------------------- | --------------------------------------------- |
+| `Omnipotent REST` | `https://api.omnipotent.app`          | aucun                                         |
+| `Omnipotent MCP`  | `https://omnipotent.pinkwhale.co/mcp` | _Allow Offline Access_ ; permission `mcp:use` |
+
+**Deux, et pas trois.** J'avais prévu une API MCP **locale** (`http://localhost:3002/mcp`) pour
+exercer le MCP avec de vrais jetons sur ta machine. Elle n'est pas nécessaire aujourd'hui, et c'est
+précisément ce genre d'API qui fera déborder le plafond : on la créera le jour où on en aura besoin.
 
 Trois choses à savoir sur ce tableau, et chacune a coûté une erreur à quelqu'un :
 
@@ -176,44 +181,48 @@ Les deux noms, `omnipotent.pinkwhale.co` et le port `3002`, sont tranchés (D52)
 code et l'infrastructure : tu n'as rien à en déduire.
 
 **3. L'étape qu'on oublie, et qui fait échouer _avant_ la page de connexion.** Sur **chacune** des
-trois API : section **`User-delegated access`** → ajoute l'application **`Omnilor Web`**. Sans ça,
+deux API : section **`User-delegated access`** → ajoute l'application **`Omnilor Web`**. Sans ça,
 Auth0 refuse la demande de jeton et son message ne dit pas pourquoi. C'est le point 8 de l'`A-FAIRE.md`
 d'omnipass, constaté chez eux sur un vrai appel.
 
-**4. Le compte machine vers omnipass.** Sur l'ancien tenant, le plan gratuit avait épuisé les
-applications, donc omnipass en partageait une seule entre produits. Le budget est neuf, et ça rouvre
-un choix que je ne tranche pas seul :
+**4. Le compte machine : il y en a _un_ pour tous les produits, et ce n'est pas nous qui le créons.**
+J'avais recommandé l'inverse — un compte par produit — et omnipass a corrigé le 2026-11-17, son propre
+code à l'appui : « One machine account may serve several applications ». Le plan gratuit plafonne les
+applications, donc les produits de PinkWhale en partagent **une**, et ce qui dit lequel appelle reste
+l'**audience signée** du jeton relayé.
 
-1. **un compte machine propre à Omnipotent** — c'est ce que je recommande. Son `client_id` nomme
-   l'appelant dans les journaux d'omnipass, et une rotation de secret n'affecte qu'un produit. Coût :
-   une place d'application sur dix.
-2. **le compte machine partagé** qu'omnipass recréera de toute façon pour lui-même. Zéro place
-   consommée, et ça marche : c'est l'audience signée du jeton relayé qui dit quel produit appelle.
-   Mais les journaux d'omnipass ne distinguent plus qui l'appelle.
+Ce qu'il faut créer, **une seule fois pour les trois produits** :
 
-Dans les deux cas, la création est la même : **Applications** → **Create Application** → **Name**
-`Omnipotent machine` → type **Machine to Machine Applications** → **Create**, puis choisis l'API
-d'omnipass (`https://api.omnipass.app`) dans la liste d'autorisation. Le `Client ID` n'est pas secret
-et peut m'être donné ; le **Client Secret** ne passe pas par le chat (A4).
+1. **Applications** → **Create Application** → **Name** `PinkWhale machine` → type **Machine to
+   Machine Applications** → **Create** ;
+2. autorise-la sur l'API REST d'omnipass, `https://api.omnipass.app`. **Attention à la section** : sur
+   la page de cette API, c'est **`Client access`** — celle des machines — et **non**
+   `User-delegated access`, qui est celle des navigateurs ;
+3. son `Client ID` n'est pas secret : donne-le-moi, et donne-le à omnipass, qui le déclare dans
+   l'entrée de registre de **chaque** produit ;
+4. son **Client Secret** ne passe ni par le chat ni par un message : il va dans le magasin de secrets
+   (A4).
 
-**Ce que tu me rapportes dans le chat** : le `Client ID` de `Omnilor Web`, celui du compte machine, et
-« les trois API sont créées ». Ni l'un ni l'autre n'est un secret. Le domaine du tenant, je l'ai —
-je l'ai lu dans la configuration d'omnipass.
+**Ce que le partage coûte, pour que personne ne le découvre à la mauvaise heure** : une rotation du
+secret touche **tous** les produits en même temps, et on ne peut pas révoquer l'accès d'un seul sans
+révoquer les autres. C'est le prix assumé du plafond, et omnipass l'écrit noir sur blanc.
 
-### A3. Déclarer Omnipotent chez omnipass — _une demande_
+**Ce que tu me rapportes dans le chat** : le `Client ID` de l'application navigateur, celui du compte
+machine partagé, et « les deux API sont créées ». Aucun n'est secret. Le domaine du tenant, je l'ai —
+lu dans la configuration d'omnipass.
 
-omnipass doit **connaître nos audiences**, sans quoi il refuse le jeton que nous lui relayons — c'est
-ce qui empêche une application de relayer le jeton d'une autre, et ça s'applique à nous.
+### A3. Notre entrée chez omnipass — _posée le 2026-11-17, il y manque une valeur_
 
-Demande à la session omnipass d'ajouter Omnipotent à son registre (`backend/config/default.json`)
-avec les deux audiences de production — `https://api.omnipotent.app` et
-`https://omnipotent.pinkwhale.co/mcp` — et notre URL de front, qui est celle de multi-search :
-**`https://ms.pinkwhale.co`** (tranché le 2026-11-14). C'est le lien que portent ses e-mails
-d'invitation. Son propre document le dit : « trois lignes de configuration et un déploiement ». Sans
-cette déclaration : 403 `audience_not_allowed`.
+omnipass a écrit notre entrée dans son registre : nos deux audiences, et `https://ms.pinkwhale.co`
+comme URL de front — le lien que porteront ses e-mails d'invitation pour nos utilisateurs.
 
-Si un jour on veut exercer le MCP **local** contre un vrai omnipass, il faudra lui déclarer
-`http://localhost:3002/mcp` aussi.
+Il y manque **une seule valeur**, et c'est voulu : la liste `clientIds` est vide, donc un appel relayé
+répond `application_unknown` tant que le `client_id` du compte machine partagé n'y est pas. Dès que tu
+l'as créé (A2, point 4), donne-le à omnipass : c'est une ligne de configuration chez lui, mais
+**déployée**, donc un `apply` — il annonce la demi-heure.
+
+Si un jour on veut exercer le MCP **local** contre un vrai omnipass, il faudra créer l'API locale et
+la lui déclarer aussi.
 
 ### A4. Le secret dans notre magasin — _2 minutes_
 
@@ -231,29 +240,28 @@ va dans le conteneur que Terraform a déjà créé, `omnipotent/prod/omnipass/cl
 viendra avec le premier `apply` ; en local, je te donnerai la forme exacte quand on branchera
 `ACCESS_PROVIDER=omnipass`.
 
-### A5. Ce qu'omnipass a déjà fait, et ce qu'il nous reste à lui demander
+### A5. Où en est omnipass — _sa réponse du 2026-11-17_
 
-**Fait de son côté le 2026-11-14** — je l'ai lu dans son dépôt, pas sur parole : il a quitté le tenant
-partagé pour le nouveau, répond sur `omnipass.pinkwhale.co`, expédie depuis `no-reply@mail.pinkwhale.co`
-avec un nouveau compte Resend, et son super-admin est `admin@pinkwhale.co`. L'Action post-login, ses
-deux API et son compte machine sont refaits chez lui.
+**Le tenant est le sien, et les consommateurs y connectent leurs utilisateurs.** C'est la lecture que
+je supposais, et c'est son code qui tranche : son `TokenVerifier` prend **un** domaine, donc un
+émetteur, donc un JWKS — il n'y a pas de place pour une seconde source de signature. Il a corrigé les
+quatre documents qui disaient encore « tenant partagé », son `CLAUDE.md` compris.
 
-**Ce qui reste, et qui tient en une entrée de configuration** : son registre des consommateurs ne
-connaît que multi-search. Il faut y ajouter Omnipotent avec nos deux audiences et
-`https://ms.pinkwhale.co`. Le message prêt à copier est
-[`message-a-omnipass-tenant.md`](message-a-omnipass-tenant.md), et il porte aussi deux choses que j'ai
-vues en lisant son dépôt et qu'il vaut mieux lui dire :
+Fait de son côté : le déménagement complet (tenant, nom d'hôte `omnipass.pinkwhale.co`, expéditeur
+`no-reply@mail.pinkwhale.co`, super-admin `admin@pinkwhale.co`), l'Action post-login, ses deux API,
+notre entrée de registre, et le retrait du `client_id` mort de multi-search.
 
-- **son `plan.md` parle encore de « tenant partagé » partout**, alors que son `A-FAIRE.md` dit qu'il a
-  pris « le sien ». Les deux lectures ne donnent pas le même produit : si le tenant est le sien **et**
-  celui des consommateurs, tout va bien et c'est ce que je suppose ; s'il est à lui seul, aucun jeton
-  de personne relayé par nous ne peut être vérifié. C'est la question à lui poser en premier ;
-- **l'entrée de multi-search dans son registre porte encore le `client_id` mort** de l'ancien tenant,
-  et une `baseUrl` en `localhost:5173`.
+**Ce qu'il nous apprend et qui change notre plan** : le compte machine est **partagé** entre les
+produits, et c'est toi qui le crées (A2, point 4). Son plafond : 10 applications **et** 10 API.
 
-Le même déménagement attend **multi-search** s'il doit continuer de tourner : son front et son back
-sont gelés (D30), mais leur `AUTH0_DOMAIN` et leur `client_id` de SPA sont de la configuration, pas du
-code.
+**Une chose qu'il nous doit, et qu'il annonce lui-même** : le chemin relayé n'a **jamais tourné** en
+vrai, ni sur l'ancien tenant ni sur le nouveau — il est couvert par des tests unitaires, pas par
+l'usage. Notre premier appel sera son premier essai. Il propose de regarder ses journaux en direct au
+moment où on le lance, pour qu'on ait le refus exact plutôt qu'un 403 à deviner. On le préviendra.
+
+Le même déménagement attend **multi-search** : il n'est pas encore sur ce tenant, donc son chemin
+relayé est hors service jusqu'à sa bascule — ce qu'omnipass assume, ce chemin n'ayant jamais servi en
+production.
 
 ---
 
@@ -536,7 +544,7 @@ Rien de secret là-dedans, et chaque ligne peut arriver seule : rien n'attend le
 - le **domaine du tenant** ;
 - le `Client ID` de l'application navigateur `Omnilor Web` ;
 - le `Client ID` du **compte machine** vers omnipass ;
-- « les trois API sont créées ».
+- « les deux API sont créées ».
 
 **Google** (B) :
 
