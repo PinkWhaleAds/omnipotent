@@ -33,7 +33,7 @@ describe('Unit::Services::LocalAccessService', () => {
 
   describe('the interface the contract freezes', () => {
     // ~/OmniAd/omnipass/docs/message-socle-omnipotent.md § 2: omnipass publishes
-    // @multisearchad/omnipass-client with exactly these signatures, so a missing one is a divergence that
+    // @pinkwhaleads/omnipass-client with exactly these signatures, so a missing one is a divergence that
     // would only surface when the package replaces this stub.
     it('should carry every method of the contract', (): void => {
       const service: AccessService = new LocalAccessService(config());
@@ -234,7 +234,7 @@ describe('Unit::Services::AccessServicePlugin', () => {
       // The class has to come from **this** registry: an isolated import loads its own copy of the
       // package, and `toBeInstanceOf` against the one imported at the top of the file would compare
       // two distinct constructors of the same name — a confusing failure for a correct wiring.
-      const { OmnipassClient: Isolated } = await import('@multisearchad/omnipass-client');
+      const { OmnipassClient: Isolated } = await import('@pinkwhaleads/omnipass-client');
       expect(app.accessService).toBeInstanceOf(Isolated);
     });
 

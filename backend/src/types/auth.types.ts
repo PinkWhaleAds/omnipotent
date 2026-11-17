@@ -2,7 +2,7 @@
  * @module types/auth.types
  *
  * The vocabulary of a caller: what **the contract** defines, re-exported from
- * `@multisearchad/omnipass-client`, plus the two types that are ours alone.
+ * `@pinkwhaleads/omnipass-client`, plus the two types that are ours alone.
  *
  * Until phase 1 installed the package, this module held a hand-written copy of the snapshot and of
  * its roles, with a note saying the copy would go away. It has: the package is the single source of
@@ -29,9 +29,9 @@ export {
   type Snapshot,
   type SnapshotInvitation,
   type UserLanguage,
-} from '@multisearchad/omnipass-client';
+} from '@pinkwhaleads/omnipass-client';
 
-import type { Snapshot } from '@multisearchad/omnipass-client';
+import type { Snapshot } from '@pinkwhaleads/omnipass-client';
 
 /**
  * One Organization of a snapshot, with the caller's effective role in it.

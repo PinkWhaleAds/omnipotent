@@ -6,7 +6,7 @@
  * Organization, no membership read. Production must never run with it, and that must not rest on the
  * vigilance of whoever deploys.
  *
- * omnipass is now installed (`@multisearchad/omnipass-client`), so naming it is no longer refused:
+ * omnipass is now installed (`@pinkwhaleads/omnipass-client`), so naming it is no longer refused:
  * what is refused is **production with anything else**. The day the stub is deleted — once every
  * environment resolves its callers through omnipass — this guard has nothing left to guard, and goes
  * with it.

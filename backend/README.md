@@ -83,7 +83,7 @@ cela appartient à omnipass — le socle ne lit du jeton que son `sub`.
 
 `AccessService` (`src/services/access.service.ts`) est **l'unique porte vers omnipass**, et son
 interface est **le contrat des deux projets**, figée signature par signature
-(`docs/consuming.md` de `PinkWhaleAds/omnipass`, cloné en `~/PinkWhale/omnipass`). `@multisearchad/omnipass-client` est
+(`docs/consuming.md` de `PinkWhaleAds/omnipass`, cloné en `~/PinkWhale/omnipass`). `@pinkwhaleads/omnipass-client` est
 installé depuis la phase 1 et porte **exactement** ces signatures : le service est donc le client
 lui-même, et `src/types/auth.types.ts` réexporte les types du contrat au lieu d'en garder une copie.
 

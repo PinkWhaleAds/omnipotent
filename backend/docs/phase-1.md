@@ -4,7 +4,7 @@ Contrat de la phase 1. Remplacer le **bouchon** de `AccessService` par le vrai c
 supprimer tout ce qui n'existait que pour le bouchon.
 
 Prérequis : omnipass livré — **c'est fait**. Son client est publié :
-`@multisearchad/omnipass-client`, version `0.1.1`, tag `client-v0.1.1`, sur GitHub Packages.
+`@pinkwhaleads/omnipass-client`, version `0.1.1`, tag `client-v0.1.1`, sur GitHub Packages.
 
 Entrées validées : `~/OmniAd/omnipass/docs/message-socle-omnipotent.md` (le contrat, § 2),
 `reponse-socle-omnipotent.md` (nos questions et ses réponses) et
@@ -68,11 +68,11 @@ par requête. C'est le partage que le socle a posé dès le départ (`CLAUDE.md`
 
 ## 4. Ce qui est fait, le 2026-10-27
 
-Le paquet est installé — `@multisearchad/omnipass-client@0.1.1`, depuis GitHub Packages — et le
+Le paquet est installé — `@pinkwhaleads/omnipass-client@0.1.1`, depuis GitHub Packages — et le
 câblage est celui du § 2 :
 
 - **Le registre, sans jeton nulle part dans le dépôt.** `backend/.npmrc` nomme le registre pour le
-  scope `@multisearchad` et rien d'autre : en local le jeton vient de `~/.npmrc`, en CI du jeton du
+  scope `@pinkwhaleads` et rien d'autre : en local le jeton vient de `~/.npmrc`, en CI du jeton du
   workflow — les deux dépôts sont dans la même organisation, donc aucun secret à créer — et dans
   l'image d'un **secret BuildKit** monté le temps d'un `RUN`. Vérifié par un vrai `docker build` : le
   paquet est bien dans l'image, et ni le jeton ni un `.npmrc` n'y subsistent.

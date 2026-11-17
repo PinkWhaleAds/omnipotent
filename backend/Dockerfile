@@ -30,7 +30,7 @@ RUN corepack enable && corepack prepare "pnpm@${PNPM_VERSION}" --activate
 FROM pnpm AS deps
 
 # Bind mounts of package.json, pnpm-lock.yaml and .npmrc (no layer for them) and a cache of the pnpm
-# store. `.npmrc` names the organization's registry for the `@multisearchad` scope; the token to read it
+# store. `.npmrc` names the organization's registry for the `@pinkwhaleads` scope; the token to read it
 # arrives as a BuildKit **secret** mounted as the npmrc of the user, so it belongs to no layer — a token
 # baked into an image is a token published with it. Without the secret, the build fails on the private
 # package, which is the loud failure we want rather than a mystery at runtime.

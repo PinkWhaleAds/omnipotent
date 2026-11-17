@@ -40,7 +40,7 @@ jobs:
           node-version: 22
           cache: pnpm
           cache-dependency-path: backend/pnpm-lock.yaml
-      # The omnipass client lives on GitHub Packages, which `backend/.npmrc` names for the `@multisearchad`
+      # The omnipass client lives on GitHub Packages, which `backend/.npmrc` names for the `@pinkwhaleads`
       # scope. The workflow's own token is enough — both repositories belong to the same organization and
       # the package grants this one read access — so no secret has to be created. Only the runner's npmrc
       # is written, never the repository's.
@@ -68,7 +68,7 @@ jobs:
           node-version: 22
           cache: pnpm
           cache-dependency-path: backend/pnpm-lock.yaml
-      # The omnipass client lives on GitHub Packages, which `backend/.npmrc` names for the `@multisearchad`
+      # The omnipass client lives on GitHub Packages, which `backend/.npmrc` names for the `@pinkwhaleads`
       # scope. The workflow's own token is enough — both repositories belong to the same organization and
       # the package grants this one read access — so no secret has to be created. Only the runner's npmrc
       # is written, never the repository's.
@@ -116,7 +116,7 @@ jobs:
           node-version: 22
           cache: pnpm
           cache-dependency-path: backend/pnpm-lock.yaml
-      # The omnipass client lives on GitHub Packages, which `backend/.npmrc` names for the `@multisearchad`
+      # The omnipass client lives on GitHub Packages, which `backend/.npmrc` names for the `@pinkwhaleads`
       # scope. The workflow's own token is enough — both repositories belong to the same organization and
       # the package grants this one read access — so no secret has to be created. Only the runner's npmrc
       # is written, never the repository's.

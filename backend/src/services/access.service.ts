@@ -1,4 +1,4 @@
-import { AccessService, OmnipassClient } from '@multisearchad/omnipass-client';
+import { AccessService, OmnipassClient } from '@pinkwhaleads/omnipass-client';
 import { FastifyInstance } from 'fastify';
 import fastifyPlugin from 'fastify-plugin';
 
@@ -11,7 +11,7 @@ import { assertTenancyProviderAllowed } from './tenancy-provider';
  * The door to omnipass, and the single place answering "may this caller do that?".
  *
  * **The interface is the contract of the two projects**, and it is now the package's own
- * (`@multisearchad/omnipass-client`, `~/OmniAd/omnipass/docs/message-socle-omnipotent.md` § 2): it is
+ * (`@pinkwhaleads/omnipass-client`, `~/OmniAd/omnipass/docs/message-socle-omnipotent.md` § 2): it is
  * re-exported here so that every service keeps importing it from its neighbour, and so that a
  * signature cannot drift from the one omnipass implements. If one of them gets in the way, raise it
  * instead of adapting it here — a divergence found late is paid at the worst moment.
