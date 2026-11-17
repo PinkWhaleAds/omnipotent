@@ -39,7 +39,7 @@ résoudre aucun appelant.
 
 Le groupe ayant changé de domaine, **D52 est amendée** : notre nom d'hôte de production est
 `omnipotent.pinkwhale.co`, et l'identifiant de l'API MCP de production suit. L'audience REST, elle, ne
-bouge pas — `https://api.omnipotent.app` est un nom, pas une adresse, exactement comme omnipass garde
+bouge pas — une audience est un nom, pas une adresse, exactement comme omnipass garde
 `https://api.omnipass.app` en servant sur `omnipass.pinkwhale.co`.
 
 **Les valeurs d'avant ne valent plus rien. Ne les recolle nulle part :**
@@ -154,21 +154,21 @@ suffit pour les deux produits.
    celles de multi-search. Les listes sont séparées par des virgules ;
 5. **Save Changes**, en bas de la page, et **note le `Client ID`** : non secret, donne-le moi.
 
-> **⚠️ Réécrit le 2026-11-17, et il ne te reste presque rien.** omnipass a abandonné « une audience
-> par produit » : les produits partagent **une seule** audience REST, `https://api.pinkwhale.app`,
-> et `https://api.omnipotent.app` est abandonnée. Cette API **existe déjà**, omnipass l'a créée, et la
-> SPA `PinkWhale` y est autorisée. **Tu ne crées donc aucune API aujourd'hui.** Ce qui te reste : sur
-> la SPA `PinkWhale`, ajouter nos adresses de retour (point 1 ci-dessus) et me donner son `Client ID`.
-> **Notre API MCP** reste à nous, le protocole l'impose — mais elle se crée le jour où on sert
-> vraiment un `/mcp`, avec l'URL exacte servie, pas avant : déclarer une audience que personne ne peut
-> émettre ne protège de rien. Le tableau ci-dessous est donc en attente, pas à exécuter.
+> **✅ Fait le 2026-11-17, il ne reste qu'un écran.** omnipass a abandonné « une audience par produit » :
+> les produits partagent **une seule** audience REST, `https://api.pinkwhale.app`, qu'omnipass a créée
+> en y autorisant la SPA `PinkWhale` — `https://api.omnipotent.app` est abandonnée. **Tu n'as donc
+> aucune API à créer.** Les deux `client_id` publics sont posés dans le dépôt : la SPA
+> `7E8vA7Svbz317jd5zDrOw8zrmiCLPuRn` et le compte machine partagé
+> `wyPvM8SDC6ZSYwzOUJSHDIGhYn4YQ1kY`. **Ce qui reste** : les adresses de retour du point 1 ci-dessous,
+> à ajouter sur cette SPA pour que le bouton _Authorize_ de notre Swagger fonctionne. **Notre API MCP**
+> reste à nous, le protocole l'impose, mais elle se crée le jour où on sert vraiment un `/mcp`, avec
+> l'URL exacte servie : le tableau ci-dessous est en attente, pas à exécuter.
 
 **2. Les API.** Le chemin est le même pour chacune : **Applications** → **APIs** → **Create API** →
 **Name**, **Identifier**, **Signing Algorithm** `RS256` → **Create**.
 
 | Name              | Identifier                            | Réglages en plus                              |
 | ----------------- | ------------------------------------- | --------------------------------------------- |
-| `Omnipotent REST` | `https://api.omnipotent.app`          | aucun                                         |
 | `Omnipotent MCP`  | `https://omnipotent.pinkwhale.co/mcp` | _Allow Offline Access_ ; permission `mcp:use` |
 
 **Deux, et pas trois.** J'avais prévu une API MCP **locale** (`http://localhost:3002/mcp`) pour
@@ -177,7 +177,7 @@ précisément ce genre d'API qui fera déborder le plafond : on la créera le jo
 
 Trois choses à savoir sur ce tableau, et chacune a coûté une erreur à quelqu'un :
 
-- **l'identifiant REST n'a pas besoin de résoudre.** `https://api.omnipotent.app` est un nom, pas une
+- **l'identifiant REST n'a pas besoin de résoudre.** `https://api.pinkwhale.app` est un nom, pas une
   adresse ; omnipass fait pareil avec `https://api.omnipass.app` tout en servant sur
   `omnipass.pinkwhale.co` ;
 - **un identifiant MCP, si.** Il doit être **l'URL exacte** du `/mcp` servi, sans barre oblique

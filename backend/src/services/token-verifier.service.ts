@@ -58,7 +58,7 @@ export type TokenVerifierOptions = {
  * @example
  * ```typescript
  * const verifier: TokenVerifier = new TokenVerifier({ domain: 'tenant.eu.auth0.com', jwksCacheTtl: 600000 });
- * const claims: AccessTokenClaims = await verifier.verify(token, 'https://api.omnipotent.app');
+ * const claims: AccessTokenClaims = await verifier.verify(token, 'https://api.pinkwhale.app');
  * ```
  */
 export class TokenVerifier {

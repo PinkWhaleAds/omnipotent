@@ -19,7 +19,7 @@ mock_provider "random" {}
 
 variables {
   auth0_domain        = "tenant.eu.auth0.com"
-  auth0_audience      = "https://api.omnipotent.app"
+  auth0_audience      = "https://api.pinkwhale.app"
   auth0_spa_client_id = "spa-client-id"
   super_admin_emails  = ["admin@example.com"]
   alarm_email         = "ops@example.com"
@@ -330,7 +330,7 @@ run "domain_stage_2_moves_every_url" {
     condition = (
       length(output.auth0_settings.spa_allowed_callback_urls) == 0 &&
       output.auth0_settings.mcp_api_identifier == "https://omnipotent.pinkwhale.co/mcp" &&
-      output.auth0_settings.rest_api_identifier == "https://api.omnipotent.app"
+      output.auth0_settings.rest_api_identifier == "https://api.pinkwhale.app"
     )
     error_message = "Auth0: the MCP API's identifier follows the API's hostname, the REST API's is unchanged."
   }

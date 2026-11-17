@@ -26,7 +26,7 @@ mock_provider "random" {}
 # What terraform.tfvars.example sets.
 variables {
   auth0_domain        = "dev-3rwjfrn4yf3tar80.eu.auth0.com"
-  auth0_audience      = "https://api.omnipotent.app"
+  auth0_audience      = "https://api.pinkwhale.app"
   auth0_spa_client_id = "MGIJ9s9qF7FYuhT6KCFlPjYFo5ndhP6H"
   super_admin_emails  = ["admin@example.com"]
 }

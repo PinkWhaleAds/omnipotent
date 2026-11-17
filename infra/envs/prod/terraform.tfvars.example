@@ -4,10 +4,11 @@
 # --- Required -------------------------------------------------------------------------------------
 
 # Auth0 tenant, REST API identifier and the client id of the Single Page Application (public values).
-# The tenant is shared with multi-search (D42); Omnipotent has its own audiences in it.
-auth0_domain        = "your-tenant.eu.auth0.com"
-auth0_audience      = "https://api.omnipotent.app"
-auth0_spa_client_id = "SPA-client-id"
+# The tenant is omnipass's, and so is the audience: since 2026-11-17 the products share one REST
+# audience for the whole domain, and Omnipotent no longer has one of its own.
+auth0_domain        = "dev-u4wj2een0nvlqbga.eu.auth0.com"
+auth0_audience      = "https://api.pinkwhale.app"
+auth0_spa_client_id = "7E8vA7Svbz317jd5zDrOw8zrmiCLPuRn"
 
 # Get the super-admin flag on their first verified sign-in.
 super_admin_emails = ["you@example.com"]
@@ -24,6 +25,10 @@ monthly_budget_usd = 250
 # cors_origins = ["https://ms.pinkwhale.co"]
 
 # --- Identity and rights --------------------------------------------------------------------------
+
+# The machine account the products share, declared in omnipass's registry. Its secret never comes
+# through here: it is written by hand into Secrets Manager (infra/README.md, step 4).
+omnipass_client_id = "wyPvM8SDC6ZSYwzOUJSHDIGhYn4YQ1kY"
 
 # omnipass is the only provider production accepts (D43), and the default. The backend refuses to start with
 # the local implementation under NODE_ENV=prod, so a production deploy without omnipass fails loudly.
