@@ -131,6 +131,9 @@ midnight (D47) and a read replica for the reports (D48).
 
 ## Working in this repository
 
+- **A session picking up the project reads `docs/handover-reprise.md` first**: where the truth lives,
+  the state of the code at its last green commit, the traps that cost a previous session time, and
+  what the next task is. It is a relay, not a reference — the references are the documents it cites.
 - A phase is delivered on its own and leaves the checks green: `pnpm install && pnpm build`,
   `pnpm test:cov` at 100 %, `pnpm lint:check`, `pnpm prettier:check`, `pnpm test:integration`, and
   `terraform fmt -check -recursive` + `terraform validate` + `terraform test` in `infra/`.

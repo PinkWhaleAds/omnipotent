@@ -8,6 +8,21 @@ clé ne passe **jamais** par le chat. Il va dans `backend/.env` (ignoré par git
 Manager. Les identifiants non secrets — un `client_id`, un customer id, un numéro de compte — peuvent
 m'être donnés dans le chat.
 
+**Et une précision que le 2026-11-17 a rendue nécessaire, deux fois** : « par le chat » inclut **un
+fichier ouvert dans l'éditeur**. L'extension VS Code m'envoie automatiquement ta sélection, donc un
+secret collé dans un fichier puis sélectionné m'arrive exactement comme si tu me l'avais écrit — même
+si le fichier est ignoré par git, même si tu le supprimes ensuite. Un secret se tape **directement
+dans le terminal** :
+
+```sh
+read -rs SECRET && printf 'NOM_DE_LA_VARIABLE=%s\n' "$SECRET" >> .env && unset SECRET
+```
+
+`read -rs` n'affiche rien, ne laisse rien dans l'historique du shell, et ne passe pas par un fichier
+que je puisse lire. Un secret qui est quand même passé par là est **à considérer comme perdu** : on le
+fait tourner, et on ne discute pas. C'est ce qu'on a fait pour le Client Secret du compte machine
+Auth0, le 2026-11-17.
+
 Les libellés d'interface sont ceux de la fin octobre 2026. Quand un écran ne ressemble pas à ce qui
 est écrit ici, dis-le moi plutôt que de chercher : c'est le document qui a vieilli.
 
@@ -15,6 +30,26 @@ est écrit ici, dis-le moi plutôt que de chercher : c'est le document qui a vie
 **compte gestionnaire Google** et un **compte gestionnaire Microsoft**. Le premier rend caduque une
 partie de ce qui était fait — A0 dit quoi exactement —, le deuxième raccourcit la partie B, et le
 troisième ouvre une partie C qui n'existait pas.
+
+**Repris le 2026-11-17, et c'est la partie A qui se referme.** Toute la section A était en attente de
+toi ; elle ne l'est plus, sauf une étape qui attend du code. Ce qui a bougé ce jour-là, dans l'ordre
+où ça s'est produit :
+
+| Ce qui a changé                                        | Où c'est écrit |
+| ------------------------------------------------------ | -------------- |
+| L'audience REST devient **commune aux trois produits** | A0             |
+| Le paquet devient `@pinkwhaleads/omnipass-client`      | A1a            |
+| Le dépôt déménage chez `PinkWhaleAds`                  | A1b, A6        |
+| Les adresses de retour de la SPA sont posées           | A2             |
+| Notre entrée de registre est complète                  | A3             |
+| Le secret est dans le magasin, en local                | A4             |
+| **Le chemin relayé a tourné pour de vrai**             | A5             |
+| Le bouchon de tenancy est supprimé                     | A4, A6         |
+
+**Ce qui reste de la partie A, et rien d'autre** : l'API MCP d'Auth0 (A2, point 2), qui attend qu'on
+serve vraiment un `/mcp` ; et le secret dans le Secrets Manager de l'environnement de test (A4), le
+jour où cet environnement monte. Les parties B et C, elles, sont intactes : c'est là qu'est tout ce
+qui bloque encore le développement.
 
 ---
 
@@ -30,12 +65,15 @@ résoudre aucun appelant.
 
 **omnipass a déménagé le premier, le 2026-11-14**, et c'est donc chez lui que tout se crée :
 
-| Ce qui est désormais vrai        | Valeur                                |
-| --------------------------------- | ------------------------------------- |
-| Le tenant                         | `dev-u4wj2een0nvlqbga.eu.auth0.com`   |
-| L'URL d'omnipass                  | `https://omnipass.pinkwhale.co`       |
-| Son audience REST (inchangée)     | `https://api.omnipass.app`            |
-| Le domaine du groupe              | `pinkwhale.co`                        |
+| Ce qui est désormais vrai                  | Valeur                              |
+| ------------------------------------------ | ----------------------------------- |
+| Le tenant                                  | `dev-u4wj2een0nvlqbga.eu.auth0.com` |
+| L'URL d'omnipass                           | `https://omnipass.pinkwhale.co`     |
+| Son audience REST (inchangée)              | `https://api.omnipass.app`          |
+| **Notre audience REST, commune aux trois** | `https://api.pinkwhale.app`         |
+| L'application navigateur (SPA) partagée    | `7E8vA7Svbz317jd5zDrOw8zrmiCLPuRn`  |
+| Le compte machine partagé                  | `wyPvM8SDC6ZSYwzOUJSHDIGhYn4YQ1kY`  |
+| Le domaine du groupe                       | `pinkwhale.co`                      |
 
 Le groupe ayant changé de domaine, **D52 est amendée** : notre nom d'hôte de production est
 `omnipotent.pinkwhale.co`, et l'identifiant de l'API MCP de production suit. L'audience REST, elle, ne
@@ -44,12 +82,14 @@ bouge pas — une audience est un nom, pas une adresse, exactement comme omnipas
 
 **Les valeurs d'avant ne valent plus rien. Ne les recolle nulle part :**
 
-| Valeur de l'ancien tenant             | Ce qu'elle était                              |
-| ------------------------------------- | ---------------------------------------------- |
-| `dev-3rwjfrn4yf3tar80.eu.auth0.com`   | le domaine du tenant                           |
-| `tkSxRukHoCBTTNd616lsiF8Fqb7RpQbv`    | le compte machine partagé vers omnipass        |
-| `qUq67lX2piWp4RJSNlSMqOtW51Y2VHBy`    | l'application navigateur (SPA) de multi-search |
-| L'API `Omnipotent REST`               | créée et vérifiée le 2026-10-27, sur l'ancien  |
+| Valeur morte                        | Ce qu'elle était                               | Morte depuis |
+| ----------------------------------- | ---------------------------------------------- | ------------ |
+| `dev-3rwjfrn4yf3tar80.eu.auth0.com` | le domaine du tenant                           | 2026-11-14   |
+| `tkSxRukHoCBTTNd616lsiF8Fqb7RpQbv`  | le compte machine partagé vers omnipass        | 2026-11-14   |
+| `qUq67lX2piWp4RJSNlSMqOtW51Y2VHBy`  | l'application navigateur (SPA) de multi-search | 2026-11-14   |
+| L'API `Omnipotent REST`             | créée et vérifiée le 2026-10-27, sur l'ancien  | 2026-11-14   |
+| `https://api.omnipotent.app`        | notre audience REST **propre**                 | 2026-11-17   |
+| `@omnilor/omnipass-client`          | le nom du paquet avant le déménagement         | 2026-11-17   |
 
 Je les ai retirées d'`A-FAIRE.md` : une valeur morte qui traîne dans un document est pire qu'une
 valeur absente, parce qu'elle se recopie sans qu'on se demande d'où elle vient.
@@ -67,13 +107,14 @@ jour n'est pas l'audience par produit : c'est une API MCP **par produit et par e
 locales comprises. Ce jour-là, la réponse est le plan payant — pas le sacrifice de la provenance
 signée.
 
-### A1. Le jeton GitHub pour installer le paquet — _fait, sauf un clic_
+### A1. Le jeton GitHub pour installer le paquet — _fait, et vérifié par la CI_
 
-Deux besoins différents, et il ne faut pas les confondre. **A1a est fait depuis le 2026-10-27** et le
-paquet est installé ; **A1b reste**, et il fera échouer la CI à la première exécution. Je garde le pas
-à pas : un jeton expire, et celui-ci est à 90 jours.
+Deux besoins différents, et il ne faut pas les confondre. **Les deux sont réglés** — A1a le
+2026-11-17, A1b le même jour. Je garde le pas à pas quand même : ce jeton est à 90 jours, donc il
+mourra vers le **2027-02-15**, et le jour où la CI ou `pnpm install` échouera sur le paquet, c'est ici
+qu'il faudra revenir.
 
-**A1a. Pour ma machine — fait.**
+**A1a. Pour ma machine — fait, et la première tentative a échoué.**
 
 Tu ne trouves pas `~/.npmrc` parce qu'**il n'existe pas par défaut** : npm le crée à la demande, et
 c'est à nous de l'écrire. Ce n'est pas un fichier du projet, c'est un fichier de ton compte
@@ -85,9 +126,11 @@ utilisateur.
    Packages ne prend pas encore les jetons « fine-grained » pour npm ;
 4. **Generate new token** → **Generate new token (classic)** ;
 5. **Note** : `omnipotent-packages` ; **Expiration** : 90 jours ;
-6. dans la liste des scopes, coche **`read:packages`** seulement. Rien d'autre — pas besoin de
+6. **et c'est le piège : connecte-toi avec le compte `PinkWhaleAds`**, pas avec `LorinProjects`. Le
+   jeton porte les droits de **son compte**, et le paquet appartient à `PinkWhaleAds` ;
+7. dans la liste des scopes, coche **`read:packages`** seulement. Rien d'autre — pas besoin de
    `repo` pour lire un paquet ;
-7. **Generate token**, et **copie le jeton** : GitHub ne te le remontrera plus.
+8. **Generate token**, et **copie le jeton** : GitHub ne te le remontrera plus.
 
 Puis, dans un terminal, **une seule commande** (remplace `ghp_xxx` par le jeton) :
 
@@ -98,11 +141,30 @@ printf '//npm.pkg.github.com/:_authToken=%s\n' 'ghp_xxx' >> ~/.npmrc
 Le fichier est créé s'il n'existe pas. **Ne me donne pas le jeton** : la commande ci-dessus suffit, et
 je vérifierai seulement que `pnpm install` récupère le paquet.
 
-**Vérifié le 2026-10-27, et c'est le piège de cette étape** : un jeton « fine-grained » — il commence
-par `github_pat_` — est **refusé** par le registre npm de GitHub Packages, avec un message qui
-n'explique rien : `403 permission_denied: The token provided does not match expected scopes`. La
-documentation de GitHub est explicite : ce registre n'accepte qu'un **personal access token
-(classic)**. C'est pour ça que l'étape 3 ci-dessus insiste.
+**Comment savoir en une commande si le jeton est le bon** — c'est le contrôle qui a manqué le
+2026-11-17 et qui aurait économisé une demi-heure :
+
+```sh
+npm whoami --registry=https://npm.pkg.github.com
+```
+
+Il doit répondre **`PinkWhaleAds`**. S'il répond autre chose, le jeton appartient au mauvais compte et
+le paquet restera illisible, quelle que soit sa portée.
+
+**Deux refus différents, et ils se ressemblent assez pour coûter du temps chacun.** Les deux sont des
+`403 permission_denied`, et la différence est dans la fin du message :
+
+| Message                           | Ce qui cloche                               | La réparation                |
+| --------------------------------- | ------------------------------------------- | ---------------------------- |
+| `…does not match expected scopes` | jeton « fine-grained » (`github_pat_…`)     | un jeton **classic**         |
+| `…read_package`                   | jeton d'un compte qui ne voit pas le paquet | le compte **`PinkWhaleAds`** |
+
+Le premier a été vérifié le 2026-10-27 : la documentation de GitHub est explicite, ce registre
+n'accepte qu'un **personal access token (classic)** pour npm. Le second a été vérifié le 2026-11-17,
+et c'est lui qui m'a trompé : le jeton était bien « classic » et portait bien `read:packages`, mais
+`npm whoami` répondait `LorinProjects` alors que le paquet est publié par `PinkWhaleAds`. **Une portée
+ne crée pas un droit** — elle autorise un jeton à exercer un droit que son compte possède déjà. C'est
+pour ça que les étapes 6 et 7 ci-dessus sont dans cet ordre.
 
 Si `~/.npmrc` contient déjà une ligne refusée, **remplace-la** au lieu d'en ajouter une seconde — avec
 deux lignes pour le même registre, plus personne ne sait laquelle sert :
@@ -117,19 +179,25 @@ copier-coller partagé est à considérer comme perdu** : supprime-le (Settings 
 Tokens (classic) → l'icône de corbeille) et régénères-en un. Ça coûte deux minutes, et c'est la seule
 réaction juste.
 
-**A1b. Pour la CI, qui n'a besoin d'aucun jeton.** Depuis le déménagement du 2026-11-17, le paquet
-et notre dépôt appartiennent au **même compte**, `PinkWhaleAds` : le `GITHUB_TOKEN` d'Actions suffit
-donc, à condition d'autoriser le dépôt à lire le paquet :
+**A1b. Pour la CI, qui n'a besoin d'aucun jeton — réglé, et c'est la CI qui le dit.** Depuis le
+déménagement du 2026-11-17, le paquet et notre dépôt appartiennent au **même compte**,
+`PinkWhaleAds` : le `GITHUB_TOKEN` d'Actions suffit, et les trois jobs du workflow `backend` ne font
+rien d'autre que l'écrire dans le `.npmrc` du runner.
 
-1. connecté **comme `PinkWhaleAds`**, va sur **github.com/PinkWhaleAds?tab=packages** ;
-2. clique **`omnipass-client`** ;
-3. colonne de droite → **Package settings** ;
-4. section **Manage Actions access** → **Add repository** → choisis **`omnipotent`**, rôle **Read**.
+**Mesuré sur les vraies exécutions**, et c'est la preuve qui compte :
 
-C'est le point 9.2 de l'`A-FAIRE.md` d'omnipass, et il attendait que le paquet soit publié — c'est
-fait depuis le 2026-10-26.
+| Exécution du workflow `backend` | Commit    | Résultat  | Ce qu'elle installait            |
+| ------------------------------- | --------- | --------- | -------------------------------- |
+| avant 18:19 UTC                 | `7bddc93` | ❌ échec  | `@omnilor/omnipass-client`, mort |
+| 18:19 UTC                       | `79ff615` | ✅ succès | `@pinkwhaleads/omnipass-client`  |
+| 19:00 UTC                       | `7ecbeff` | ✅ succès | idem, bouchon supprimé           |
 
-### A2. Monter le nouveau tenant — _30 minutes, dans cet ordre_
+Il n'y a donc **rien à cliquer** : le jeton d'Actions lit le paquet. Si un jour une exécution échoue à
+l'installation, l'écran à vérifier est celui-ci — connecté comme `PinkWhaleAds`,
+**github.com/PinkWhaleAds?tab=packages** → **`omnipass-client`** → **Package settings** → **Manage
+Actions access**, où le dépôt `omnipotent` doit figurer en **Read**.
+
+### A2. Monter le nouveau tenant — _fait, sauf l'API MCP qui attend du code_
 
 Un tenant neuf ne contient **rien** : pas d'Action post-login, pas d'application, pas d'API. L'ordre
 ci-dessous n'est pas décoratif, chaque étape dépend de la précédente.
@@ -147,22 +215,29 @@ suffit pour les deux produits.
 1. **manage.auth0.com**, vérifie en haut à gauche que tu es bien sur le nouveau tenant,
    `dev-u4wj2een0nvlqbga.eu.auth0.com` ;
 2. **Applications** → **Applications** → **Create Application** ;
-3. **Name** : `Omnilor Web` ; type **Single Page Web Applications** → **Create** ;
+3. **Name** : `PinkWhale` — c'est le nom qu'omnipass lui a donné le 2026-11-17, et le reste de ce
+   document l'appelle comme ça ; type **Single Page Web Applications** → **Create** ;
 4. onglet **Settings** → **Allowed Callback URLs** :
    `http://localhost:3002/documentation/static/oauth2-redirect.html` (le Swagger UI d'Omnipotent en
    local), plus celles de multi-search ; **Allowed Web Origins** : `http://localhost:3002`, plus
    celles de multi-search. Les listes sont séparées par des virgules ;
 5. **Save Changes**, en bas de la page, et **note le `Client ID`** : non secret, donne-le moi.
 
-> **✅ Fait le 2026-11-17, il ne reste qu'un écran.** omnipass a abandonné « une audience par produit » :
-> les produits partagent **une seule** audience REST, `https://api.pinkwhale.app`, qu'omnipass a créée
-> en y autorisant la SPA `PinkWhale` — `https://api.omnipotent.app` est abandonnée. **Tu n'as donc
-> aucune API à créer.** Les deux `client_id` publics sont posés dans le dépôt : la SPA
-> `7E8vA7Svbz317jd5zDrOw8zrmiCLPuRn` et le compte machine partagé
-> `wyPvM8SDC6ZSYwzOUJSHDIGhYn4YQ1kY`. **Ce qui reste** : les adresses de retour du point 1 ci-dessous,
-> à ajouter sur cette SPA pour que le bouton _Authorize_ de notre Swagger fonctionne. **Notre API MCP**
-> reste à nous, le protocole l'impose, mais elle se crée le jour où on sert vraiment un `/mcp`, avec
-> l'URL exacte servie : le tableau ci-dessous est en attente, pas à exécuter.
+> **✅ Fait le 2026-11-17.** omnipass a abandonné « une audience par produit » : les produits partagent
+> **une seule** audience REST, `https://api.pinkwhale.app`, qu'omnipass a créée en y autorisant la SPA
+> `PinkWhale` — `https://api.omnipotent.app` est abandonnée. **Tu n'as donc aucune API REST à créer.**
+> Les deux `client_id` publics sont posés dans le dépôt : la SPA `7E8vA7Svbz317jd5zDrOw8zrmiCLPuRn` et
+> le compte machine partagé `wyPvM8SDC6ZSYwzOUJSHDIGhYn4YQ1kY`.
+>
+> **Les adresses de retour du point 1 ci-dessus sont posées aussi** — pas parce que je les ai vues,
+> mais parce que tu as obtenu un vrai jeton par le bouton _Authorize_ du Swagger local, le soir du
+> 2026-11-17, et que c'est la seule chose dont elles commandent le fonctionnement. Si ce bouton
+> retombe en panne un jour avec une erreur `Callback URL mismatch`, c'est le point 1 qu'il faut
+> relire.
+>
+> **Ce qui reste, et une seule chose** : **notre API MCP**. Elle reste à nous, le protocole l'impose,
+> mais elle se crée le jour où on sert vraiment un `/mcp`, avec l'URL exacte servie. Le tableau du
+> point 2 est **en attente, pas à exécuter**.
 
 **2. Les API.** Le chemin est le même pour chacune : **Applications** → **APIs** → **Create API** →
 **Name**, **Identifier**, **Signing Algorithm** `RS256` → **Create**.
@@ -171,9 +246,11 @@ suffit pour les deux produits.
 | ----------------- | ------------------------------------- | --------------------------------------------- |
 | `Omnipotent MCP`  | `https://omnipotent.pinkwhale.co/mcp` | _Allow Offline Access_ ; permission `mcp:use` |
 
-**Deux, et pas trois.** J'avais prévu une API MCP **locale** (`http://localhost:3002/mcp`) pour
-exercer le MCP avec de vrais jetons sur ta machine. Elle n'est pas nécessaire aujourd'hui, et c'est
-précisément ce genre d'API qui fera déborder le plafond : on la créera le jour où on en aura besoin.
+**Une seule ligne dans ce tableau, et il en portait deux avant le 2026-11-17** : l'audience REST étant
+devenue celle d'omnipass, il ne nous reste que le MCP à déclarer. J'avais aussi prévu une API MCP
+**locale** (`http://localhost:3002/mcp`) pour exercer le MCP avec de vrais jetons sur ta machine. Elle
+n'est pas nécessaire aujourd'hui, et c'est précisément ce genre d'API qui fera déborder le plafond :
+on la créera le jour où on en aura besoin.
 
 Trois choses à savoir sur ce tableau, et chacune a coûté une erreur à quelqu'un :
 
@@ -190,12 +267,17 @@ Trois choses à savoir sur ce tableau, et chacune a coûté une erreur à quelqu
 Les deux noms, `omnipotent.pinkwhale.co` et le port `3002`, sont tranchés (D52) et déjà posés dans le
 code et l'infrastructure : tu n'as rien à en déduire.
 
-**3. L'étape qu'on oublie, et qui fait échouer _avant_ la page de connexion.** Sur **chacune** des
-deux API : section **`User-delegated access`** → ajoute l'application **`Omnilor Web`**. Sans ça,
-Auth0 refuse la demande de jeton et son message ne dit pas pourquoi. C'est le point 8 de l'`A-FAIRE.md`
-d'omnipass, constaté chez eux sur un vrai appel.
+**3. L'étape qu'on oublie, et qui fait échouer _avant_ la page de connexion.** Sur **chaque** API que
+tu crées — donc, aujourd'hui, sur la seule qui reste à créer : section **`User-delegated access`** →
+ajoute l'application **`PinkWhale`** (la SPA partagée). Sans ça, Auth0 refuse la demande de jeton et
+son message ne dit pas pourquoi. C'est le point 8 de l'`A-FAIRE.md` d'omnipass, constaté chez eux sur
+un vrai appel. Sur l'audience REST, omnipass l'a déjà fait.
 
-**4. Le compte machine : il y en a _un_ pour tous les produits, et ce n'est pas nous qui le créons.**
+**4. Le compte machine : il y en a _un_ pour tous les produits — créé le 2026-11-17.** Son
+`client_id` est `wyPvM8SDC6ZSYwzOUJSHDIGhYn4YQ1kY`, son secret est dans le magasin (A4), et il a
+obtenu son premier jeton pour de vrai le soir même (A5). Le pas à pas reste ici pour le jour où il
+faudra le refaire — une rotation, un second tenant, un incident.
+
 J'avais recommandé l'inverse — un compte par produit — et omnipass a corrigé le 2026-11-17, son propre
 code à l'appui : « One machine account may serve several applications ». Le plan gratuit plafonne les
 applications, donc les produits de PinkWhale en partagent **une**, et ce qui dit lequel appelle reste
@@ -217,40 +299,83 @@ Ce qu'il faut créer, **une seule fois pour les trois produits** :
 secret touche **tous** les produits en même temps, et on ne peut pas révoquer l'accès d'un seul sans
 révoquer les autres. C'est le prix assumé du plafond, et omnipass l'écrit noir sur blanc.
 
-**Ce que tu me rapportes dans le chat** : le `Client ID` de l'application navigateur, celui du compte
-machine partagé, et « les deux API sont créées ». Aucun n'est secret. Le domaine du tenant, je l'ai —
-lu dans la configuration d'omnipass.
+**Ce que tu me rapportes dans le chat** : plus rien pour l'instant. Les deux `client_id` sont posés, le
+domaine du tenant est lu dans la configuration d'omnipass, et il n'y a pas d'API à créer avant qu'on
+serve un `/mcp`. Ce jour-là, tu me diras « l'API MCP est créée », et c'est tout.
 
-### A3. Notre entrée chez omnipass — _posée le 2026-11-17, il y manque une valeur_
+### A3. Notre entrée chez omnipass — _complète le 2026-11-17_
 
-omnipass a écrit notre entrée dans son registre : nos deux audiences, et `https://ms.pinkwhale.co`
-comme URL de front — le lien que porteront ses e-mails d'invitation pour nos utilisateurs.
+omnipass a écrit notre entrée dans son registre : nos audiences, et `https://ms.pinkwhale.co` comme
+URL de front — le lien que porteront ses e-mails d'invitation pour nos utilisateurs.
 
-Il y manque **une seule valeur**, et c'est voulu : la liste `clientIds` est vide, donc un appel relayé
-répond `application_unknown` tant que le `client_id` du compte machine partagé n'y est pas. Dès que tu
-l'as créé (A2, point 4), donne-le à omnipass : c'est une ligne de configuration chez lui, mais
-**déployée**, donc un `apply` — il annonce la demi-heure.
+Il y manquait la liste `clientIds`, vide, qui faisait répondre `application_unknown` à tout appel
+relayé. **Elle est remplie** : le `client_id` du compte machine partagé y est, omnipass a déployé, et
+l'appel relayé est passé le soir même (A5). Il n'y a plus rien à demander ici.
 
-Si un jour on veut exercer le MCP **local** contre un vrai omnipass, il faudra créer l'API locale et
-la lui déclarer aussi.
+**Ce qui y manquera encore, le jour où ça comptera** : notre audience **MCP**, qu'omnipass devra
+ajouter à la même entrée quand on servira un `/mcp` — et, si on veut exercer le MCP **local** contre
+un vrai omnipass, l'API locale, à créer puis à lui déclarer. Les deux vont ensemble et aucune n'est
+urgente.
 
-### A4. Le secret dans notre magasin — _2 minutes_
+### A4. Le secret dans notre magasin — _fait en local le 2026-11-17 ; reste la production_
 
-En local, le plus simple est `backend/.env`, qui est ignoré par git. Le `client_id` y va en clair, le
-secret **jamais** :
+C'est la section que je n'avais jamais terminée : elle promettait « je te donnerai la forme exacte
+quand on branchera le vrai omnipass ». Il est branché, donc la voici.
+
+**Ce qui va dans `backend/.env`, et ce qui n'y va pas.** Les valeurs non secrètes y vont en clair ; le
+Client Secret du compte machine **n'y va jamais**, parce que le code ne le lit pas là — il le lit dans
+le magasin de secrets, et seulement là.
 
 ```sh
 cd ~/PinkWhale/omnipotent/backend
-printf 'AUTH0_DOMAIN=%s\n' '<le domaine du nouveau tenant>' >> .env
-printf 'OMNIPASS_CLIENT_ID=%s\n' '<le client id du compte machine>' >> .env
+cp .env.example .env   # si ce n'est pas déjà fait : il porte les bonnes valeurs, commentées
 ```
 
-Et le secret, **jamais dans le `.env` d'un environnement partagé ni dans le chat** : en production il
-va dans le conteneur que Terraform a déjà créé, `omnipotent/prod/omnipass/client-secret`. La commande
-viendra avec le premier `apply` ; en local, je te donnerai la forme exacte quand on branchera
-le vrai omnipass.
+**Et le secret, en local : dans moto, pas dans AWS.** C'est le piège de cette étape, et il m'a coûté
+un démarrage raté le 2026-11-17 avec un message qui accuse AWS à tort
+(`ResourceNotFoundException: Secrets Manager can't find the specified secret`). En développement,
+`config/default.json` pointe le magasin vers **moto**, l'émulateur de la pile `compose`, sur le port
+**9022** — pas vers le vrai Secrets Manager.
 
-### A5. Où en est omnipass — _sa réponse du 2026-11-17_
+```sh
+docker compose up -d postgres rustfs moto
+read -rs -p 'Client Secret du compte machine : ' S && echo
+python3 -c "import json,os;print(json.dumps({'Name':'omnipotent/omnipass/client-secret','SecretString':os.environ['S']}))" > /tmp/seed.json
+AWS_ACCESS_KEY_ID=local AWS_SECRET_ACCESS_KEY=local aws secretsmanager create-secret \
+  --endpoint-url http://localhost:9022 --region eu-north-1 --cli-input-json file:///tmp/seed.json
+rm -f /tmp/seed.json && unset S
+```
+
+Trois choses à savoir sur ces quatre lignes :
+
+- **le secret passe par un fichier temporaire**, et pas par `--secret-string` : un argument de
+  commande est visible dans `ps` le temps de l'appel ;
+- **`read -rs` n'affiche rien et ne laisse rien dans l'historique** — c'est le chemin de la règle des
+  secrets en tête de ce document ;
+- **moto n'a pas de volume** : un `docker compose down` efface le secret, et l'application refuse
+  alors de démarrer. Ce n'est pas une panne, c'est cette commande à refaire. La même procédure est
+  dans `backend/README.md`, pour qu'on la trouve en démarrant le projet et pas seulement ici.
+
+**Et voir ce qu'il y a dans le magasin local**, quand on doute :
+
+```sh
+AWS_ACCESS_KEY_ID=local AWS_SECRET_ACCESS_KEY=local aws secretsmanager list-secrets \
+  --endpoint-url http://localhost:9022 --region eu-north-1 --query 'SecretList[].Name'
+```
+
+**En production**, le secret va dans le conteneur que Terraform a déjà créé,
+`omnipotent/prod/omnipass/client-secret`, et sa **valeur se pose à la main** — jamais par Terraform,
+qui l'écrirait dans son état. La commande est la même sans `--endpoint-url`, et avec le profil AWS du
+compte : `--profile omnilor`. Attention, le profil `default` de cette machine porte des **clés
+mortes** et répond `UnrecognizedClientException` — c'est ce qui s'est produit le 2026-11-17.
+
+**Ce qui reste, et c'est nouveau depuis la suppression du bouchon** : l'**environnement de test** a
+besoin du même secret dans son propre Secrets Manager. Avant, il pouvait démarrer sans, avec
+l'implémentation locale ; depuis le 2026-11-17 il n'y a plus qu'une implémentation, donc plus
+d'échappatoire : **pas de secret, pas de démarrage**, et c'est voulu. Rien à faire tant que cet
+environnement n'est pas monté.
+
+### A5. Où en est omnipass — _et le premier appel relayé, qui a tourné_
 
 **Le tenant est le sien, et les consommateurs y connectent leurs utilisateurs.** C'est la lecture que
 je supposais, et c'est son code qui tranche : son `TokenVerifier` prend **un** domaine, donc un
@@ -264,14 +389,63 @@ notre entrée de registre, et le retrait du `client_id` mort de multi-search.
 **Ce qu'il nous apprend et qui change notre plan** : le compte machine est **partagé** entre les
 produits, et c'est toi qui le crées (A2, point 4). Son plafond : 10 applications **et** 10 API.
 
-**Une chose qu'il nous doit, et qu'il annonce lui-même** : le chemin relayé n'a **jamais tourné** en
-vrai, ni sur l'ancien tenant ni sur le nouveau — il est couvert par des tests unitaires, pas par
-l'usage. Notre premier appel sera son premier essai. Il propose de regarder ses journaux en direct au
-moment où on le lance, pour qu'on ait le refus exact plutôt qu'un 403 à deviner. On le préviendra.
+**Ce qu'il nous devait, et qui est payé : le chemin relayé n'avait jamais tourné en vrai**, ni sur
+l'ancien tenant ni sur le nouveau — il était couvert par des tests unitaires, pas par l'usage. Notre
+premier appel était donc son premier essai, et il proposait de regarder ses journaux en direct pour
+qu'on ait le refus exact plutôt qu'un 403 à deviner.
+
+**Il n'y a pas eu de refus. Le 2026-11-17 au soir, de bout en bout, du premier coup** :
+
+| Ce qui a été appelé                                                  | Résultat                         |
+| -------------------------------------------------------------------- | -------------------------------- |
+| Le compte machine demande son jeton (`aud` d'omnipass)               | **200**, valable 24 h            |
+| `POST /identity/resolve`, jeton de la personne en `X-End-User-Token` | **200**, instantané complet      |
+| Une lecture dans une Organization où la personne a un rôle           | **200**                          |
+| Une Organization qu'elle ne voit pas                                 | **404 `organization_not_found`** |
+
+Le dernier est le plus instructif : c'est la preuve que c'est le **vrai** service qui répond. Le
+bouchon faisait de l'appelant un `admin` de **toute** Organization et aurait répondu 200. C'est aussi
+ce qui a permis de supprimer le bouchon le même soir.
+
+**Ce qui n'est toujours pas vérifié, et pourquoi** : le **403 `role_required`**, celui d'un rôle trop
+faible. Le seul compte dont nous disposons est super-admin, donc `admin` de toute Organization par la
+règle des rôles effectifs : il ne peut pas se faire refuser. Il faut une **deuxième personne**, avec
+un rôle `viewer`, invitée par omnipass. C'est la dernière case de la phase 1, et elle dépend de toi.
 
 Le même déménagement attend **multi-search** : il n'est pas encore sur ce tenant, donc son chemin
 relayé est hors service jusqu'à sa bascule — ce qu'omnipass assume, ce chemin n'ayant jamais servi en
-production.
+production. Pour nous, ça a une conséquence qui dépasse le calendrier : le front de multi-search est
+le **seul** front qui doit consommer Omnipotent (`CADRAGE.md` § 18, § 21), et il ne pourra pas avant
+d'avoir basculé sur ce tenant. **Notre première surface vivante est donc le MCP**, pas une page web —
+ce qui remet l'API MCP d'Auth0 (A2, point 2) sur le chemin critique plus tôt qu'il n'y paraît.
+
+### A6. Trois faits d'exploitation, découverts le 2026-11-17
+
+Aucun n'a de démarche associée ; ils sont ici parce qu'ils changent des conclusions écrites ailleurs.
+
+**1. Le dépôt `PinkWhaleAds/omnipotent` est _public_.** Mesuré sur l'API GitHub
+(`visibility: public`), pas supposé. Deux conséquences, dont une bonne :
+
+- **les _environments_ d'Actions ne coûtent rien.** J'avais annoncé l'inverse — « il faudra le plan
+  payant, ou une vraie organisation » — en croyant le dépôt privé. Les environnements protégés sont
+  payants pour un dépôt **privé** d'un compte personnel ; dans un dépôt public ils sont gratuits.
+  `deploy.yml` déclare `environment: production`, et le sujet OIDC auquel le rôle AWS fait confiance
+  contient `environment:production` : **ça fonctionne tel quel**. Ma recommandation est retirée ;
+- **le code source est lisible par tout le monde.** C'est une décision produit, pas une question
+  technique, et je ne la tranche pas. Ce qu'il faut savoir pour la trancher : aucun secret n'est dans
+  le dépôt — ils sont tous dans Secrets Manager ou dans `.env`, ignoré par git — et les `client_id`
+  qui y figurent ne sont pas des secrets. Donc rien n'est **compromis** ; la question est seulement
+  de savoir si on veut que le dépôt soit public.
+
+**2. Le profil AWS de cette machine est `omnilor`, et `default` porte des clés mortes.** Toute
+commande `aws` sans `--profile omnilor` répond `UnrecognizedClientException: The security token
+included in the request is invalid`, qui ressemble à un problème de droits et n'en est pas un. Le
+compte est le compte de **test**, `903305161052`, utilisateur `omnilor-deploy`.
+
+**3. Les routes de campagne ne sont pas celles qu'on suppose.** Un `GET /campaigns` répond 404, et ce
+n'est **pas** un trou d'authentification : la liste est `GET /advertisers/:id/campaigns` et l'unité
+est `GET /campaigns/:id`. Vérifié : `GET /campaigns/<uuid>` sans jeton répond bien **401
+`invalid_token`**. Je l'écris parce que j'ai cru dix minutes à une faille.
 
 ---
 
@@ -549,12 +723,10 @@ On tranchera au premier appel réel — c'est de toute façon à la phase 11.
 
 Rien de secret là-dedans, et chaque ligne peut arriver seule : rien n'attend le lot complet.
 
-**Auth0, le nouveau tenant** (A2) :
-
-- le **domaine du tenant** ;
-- le `Client ID` de l'application navigateur `Omnilor Web` ;
-- le `Client ID` du **compte machine** vers omnipass ;
-- « les deux API sont créées ».
+**Auth0 : plus rien.** ✅ Tout est posé depuis le 2026-11-17 — le domaine du tenant, les deux
+`client_id`, l'audience commune, le secret dans le magasin, l'entrée de registre. La seule chose qui
+reviendra ici est « l'API MCP est créée », le jour où on servira un `/mcp`, et c'est moi qui te le
+demanderai à ce moment-là.
 
 **Google** (B) :
 
@@ -570,9 +742,26 @@ Rien de secret là-dedans, et chaque ligne peut arriver seule : rien n'attend le
 - le **numéro** et l'**id** du compte annonceur de test ;
 - le `Application (client) ID` de l'application Entra.
 
-Et il reste **un clic** : autoriser le dépôt `omnipotent` à lire le paquet (A1b), sans quoi la CI
-échoue à l'installation.
+**Et une chose qui n'est pas une valeur** : une **deuxième personne** dans omnipass, avec un rôle
+`viewer`, pour vérifier le dernier cas de la phase 1 — le 403 d'un rôle trop faible (A5). Un compte
+super-admin ne peut pas se le faire refuser, donc ce cas restera non vérifié tant qu'il n'y aura qu'un
+compte.
 
 **Ce qui ne passe jamais par ici** : la clé JSON du compte de service Google, le developer token et le
 client secret Microsoft, le Client Secret du compte machine Auth0. Chacun a son chemin vers le magasin
-de secrets, décrit à son étape.
+de secrets, décrit à son étape — et « ici » inclut un fichier ouvert dans l'éditeur, comme le dit la
+règle en tête de ce document.
+
+---
+
+## L'état, en un tableau
+
+| Partie                       | État                                                                    |
+| ---------------------------- | ----------------------------------------------------------------------- |
+| **A. omnipass et Auth0**     | ✅ **close**, sauf l'API MCP (A2) qui attend qu'on serve un `/mcp`      |
+| **B. Google Ads**            | le MCC de production existe ; **tout le reste est à faire** (B1 → B9)   |
+| **C. Microsoft Advertising** | le compte gestionnaire existe ; **tout le reste est à faire** (C1 → C4) |
+
+Ce qui bloque le développement aujourd'hui est donc **B**, et seulement B : la phase 10 écrit
+l'adapter Google contre des faux et n'a besoin de rien de ta part, mais ses huit preuves finales,
+elles, ont besoin de B1 à B9.
