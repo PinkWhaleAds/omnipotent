@@ -19,14 +19,13 @@ The reference projects it draws from:
 - **`~/OmniAd/multi-search`** — **ours**, and therefore freely reusable. It has 36 phases of hardened
   conventions; this repository's socle is a transcription of its own. Its front and back are frozen
   (D30).
-- **omnipass** — the identity and tenancy service, built in parallel (T1). It owns `User`, `Seat`,
-  `Organization` and the memberships; **nothing here does**. It lives in `PinkWhaleAds/omnipass` since
-  the move of 2026-11-17, is **no longer cloned here**, and `~/OmniAd/omnipass` is an empty leftover.
-  Its contract with this repository is `docs/consuming.md` (the wiring, the Auth0 prerequisites, the
-  error table) and `docs/architecture.md` (the invariants), and it is binding: a signature that gets in
-  the way is raised with Lorin, never adapted locally. `docs/message-socle-omnipotent.md`, which used
-  to hold it, is deleted. **That repository answers 404 to our account**: until it grants us read
-  access, the contract is only what their messages say, and what they say is in `docs/`.
+- **`~/PinkWhale/omnipass`** — the identity and tenancy service, built in parallel (T1). It owns
+  `User`, `Seat`, `Organization` and the memberships; **nothing here does**. Its repository is
+  `PinkWhaleAds/omnipass`, under the GitHub account the group moved to on 2026-11-17, which a separate
+  SSH key reaches (`git@github-pinkwhale:`). Its contract with this repository is `docs/consuming.md`
+  (the wiring, the Auth0 prerequisites, the error table) and `docs/architecture.md` (the invariants),
+  and it is binding: a signature that gets in the way is raised with Lorin, never adapted locally.
+  `docs/message-socle-omnipotent.md`, which used to hold it, is deleted.
 - **`~/OmniAd/mbp`** and `meta-dsp-lib` — **Azerion's**. They are read to understand, and **never
   copied** (D36).
 

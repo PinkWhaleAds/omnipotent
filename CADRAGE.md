@@ -437,7 +437,7 @@ Chaque plateforme fait l'objet d'une **étude reporting dans sa propre phase**, 
 
 ## 16. Tenancy : le service `omnipass`
 
-Les Seats, Organizations, Users, memberships, invitations et rôles vivent dans un **service séparé**, dépôt `git@github.com:MultiSearchAd/omnipass.git`, partagé par Omnipotent, Omniscient et les projets suivants.
+Les Seats, Organizations, Users, memberships, invitations et rôles vivent dans un **service séparé**, dépôt `git@github.com:PinkWhaleAds/omnipass.git`, partagé par Omnipotent, Omniscient et les projets suivants.
 
 **Pourquoi séparé et pas un module d'Omnipotent** : il y a deux socles de natures différentes. Omnipotent est le socle du domaine **publicitaire** et bougera tous les jours pendant des années ; la tenancy est le socle de l'**identité**, une surface minuscule qui se stabilise en quelques semaines. Mettre la tenancy dans Omnipotent accrocherait la connexion de tous les produits au rythme de release du produit le plus agité — Omniscient ne pourrait plus authentifier personne pendant un déploiement de feature de campagne.
 
@@ -623,7 +623,7 @@ Quatre pièces s'ajoutent à ça, et deux d'entre elles sont des pannes classiqu
 
 1. ~~Mener le cadrage du reporting~~ et ~~le cadrage des leviers~~ : **faits**, `backend/docs/reporting.md` et `backend/docs/leviers.md`.
 2. **Écrire `backend/docs/plan.md`** : le plan de développement découpé en phases, chacune livrable et testable, à la manière de multi-search.
-3. **Construire omnipass** (`~/OmniAd/omnipass/HANDOVER.md`), en parallèle.
+3. **Construire omnipass** (cloné en `~/PinkWhale/omnipass`), en parallèle.
 4. **Initialiser le backend** depuis les conventions de multi-search.
 5. Lancer les démarches de `A-FAIRE.md`, en commençant par ce qui a des délais : l'accès Standard chez Google, le statut de partenaire OpenAI, et les accords commerciaux DV360 et Amazon DSP.
 

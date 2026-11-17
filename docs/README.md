@@ -65,7 +65,7 @@ Ce qui en découle pour une session qui reprend le fil :
 | Faisabilité Amazon Search / TikTok Search / Pinterest | `backend/docs/plateformes/faisabilite-search.md` | ✅ menée — Pinterest puis Amazon, TikTok reporté ; `F1`→`F16` **à valider** |
 | Plan de développement | `backend/docs/plan.md` | ✅ écrit — 33 phases (0 → 32), 2 jalons |
 | **Phase 0 — socle backend** | `backend/`, `infra/` | ✅ **livré et vérifié** — 642 tests à 100 %, `terraform validate` et 40 tests hors-ligne verts. Déductions **à valider**, et ce qui dépend de Lorin dans `../A-FAIRE.md` § 10 et § 14 |
-| omnipass | dépôt séparé | 🔜 plan écrit et validé, son contrat avec le socle est `~/OmniAd/omnipass/docs/message-socle-omnipotent.md` |
+| omnipass | dépôt séparé | 🔜 plan écrit et validé, son contrat avec le socle est `docs/consuming.md` de `PinkWhaleAds/omnipass`, cloné en `~/PinkWhale/omnipass` |
 | Phase 1 — accès et tenancy | `backend/` | ⏭ attend `@multisearchad/omnipass-client` (phase 2 d'omnipass) |
 
 Les règles ci-dessus valent aussi pour une **phase** du plan, pas seulement pour un cadrage.

@@ -452,13 +452,13 @@ The deploy role only trusts a job of the `production` environment running on `ma
 both in the OIDC token, which takes a custom subject template on the repository (once):
 
 ```sh
-gh api -X PUT repos/MultiSearchAd/omnipotent/actions/oidc/customization/sub --input - <<'EOF'
+gh api -X PUT repos/PinkWhaleAds/omnipotent/actions/oidc/customization/sub --input - <<'EOF'
 { "use_default": false, "include_claim_keys": ["repo", "context", "ref"] }
 EOF
-gh api repos/MultiSearchAd/omnipotent/actions/oidc/customization/sub   # check
+gh api repos/PinkWhaleAds/omnipotent/actions/oidc/customization/sub   # check
 ```
 
-The subject then reads `repo:MultiSearchAd/omnipotent:environment:production:ref:refs/heads/main`,
+The subject then reads `repo:PinkWhaleAds/omnipotent:environment:production:ref:refs/heads/main`,
 exactly what the role accepts (`terraform output github_settings`).
 
 Then the two variables the workflow reads (`terraform output deploy_role_arn`):
@@ -489,7 +489,7 @@ Without them, the login steps are skipped.
 > "Configure AWS credentials" with _Not authorized to perform sts:AssumeRoleWithWebIdentity_, the
 > token's subject differs from what the role accepts: CloudTrail (Event history, event
 > `AssumeRoleWithWebIdentity`) shows the subject GitHub sent. If GitHub leaves the environment out on
-> this plan, the subject is `repo:MultiSearchAd/omnipotent:ref:refs/heads/main:ref:refs/heads/main`:
+> this plan, the subject is `repo:PinkWhaleAds/omnipotent:ref:refs/heads/main:ref:refs/heads/main`:
 > put it in `github_oidc_subjects` (`terraform.tfvars`) and apply.
 
 ### 6. Auth0

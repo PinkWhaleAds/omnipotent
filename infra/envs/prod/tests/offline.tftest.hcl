@@ -46,7 +46,7 @@ run "plan_with_every_option_switched" {
     create_github_oidc_provider = false
     alarm_email                 = null
     monthly_budget_usd          = null
-    github_oidc_subjects        = ["repo:MultiSearchAd/omnipotent:ref:refs/heads/main"]
+    github_oidc_subjects        = ["repo:PinkWhaleAds/omnipotent:ref:refs/heads/main"]
     github_deploy_role_enabled  = false
     waf_enabled                 = false
     edge_access_logs_enabled    = false

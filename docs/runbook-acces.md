@@ -117,10 +117,11 @@ copier-coller partagé est à considérer comme perdu** : supprime-le (Settings 
 Tokens (classic) → l'icône de corbeille) et régénères-en un. Ça coûte deux minutes, et c'est la seule
 réaction juste.
 
-**A1b. Pour la CI, qui n'a besoin d'aucun jeton.** Les deux dépôts sont dans la même organisation,
-donc le `GITHUB_TOKEN` d'Actions suffit — à condition d'autoriser le dépôt à lire le paquet :
+**A1b. Pour la CI, qui n'a besoin d'aucun jeton.** Depuis le déménagement du 2026-11-17, le paquet
+et notre dépôt appartiennent au **même compte**, `PinkWhaleAds` : le `GITHUB_TOKEN` d'Actions suffit
+donc, à condition d'autoriser le dépôt à lire le paquet :
 
-1. va sur **github.com/orgs/MultiSearchAd/packages** ;
+1. connecté **comme `PinkWhaleAds`**, va sur **github.com/PinkWhaleAds?tab=packages** ;
 2. clique **`omnipass-client`** ;
 3. colonne de droite → **Package settings** ;
 4. section **Manage Actions access** → **Add repository** → choisis **`omnipotent`**, rôle **Read**.
@@ -239,7 +240,7 @@ En local, le plus simple est `backend/.env`, qui est ignoré par git. Le `client
 secret **jamais** :
 
 ```sh
-cd ~/OmniAd/omnipotent/backend
+cd ~/PinkWhale/omnipotent/backend
 printf 'AUTH0_DOMAIN=%s\n' '<le domaine du nouveau tenant>' >> .env
 printf 'OMNIPASS_CLIENT_ID=%s\n' '<le client id du compte machine>' >> .env
 ```

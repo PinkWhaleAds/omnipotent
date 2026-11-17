@@ -548,7 +548,7 @@ variable "ecr_repository_name" {
 variable "github_repository" {
   description = "GitHub repository (owner/name) allowed to deploy."
   type        = string
-  default     = "MultiSearchAd/omnipotent"
+  default     = "PinkWhaleAds/omnipotent"
 }
 
 variable "github_environment" {

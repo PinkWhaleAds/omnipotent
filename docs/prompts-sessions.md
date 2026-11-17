@@ -6,7 +6,7 @@ Le cadrage du reporting est mené par la session de cadrage initiale, il n'a don
 
 ---
 
-## 1. Socle backend — `~/OmniAd/omnipotent`
+## 1. Socle backend — `~/PinkWhale/omnipotent`
 
 ```
 Tu construis le squelette technique du backend d'Omnipotent, une API d'achat média
@@ -66,7 +66,7 @@ Code et JSDoc en anglais, documentation en français.
 
 ---
 
-## 3. Cadrage des leviers — `~/OmniAd/omnipotent`
+## 3. Cadrage des leviers — `~/PinkWhale/omnipotent`
 
 ```
 Tu mènes le cadrage des leviers d'Omnipotent. Tu ne codes pas : tu produis un
@@ -99,7 +99,7 @@ validation. Document en français.
 
 ---
 
-## 4. Faisabilité Amazon Search, TikTok Search Ads, Pinterest — `~/OmniAd/omnipotent`
+## 4. Faisabilité Amazon Search, TikTok Search Ads, Pinterest — `~/PinkWhale/omnipotent`
 
 ```
 Tu mènes trois études de faisabilité courtes, pour décider si Amazon Search
