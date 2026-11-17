@@ -13,7 +13,7 @@
 # pull limits for public images; the workflows log in when DOCKERHUB_USERNAME and DOCKERHUB_TOKEN exist.
 # To move it by hand:
 #   docker buildx imagetools inspect node:22-trixie-slim   # Digest: sha256:...
-FROM node:22.23.3-trixie-slim@sha256:154ba2f4d6fec323d28e4f4bb86bba4677f1223391a1979cf521304e03a98dfa AS base
+FROM node:22.23.4-trixie-slim@sha256:be1e2a3dc2c4fd68cdfadad2a696a280e0d2749098bee509230174d72fb768c6 AS base
 
 WORKDIR /usr/src/app
 
