@@ -153,6 +153,13 @@ suffit pour les deux produits.
    celles de multi-search. Les listes sont séparées par des virgules ;
 5. **Save Changes**, en bas de la page, et **note le `Client ID`** : non secret, donne-le moi.
 
+> **⚠️ Périmé depuis le 2026-11-17, ne clique pas encore.** omnipass a abandonné « une audience par
+> produit » : les produits partagent désormais **une seule** audience REST, `https://api.pinkwhale.app`,
+> et `https://api.omnipotent.app` est abandonnée. Ce que ça change pour toi : **tu ne crées pas d'API
+> REST à nous** — tu crées cette API commune, une fois, et tu y autorises la SPA dans
+> `User-delegated access`. L'API MCP ci-dessous reste la nôtre, le protocole l'impose. Le tableau est
+> réécrit dès que tu valides les déductions que je t'ai présentées.
+
 **2. Les API.** Le chemin est le même pour chacune : **Applications** → **APIs** → **Create API** →
 **Name**, **Identifier**, **Signing Algorithm** `RS256` → **Create**.
 
