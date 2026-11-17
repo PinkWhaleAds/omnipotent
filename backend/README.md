@@ -38,10 +38,27 @@ Ce que le socle livre :
 pnpm install
 cp .env.example .env                      # puis remplir les valeurs Auth0 (ci-dessous)
 docker compose up -d postgres rustfs moto # PostgreSQL sur 5442, S3 (RustFS) sur 9012, Secrets Manager (moto) sur 9022
-pnpm migration:run                        # crée le schéma (aucune migration encore : la table `migrations` seule)
+pnpm migration:run                        # crée le schéma
 pnpm start:dev                            # API sur http://localhost:3002 (Swagger : /documentation)
 pnpm start:worker                         # optionnel : le worker de jobs, dans un autre terminal
 ```
+
+Avec `ACCESS_PROVIDER=local`, le bouchon suffit et il n'y a rien d'autre à poser. Pour tourner contre
+**le vrai omnipass** (`ACCESS_PROVIDER=omnipass`), il faut en plus le secret du compte machine dans le
+magasin local — moto, sur 9022, et non AWS : `config/default.json` y pointe en développement. Il se
+pose une fois par vie du conteneur, et un `docker compose down` l'efface :
+
+```sh
+read -rs -p 'Client Secret du compte machine : ' S && echo
+python3 -c "import json,os;print(json.dumps({'Name':'omnipotent/omnipass/client-secret','SecretString':os.environ['S']}))" > /tmp/seed.json
+AWS_ACCESS_KEY_ID=local AWS_SECRET_ACCESS_KEY=local aws secretsmanager create-secret \
+  --endpoint-url http://localhost:9022 --region eu-north-1 --cli-input-json file:///tmp/seed.json
+rm -f /tmp/seed.json && unset S
+```
+
+Le secret passe par un fichier temporaire plutôt que par un argument de commande : un argument est
+visible dans `ps` le temps de l'appel. Et il ne va **jamais** dans `.env` — le code ne le lit que dans
+le magasin.
 
 Les ports publiés sont ceux de multi-search décalés de un, pour que les deux piles cohabitent sur la
 même machine — **le port HTTP compris** : 3002, pendant que multi-search et omnipass gardent 3000. Un
@@ -52,15 +69,18 @@ worker, Grafana sur http://localhost:3012).
 ### Auth0
 
 Auth0 prouve **seulement qui appelle** ; les droits vivent ailleurs (omnipass). Le tenant est
-**partagé** avec multi-search (D42) et Omnipotent y a ses propres audiences. Dans le tenant :
+**celui d'omnipass**, et depuis le 2026-11-17 les produits y partagent **une seule** audience REST,
+`https://api.pinkwhale.app` : Omnipotent n'a plus d'audience à lui, et il n'y a donc **aucune API REST
+à créer**. Dans le tenant :
 
-1. **Une API pour l'API REST** (Applications > APIs) : identifiant = `AUTH0_AUDIENCE`, RS256.
+1. **L'API REST commune** (Applications > APIs) : identifiant = `AUTH0_AUDIENCE`, RS256. Elle existe
+   déjà, créée par omnipass ; ne la recrée pas.
 2. **Une API pour le serveur MCP, par environnement** : son identifiant est exactement
    `MCP_RESOURCE_URL` — l'URL servie, que le client envoie comme indicateur de ressource — donc
    `http://localhost:3002/mcp` en local et l'URL publique ailleurs. RS256, _Allow Offline Access_,
    permission `mcp:use`.
-3. **Une Single Page Application** pour le Swagger UI : celle de multi-search fait l'affaire, il suffit
-   d'ajouter `http://localhost:3002/documentation/static/oauth2-redirect.html` à ses _Allowed Callback
+3. **Une Single Page Application** pour le Swagger UI : la SPA `PinkWhale`, partagée par les produits,
+   fait l'affaire — il suffit d'ajouter `http://localhost:3002/documentation/static/oauth2-redirect.html` à ses _Allowed Callback
    URLs_ et `http://localhost:3002` à ses _Allowed Web Origins_, sans rien retirer de ce qui y est
    déjà. Son client id va dans `AUTH0_SWAGGER_CLIENT_ID`.
 4. **Sur chaque API, section `User-delegated access` : ajouter cette application navigateur.** Sans
