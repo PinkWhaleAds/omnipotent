@@ -60,7 +60,7 @@ Omnipotent reprend les quatre plateformes Search de multi-search. Ces accès exi
 
 ### Les identifiants reçus le 2026-11-18
 
-Non secrets. Les secrets sont dans le magasin, posés par `pnpm secrets:seed` (`docs/nouveau-poste.md` § 5), jamais ici. Une exception volontaire : l'**adresse de l'utilisateur de service Microsoft** n'est pas écrite ici — le dépôt est public, et publier l'adresse de connexion d'un Super Admin, c'est dire quel compte attaquer. Tu la gardes, et tu la donnes à la session qui en a besoin.
+Non secrets. Les secrets vivent sur AWS, dans Secrets Manager sous `omnipotent/dev/` (quarante cents par secret et par mois), et `pnpm secrets:seed` les recopie sur le poste (`docs/nouveau-poste.md` § 5) — jamais ici. Une exception volontaire : l'**adresse de l'utilisateur de service Microsoft** n'est pas écrite ici — le dépôt est public, et publier l'adresse de connexion d'un Super Admin, c'est dire quel compte attaquer. Tu la gardes, et tu la donnes à la session qui en a besoin.
 
 | Google Ads                                             | Valeur                                                                       |
 | ------------------------------------------------------ | ---------------------------------------------------------------------------- |

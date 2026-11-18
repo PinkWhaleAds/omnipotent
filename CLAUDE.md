@@ -54,7 +54,9 @@ Omnilor**. Everything else belongs to a phase:
   that platform; the rest of the code **never tests a platform name**;
 - a job → `backend/src/jobs/index.ts`, with the service it calls;
 - a credential → a container declared in `infra/envs/prod/main.tf` (`module "secrets"`), its value
-  put in Secrets Manager by hand, never through Terraform.
+  put in Secrets Manager by hand, never through Terraform. Its **development** value lives in the same
+  account under `omnipotent/dev/`, outside Terraform, and `pnpm secrets:seed` keeps it in step with the
+  local store (moto): a new credential the backend reads is added to that script too.
 
 The tenancy is omnipass's, always: a table here holds `organizationId` and `userId` as **opaque
 uuids**, with no foreign key across the two databases (T4), and omnipass is their only writer (T5).

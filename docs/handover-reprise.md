@@ -84,9 +84,11 @@ workflow `backend` du 2026-11-17 à 19:00 UTC) :
 | `terraform fmt -check -recursive` | ✅                                                      |
 
 **Rien sous `backend/src/` n'a changé depuis.** Le 2026-11-18 n'a touché que de la documentation et
-l'outillage : `backend/scripts/seed-local-secrets.sh` (la commande `pnpm secrets:seed`),
-`backend/.env.example` (le Client ID d'omnipass, qui n'a pas de défaut, y est maintenant actif) et
-`backend/README.md`. Les tests n'ont pas été relancés, faute d'objet.
+l'outillage : `backend/scripts/seed-local-secrets.sh` (`pnpm secrets:seed`, la synchronisation des
+secrets entre AWS et moto), `backend/scripts/setup-dev.sh` (`pnpm setup:dev`, la mise en route en une
+commande), `backend/.env.example` (le Client ID d'omnipass, qui n'a pas de défaut, y est maintenant
+actif) et `backend/README.md`. Les tests n'ont pas été relancés, faute d'objet ; `pnpm setup:dev` a
+tourné sur l'ancien poste, et l'API a démarré derrière lui (`/readyz` → 200).
 
 **Les phases livrées** : le socle (phase 0) et les phases 1 à 9. Le détail est dans le tableau
 d'avancement de `backend/docs/plan.md` ; ne le recopie pas ici, lis-le là-bas.
@@ -112,19 +114,17 @@ d'avancement de `backend/docs/plan.md` ; ne le recopie pas ici, lis-le là-bas.
 montée, `backend/README.md` fait autorité ; voici ce qui se cherche le plus :
 
 ```sh
-cd backend
-pnpm install                              # à la racine du dépôt ça échoue : il n'y a pas de package.json racine
-docker compose up -d postgres rustfs moto # 5442, 9012, 9022
-pnpm migration:run
-pnpm secrets:seed                         # les secrets du magasin local, demandés sans écho
-pnpm start:dev                            # API sur http://localhost:3002, Swagger sur /documentation
+cd backend        # à la racine du dépôt pnpm échoue : il n'y a pas de package.json racine
+pnpm setup:dev    # secrets, dépendances, .env, conteneurs (5442, 9012, 9022), schéma
+pnpm start:dev    # API sur http://localhost:3002, Swagger sur /documentation
 ```
 
 **Le piège du démarrage** : l'application lit le secret du compte machine dans le magasin, et en
 développement le magasin est **moto**, pas AWS. **moto garde tout en mémoire** : un `down`, un `stop`
 ou un redémarrage du poste le vide, et le démarrage échoue alors avec un message qui accuse AWS à
 tort (`ResourceNotFoundException: Secrets Manager can't find the specified secret`). C'est arrivé
-entre le 17 et le 18 : le secret d'omnipass avait disparu. Le remède est `pnpm secrets:seed`.
+entre le 17 et le 18 : le secret d'omnipass avait disparu. Le remède est `pnpm secrets:seed`, qui
+rapatrie tout d'AWS en quelques secondes — il ne demande que le profil `omnilor`.
 
 **Trois autres choses qui se cherchent** :
 
@@ -192,17 +192,28 @@ Deux points à connaître sur les personnes :
 
 ### Les secrets, et leur forme — c'est un contrat
 
-Dans le magasin local, sous le préfixe `omnipotent/`, posés par `pnpm secrets:seed`. Leurs noms et
-leurs formes sont **ceux de multi-search** (`src/platforms/google/google.auth.ts`,
+**Ils vivent sur AWS** — Secrets Manager du compte `903305161052`, région `eu-north-1`, sous
+`omnipotent/dev/`, hors de Terraform. Le backend, lui, les lit en développement dans moto sous
+`omnipotent/` ; `pnpm secrets:seed` tient les deux côtés d'accord, la valeur la plus récente gagnant.
+Le secret d'omnipass rapatrié d'AWS a été **vérifié le 2026-11-18** : Auth0 délivre un jeton machine
+avec lui. Coût : quarante cents par secret et par mois.
+
+Leurs noms et leurs formes sont **ceux de multi-search** (`src/platforms/google/google.auth.ts`,
 `src/platforms/microsoft/microsoft.auth.ts`), pour que la transcription n'ait rien à réinventer :
 
 | Nom                          | Forme                                                   | Écrit par                    |
 | ---------------------------- | ------------------------------------------------------- | ---------------------------- |
-| `omnipass/client-secret`     | la chaîne du Client Secret                              | `pnpm secrets:seed`          |
-| `google-ads/service-account` | le fichier JSON de la clé, tel quel                     | `pnpm secrets:seed`          |
-| `google-ads/inviter`         | `{ clientId, clientSecret }`, puis `refreshToken`        | le script, puis la commande de consentement Google |
-| `microsoft-ads/app`          | `{ clientId, clientSecret, developerToken }`            | `pnpm secrets:seed`          |
+| `omnipass/client-secret`     | la chaîne du Client Secret                              | à la main, une fois          |
+| `google-ads/service-account` | le fichier JSON de la clé, tel quel                     | à la main, une fois          |
+| `google-ads/inviter`         | `{ clientId, clientSecret }`, puis `refreshToken`        | à la main, puis la commande de consentement Google |
+| `microsoft-ads/app`          | `{ clientId, clientSecret, developerToken }`            | à la main, une fois          |
 | `microsoft-ads/oauth`        | `{ refreshToken, … }`                                    | la commande de consentement Microsoft, à écrire |
+| `github/npm-token`           | le jeton du paquet d'omnipass ; côté poste, `~/.npmrc`  | à la main, tous les 90 jours |
+
+« À la main » veut dire `pnpm secrets:seed set <nom>`, qui redemande la valeur sans écho. Les
+commandes de consentement écriront dans moto, comme le fait multi-search : la synchronisation suivante
+les enverra sur AWS. **Si tu veux qu'elles écrivent directement sur AWS**, c'est une décision à
+présenter, pas à prendre.
 
 La production les attend sous `omnipotent/prod/…`, dans des conteneurs que Terraform doit encore
 déclarer (`module "secrets"` de `infra/envs/prod/main.tf`), valeurs posées à la main.
@@ -245,6 +256,12 @@ types, et le client HTTP commun). **`CADRAGE.md` § 14 tient tout** : aucun test
 plateforme ; l'adapter se couvre contre des faux.
 
 ### Ce que la lecture du 2026-11-18 a trouvé, et qui n'est pas corrigé
+
+- **multi-search parle déjà aux deux plateformes**, contrairement à ce que dit son `A-FAIRE.md` § 8,
+  jamais coché. Son environnement de test a dans Secrets Manager `multi-search/test/microsoft-ads/app`
+  (le 2026-11-09), `…/microsoft-ads/oauth` (**rafraîchi le 2026-11-18 au matin**, donc un processus
+  l'utilise), `…/google-ads/service-account` et `…/google-ads/inviter` (le 2026-11-11). Le code à
+  transcrire a donc déjà tourné contre les vraies API — une bonne nouvelle, à confirmer avec Lorin.
 
 - **`backend/docs/plateformes/google-ads.md` contredit L6** : son § 3 et le point 1 de son § 9 disent
   qu'un capping Search est un avertissement, alors que L6 — validée avant l'étude — le refuse en 400,
@@ -293,6 +310,8 @@ oubliée, et c'est le schéma à reconnaître, pas les détails.
 | Le runbook B couvrait l'inviteur Google                | Il manquait le **client OAuth « Application de bureau »** : sans lui, pas de consentement (2026-11-18) |
 | « Pose le secret, puis supprime le fichier téléchargé » | moto oublie tout à chaque redémarrage : l'original doit rester dans le gestionnaire de mots de passe |
 | La commande A4 posait le secret d'omnipass            | Sa variable n'était pas exportée : `python3` ne la voyait pas. `pnpm secrets:seed` la remplace |
+| « multi-search n'a jamais parlé à Microsoft », dit à Lorin d'après une case non cochée | Ses secrets Microsoft existent depuis le 2026-11-09 et son jeton tourne. **Une case non cochée n'est pas un fait** : la vérité était à une commande `list-secrets` |
+| « Range tes secrets dans ton gestionnaire de mots de passe » | Lorin n'a pas compris comment, et voulait un script clé en main. AWS les garde maintenant : demande d'abord ce que la personne sait faire |
 
 La plus utile reste celle du bouchon. Le raisonnement était correct et sa prémisse fausse : Lorin
 développe seul et aucun client ne verra le produit avant qu'il soit terminé. **Demande la prémisse

@@ -1,74 +1,69 @@
 # Reprendre Omnipotent sur un nouveau poste
 
-Écrit le **2026-11-18**, avant un changement de machine. Ce document dit ce que `git clone` apporte,
-ce qu'il n'apporte pas, et comment refaire le reste, étape par étape.
+Écrit le **2026-11-18**, avant un changement de machine.
 
-**Ce que le clone apporte** : tout le code, toute la documentation, le handover
-(`docs/handover-reprise.md`), `A-FAIRE.md`, le runbook des accès et les identifiants non secrets.
+**L'idée** : tout ce qui est secret vit sur **AWS**, dans Secrets Manager, sous `omnipotent/dev/` — les
+clés Google et Microsoft, le secret d'omnipass, le jeton qui installe le paquet d'omnipass. Sur une
+machine neuve, il suffit donc des outils, du profil AWS et d'un clone : **une commande fait le
+reste**.
 
-**Ce qu'il n'apporte pas**, parce que rien de tout cela n'est dans git :
-
-- les **secrets** — ils vivent dans le magasin local (moto), qui ne garde rien sur disque ;
-- tes **clés** : la clé SSH du compte `PinkWhaleAds` et le jeton GitHub qui installe le paquet
-  d'omnipass ;
-- le fichier `backend/.env`, qui se recrée en une commande ;
-- les **outils** de la machine ;
-- la **mémoire de Claude** et ta préférence globale sur les commits, qui restent sur l'ancien poste.
+Ce que le clone apporte : le code, la documentation, le handover (`docs/handover-reprise.md`),
+`A-FAIRE.md` et les identifiants non secrets. Ce qu'il n'apporte pas, et que ce document refait : les
+outils, le profil AWS, la clé SSH, et ta préférence globale pour Claude Code.
 
 ---
 
 ## 0. Avant de quitter l'ancien poste
 
-**Vérifie que tout est poussé.** Dans `~/PinkWhale/omnipotent`, `git status` doit répondre
-`Your branch is up to date with 'origin/main'`. Même vérification dans `~/PinkWhale/omnipass` si tu
-y as travaillé.
+Rien à sauvegarder à la main.
 
-**Range dans ton gestionnaire de mots de passe** chacune de ces valeurs. Ce sont des secrets : ils ne
-passent ni par le chat ni par un fichier du dépôt.
+- **Vérifie que tout est poussé** : dans `~/PinkWhale/omnipotent`, `git status` doit répondre
+  `Your branch is up to date with 'origin/main'`. Même chose dans `~/PinkWhale/omnipass` si tu y as
+  travaillé.
+- **Les secrets sont déjà sur AWS** : la synchronisation y a envoyé le 2026-11-18 tout ce que ce poste
+  avait. Pour le vérifier, dans `backend/` : `pnpm secrets:seed` doit répondre `up to date` partout.
+- **L'onglet `Untitled-1`** de VS Code : tout ce qu'il contenait est maintenant dans `A-FAIRE.md` § 2.
+  Tu peux le fermer sans l'enregistrer.
 
-| Secret                                         | Si tu l'as perdu                                                                                           |
-| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Client Secret du compte machine omnipass       | Auth0 → Applications → l'application machine partagée (Client ID `wyPvM8…`) → Settings → afficher le secret. **Ne le fais pas tourner** sans prévenir omnipass : le compte est partagé |
-| Fichier JSON de la clé du compte de service Google | Irrécupérable : crée une nouvelle clé (console Cloud → IAM → Comptes de service → Clés), puis supprime l'ancienne |
-| Client secret du client OAuth Google (inviteur) | Google ne le réaffiche pas : ajoute un nouveau secret au même client (Google Auth Platform → Clients)      |
-| Client secret de l'application Entra (colonne « Value ») | Azure ne le réaffiche pas : crée-en un nouveau (App registrations → l'application → Certificates & secrets) |
-| Developer token Microsoft                      | Visible dans ads.microsoft.com → Paramètres → Developer settings                                          |
-| Jeton GitHub de `~/.npmrc`                     | Irrécupérable : crée-en un nouveau (§ 4)                                                                   |
-| Clé SSH `~/.ssh/id_ed25519_pinkwhale`          | Crée-en une nouvelle (§ 2)                                                                                 |
-
-**Et deux valeurs non secrètes qui ne sont pas dans le dépôt** :
-
-- l'**adresse de l'utilisateur de service Microsoft** (le compte outlook.com dédié). Le dépôt est
-  public, et publier l'adresse de connexion d'un Super Admin, c'est dire quel compte attaquer. Tu la
-  donneras à la session qui écrira la commande de consentement ;
-- le contenu de l'onglet **`Untitled-1`** de VS Code, s'il est encore ouvert : il n'est enregistré
-  nulle part.
+Deux choses ne sont pas sur AWS, et c'est voulu : la **clé SSH** (tu en crées une neuve au § 3, deux
+minutes) et l'**adresse de l'utilisateur de service Microsoft** (le compte outlook.com dédié, que tu
+connais — elle n'est pas dans le dépôt parce qu'il est public).
 
 ## 1. Les outils
 
-Sur Windows, tout se fait dans **WSL2** (Ubuntu), comme sur l'ancien poste : les chemins de ce
-document sont ceux de Linux.
+Sur Windows, tout se fait dans **WSL2** (Ubuntu), comme sur l'ancien poste.
 
-| Outil      | Version                                   | Pour quoi                                            |
-| ---------- | ----------------------------------------- | ---------------------------------------------------- |
-| Git        | récente                                   | tout                                                 |
-| Docker     | Docker Desktop avec l'intégration WSL, ou Docker Engine dans WSL | PostgreSQL, le stockage S3 et le magasin de secrets |
-| Node       | **22.12 ou plus** (22.23 sur l'ancien poste) | le backend                                       |
-| pnpm       | 10, par `corepack enable`                 | le backend                                           |
-| AWS CLI    | v2                                        | le magasin de secrets local, et la production       |
-| Python 3   | n'importe laquelle                        | la commande `pnpm secrets:seed`                      |
-| Terraform  | 1.16 ou plus                              | seulement pour `infra/`                              |
+| Outil      | Version                                                    | Pour quoi                                 |
+| ---------- | ---------------------------------------------------------- | ----------------------------------------- |
+| Git        | récente                                                    | tout                                      |
+| Docker     | Docker Desktop avec l'intégration WSL, ou Docker Engine    | PostgreSQL, le stockage, le magasin local |
+| Node       | **22.12 ou plus** (22.23 sur l'ancien poste)               | le backend                                |
+| pnpm       | 10, par `corepack enable`                                  | le backend                                |
+| AWS CLI    | v2                                                         | les secrets                               |
+| Python 3   | n'importe laquelle                                         | les scripts de mise en route              |
+| Terraform  | 1.16 ou plus                                               | seulement pour `infra/`                   |
 
-## 2. Les accès GitHub
+## 2. Le profil AWS `omnilor` — c'est lui qui ouvre tout
 
-Deux comptes GitHub, donc deux clés SSH :
+C'est par lui que la mise en route va chercher les secrets. Vérifie qu'il répond :
 
-- **`PinkWhaleAds`** porte `omnipotent` et `omnipass`. Il passe par l'alias **`github-pinkwhale`** ;
-- **ton compte habituel**, celui qui a accès à `MultiSearchAd/multi-search`, passe par `github.com`
-  normalement.
+```sh
+aws sts get-caller-identity --profile omnilor
+```
 
-Pour `PinkWhaleAds`, recopie la clé de l'ancien poste (de façon sûre, puis `chmod 600`), ou
-crée-en une :
+La réponse doit contenir `"Account": "903305161052"`.
+
+- **Si ça répond** : rien à faire.
+- **Si le profil n'existe pas** : recopie les sections `[omnilor]` de `~/.aws/credentials` et
+  `[profile omnilor]` de `~/.aws/config` depuis l'ancien poste.
+- **Si ton profil s'appelle autrement** sur ce poste : garde-le, et préfixe les commandes du § 5 par
+  `AWS_SEED_PROFILE=<son nom>`.
+
+Le profil `default` de l'ancien poste portait des clés mortes : ne t'y fie pas.
+
+## 3. La clé SSH de `PinkWhaleAds`
+
+Elle sert à **pousser** sur `omnipotent` et `omnipass`. Crée-la :
 
 ```sh
 ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_pinkwhale -C pinkwhale
@@ -78,7 +73,7 @@ cat ~/.ssh/id_ed25519_pinkwhale.pub
 Copie la ligne affichée dans GitHub, **connecté en `PinkWhaleAds`** : photo en haut à droite →
 Settings → SSH and GPG keys → New SSH key.
 
-Puis ajoute ce bloc à `~/.ssh/config` — c'est exactement celui de l'ancien poste :
+Ajoute ce bloc à `~/.ssh/config` — exactement celui de l'ancien poste :
 
 ```text
 Host github-pinkwhale
@@ -90,6 +85,9 @@ Host github-pinkwhale
 
 **Vérification** : `ssh -T git@github-pinkwhale` doit répondre `Hi PinkWhaleAds!`.
 
+Ton **compte GitHub habituel**, celui qui a accès à `MultiSearchAd/multi-search`, passe par
+`github.com` avec sa propre clé, comme sur l'ancien poste.
+
 Et l'identité de tes commits, la même qu'avant :
 
 ```sh
@@ -97,10 +95,9 @@ git config --global user.name "Lorin"
 git config --global user.email "16312152+LorinProjects@users.noreply.github.com"
 ```
 
-## 3. Cloner les dépôts, aux mêmes chemins
+## 4. Cloner les dépôts, aux mêmes chemins
 
-Les documents citent les autres dépôts **par leur chemin** (`~/PinkWhale/omnipass`,
-`~/OmniAd/multi-search`) : garde les mêmes, sinon ces renvois mènent nulle part.
+Les documents citent les autres dépôts **par leur chemin** : garde les mêmes.
 
 ```sh
 mkdir -p ~/PinkWhale ~/OmniAd
@@ -109,99 +106,86 @@ git clone git@github-pinkwhale:PinkWhaleAds/omnipass.git   ~/PinkWhale/omnipass
 git clone git@github.com:MultiSearchAd/multi-search.git     ~/OmniAd/multi-search
 ```
 
-**multi-search est indispensable** pour la suite : les adapters Google et Microsoft se transcrivent de
-son code.
+**multi-search est indispensable** : les adapters Google et Microsoft se transcrivent de son code. Les
+sources d'Azerion (`~/OmniAd/mbp`) ne servent qu'aux phases des DSP, bien plus tard : recopie le
+dossier depuis l'ancien poste le moment venu.
 
-Les sources d'Azerion (`~/OmniAd/mbp`, avec `meta-dsp-lib`) ne servent qu'aux phases des DSP, bien plus
-tard. Recopie le dossier depuis l'ancien poste le moment venu.
+## 5. Une commande
 
-## 4. Le jeton qui installe le paquet d'omnipass
-
-Sans lui, `pnpm install` échoue sur `@pinkwhaleads/omnipass-client` avec un 401 ou un 403. Le paquet
-est privé, sur le registre de GitHub.
-
-Recopie `~/.npmrc` depuis l'ancien poste, ou crée un nouveau jeton : le pas à pas est dans
-`docs/runbook-acces.md`, **A1a** — un jeton « classic », créé **connecté en `PinkWhaleAds`**, avec le
-seul scope `read:packages`. Puis, sans que le jeton apparaisse à l'écran ni dans l'historique :
-
-```sh
-read -rs -p 'Jeton GitHub (read:packages) : ' T && echo
-printf '//npm.pkg.github.com/:_authToken=%s\n' "$T" >> ~/.npmrc && chmod 600 ~/.npmrc && unset T
-```
-
-Le jeton expire au bout de 90 jours. Celui de l'ancien poste meurt vers le 2027-02-15.
-
-## 5. Le backend
+**Toujours depuis `backend/`** : à la racine du dépôt il n'y a pas de `package.json`, et pnpm répond
+`ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND`.
 
 ```sh
 cd ~/PinkWhale/omnipotent/backend
 corepack enable
-pnpm install
-cp .env.example .env                      # les valeurs de développement y sont déjà
-docker compose up -d postgres rustfs moto
-pnpm migration:run
-pnpm secrets:seed                         # pose les secrets, voir ci-dessous
-pnpm start:dev                            # API sur http://localhost:3002, Swagger sur /documentation
+pnpm setup:dev
+pnpm start:dev        # puis http://localhost:3002/documentation
 ```
 
-### `pnpm secrets:seed`
+`pnpm setup:dev` fait, dans l'ordre :
 
-La commande demande chaque secret **sans l'afficher**, et une réponse vide le saute. Prépare ton
-gestionnaire de mots de passe :
+1. **les secrets** : il les rapatrie d'AWS dans le magasin local (moto), et écrit dans `~/.npmrc` le
+   jeton qui installe le paquet d'omnipass. Il démarre moto s'il ne tourne pas ;
+2. **les dépendances** : `pnpm install` ;
+3. **`.env`** : copié de `.env.example` s'il n'existe pas, et gardé sinon ;
+4. **les conteneurs** : PostgreSQL, le stockage S3, le magasin de secrets ;
+5. **le schéma** : les migrations.
 
-| Ce qu'elle demande                                   | Ce que tu donnes                                                      |
-| ---------------------------------------------------- | --------------------------------------------------------------------- |
-| 1. omnipass — Client secret                          | le Client Secret du compte machine                                    |
-| 2. Google Ads — Path of the .json file               | le chemin du fichier de clé, par exemple `/mnt/c/Users/<toi>/Downloads/<fichier>.json` |
-| 3. Google Ads — Client ID, puis Client secret        | le client OAuth « Application de bureau » de l'inviteur. Le Client ID est dans `A-FAIRE.md` § 2 |
-| 4. Microsoft — Application (client) ID, Client secret, Developer token | l'application Entra et le developer token          |
+Il ne te pose **aucune question**, sauf pour un secret qu'il ne trouve ni sur AWS ni sur la machine.
+Il n'affiche jamais une valeur, seulement des noms.
 
-Elle refuse d'écrire ailleurs que dans le magasin local, ne remplace un secret déjà posé que sur un
-oui, et finit en listant les noms posés — jamais les valeurs. Une fois le fichier de clé Google posé,
-tu peux le supprimer du disque, **pas** de ton gestionnaire.
+**À relancer chaque fois que l'API refuse de démarrer après un redémarrage** du poste ou un
+`docker compose down` : le magasin local garde tout en mémoire, et repart vide. Le symptôme est
+`ResourceNotFoundException: Secrets Manager can't find the specified secret`, qui accuse AWS à tort.
+`pnpm secrets:seed` seul suffit aussi.
 
-**À refaire chaque fois que moto redémarre** — `docker compose down`, `docker compose stop`, ou un
-redémarrage du poste : moto garde tout en mémoire, et repart vide. Le symptôme est un démarrage qui
-échoue sur `ResourceNotFoundException: Secrets Manager can't find the specified secret`, qui accuse
-AWS à tort. C'est arrivé entre le 2026-11-17 et le 2026-11-18 : le secret d'omnipass avait disparu.
+### Remplacer un secret
 
-**Les consentements** (Google pour l'inviteur, Microsoft pour l'utilisateur de service) s'ajouteront
-au magasin plus tard, chacun par sa propre commande, une fois le code écrit. Comme le reste, ils
-disparaissent avec moto et se refont en une minute.
+Quand une valeur change — un jeton qui expire, un secret qu'on fait tourner —, une commande la
+redemande et la remplace sur AWS **et** sur la machine :
 
-### Vérifier
+```sh
+pnpm secrets:seed set <nom>
+```
 
-- `curl -s http://localhost:3002/readyz` répond prêt ;
-- http://localhost:3002/documentation affiche Swagger.
+| `<nom>`                      | Ce que c'est                                                 | Quand le remplacer                          |
+| ---------------------------- | ------------------------------------------------------------ | ------------------------------------------- |
+| `github/npm-token`           | le jeton GitHub de `~/.npmrc` (runbook A1a)                  | il expire vers le **2027-02-15**            |
+| `microsoft-ads/app`          | l'application Entra et le developer token                    | à l'expiration du client secret Entra       |
+| `google-ads/service-account` | la clé JSON du compte de service                             | si elle est révoquée                        |
+| `google-ads/inviter`         | le client OAuth de l'inviteur Google                         | si on le recrée                             |
+| `omnipass/client-secret`     | le secret du compte machine omnipass                         | quand omnipass le fait tourner              |
 
-## 6. AWS — seulement pour la production
+Les **consentements** Google et Microsoft, quand leurs commandes existeront, s'écriront sur la machine
+et `pnpm secrets:seed` les enverra sur AWS : c'est la valeur la plus récente qui gagne, des deux côtés.
 
-Rien de ce qui précède n'en a besoin. Pour agir sur le vrai AWS, il faut le **profil `omnilor`** :
-recopie sa section de `~/.aws/config` et de `~/.aws/credentials` depuis l'ancien poste, ou recrée-le
-avec `aws configure --profile omnilor`.
-
-Le piège connu : le profil `default` de l'ancien poste porte des clés mortes et répond
-`UnrecognizedClientException`, qui ressemble à un problème de droits sans en être un. Passe toujours
-`--profile omnilor`.
-
-## 7. Claude Code
+## 6. Claude Code
 
 - **Recrée ta préférence globale** : le fichier `~/.claude/CLAUDE.md` de l'ancien poste contient une
   ligne, `- never add co auth message in git`. Sans lui, une session ajoute une ligne de co-auteur à
   ses commits.
 - **La mémoire de Claude reste sur l'ancien poste.** Rien d'important ne s'y perd : les règles de
-  travail sont dans le handover, les identifiants dans `A-FAIRE.md`, sauf l'adresse de l'utilisateur
-  de service Microsoft (§ 0).
+  travail sont dans le handover, les identifiants dans `A-FAIRE.md`.
 - **Premier message à la nouvelle session** : « lis `docs/handover-reprise.md`, on reprend ». Dis-lui
   aussi **combien de RAM** a le nouveau poste : jest y lance un worker par cœur, et l'ancien poste
   tombait avec ses 15 Go.
 
+## 7. Si ça coince
+
+| Ce que tu vois                                                     | Ce que ça veut dire, et quoi faire                                   |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| `ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND`                              | Tu es à la racine du dépôt : `cd backend`                            |
+| `AWS does not answer with the profile "omnilor"`                   | Le profil AWS manque ou a un autre nom : § 2                         |
+| `pnpm install` échoue en 401 ou 403 sur `@pinkwhaleads/omnipass-client` | Le jeton GitHub a expiré : crée-en un (runbook A1a), puis `pnpm secrets:seed set github/npm-token` |
+| `ResourceNotFoundException: Secrets Manager can't find…` au démarrage | Le magasin local s'est vidé : `pnpm secrets:seed`                  |
+| `OMNIPASS::TOKEN_FAILED` dans les journaux de l'API                | Le secret d'omnipass a tourné : `pnpm secrets:seed set omnipass/client-secret` |
+| `Permission denied (publickey)` en poussant                        | La clé SSH n'est pas dans GitHub, ou pas sur le bon compte : § 3     |
+
 ## 8. La liste de contrôle
 
+- [ ] `aws sts get-caller-identity --profile omnilor` répond le compte `903305161052`
 - [ ] `ssh -T git@github-pinkwhale` répond `Hi PinkWhaleAds!`
 - [ ] Les trois dépôts sont clonés aux mêmes chemins
-- [ ] `pnpm install` passe, paquet d'omnipass compris
-- [ ] `pnpm secrets:seed` liste `omnipass/client-secret`, `google-ads/service-account`,
-      `google-ads/inviter` et `microsoft-ads/app`
-- [ ] `pnpm start:dev` démarre, et `/readyz` répond
+- [ ] `pnpm setup:dev` finit sur `Ready`
+- [ ] `pnpm start:dev` démarre, et http://localhost:3002/readyz répond `ok`
 - [ ] `~/.claude/CLAUDE.md` est recréé

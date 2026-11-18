@@ -60,7 +60,7 @@ Microsoft en une matinée ; plus rien ne bloque l'écriture du code. Ce qui a bo
 | **Une étape manquait** : le client OAuth de l'inviteur                          | B5b, nouvelle  |
 | Basic obtenu, **Standard demandé**                                              | B6             |
 | Le developer token, l'application Entra, l'utilisateur de service               | C1 → C3        |
-| Les secrets se posent par **une commande**, `pnpm secrets:seed`                 | A4, B0         |
+| Les secrets **vivent sur AWS** (`omnipotent/dev/`), une commande les rapatrie   | A4, B0         |
 | **Deux corrections** : ne pas supprimer la clé téléchargée, et la commande d'A4 | A4, B0         |
 
 Les identifiants reçus sont dans `A-FAIRE.md` § 2. Ce qui reste : les deux **consentements** (B8 et
@@ -360,8 +360,9 @@ pnpm secrets:seed
 
 _Corrigé le 2026-11-18_ : la commande en quatre lignes qui était ici ne pouvait pas marcher telle
 quelle — `read` pose une variable du shell que `python3` ne voit pas, faute d'`export`.
-`pnpm secrets:seed` la remplace, et pose du même coup les secrets Google et Microsoft. Ce qu'il faut
-en savoir :
+`pnpm secrets:seed` la remplace. Les valeurs de développement **vivent sur AWS**, sous
+`omnipotent/dev/` (le secret d'omnipass y était déjà, depuis le 17) ; la commande les recopie dans
+moto, et envoie sur AWS ce qui est plus récent sur le poste. Ce qu'il faut en savoir :
 
 - **chaque valeur passe par un fichier temporaire**, jamais par un argument de commande, visible dans
   `ps` le temps de l'appel ;
@@ -521,10 +522,11 @@ Son chemin :
 
 3. en production, le même secret s'appelle `omnipotent/prod/google-ads/service-account`, son conteneur
    est déclaré par Terraform à la phase 10, et sa valeur se pose à la main, jamais par Terraform ;
-4. une fois posée, **range le fichier dans ton gestionnaire de mots de passe**, puis supprime-le du
-   disque. _Corrigé le 2026-11-18_ : ce document disait de le supprimer tout court, mais moto oublie
-   tout à chaque redémarrage, et sans l'original il faudrait une nouvelle clé. Une clé de compte de
-   service ne s'expire pas toute seule : elle vaut jusqu'à ce qu'on la révoque.
+4. une fois posée, **tu peux supprimer le fichier** : `pnpm secrets:seed` en garde la valeur sur AWS,
+   sous `omnipotent/dev/google-ads/service-account`, et la rapatrie sur n'importe quel poste.
+   _Corrigé le 2026-11-18_ : ce document disait de supprimer le fichier alors que la seule copie vivait
+   dans moto, qui oublie tout à chaque redémarrage. Une clé de compte de service ne s'expire pas toute
+   seule : elle vaut jusqu'à ce qu'on la révoque.
 
 **Et une chose que tu ne peux pas me donner, parce qu'elle n'est pas à donner** : le consentement de
 l'humain administrateur du MCC (B8). Il passe par une commande que je dois d'abord transcrire, qui
@@ -616,8 +618,8 @@ Sur la **console Google Cloud** :
 4. rubrique **Clients** → **Créer un client** → type **Application de bureau** → nom
    `omnipotent-inviter` → **Créer** ;
 5. **note le Client ID** — non secret, donne-le moi ;
-6. **copie le Client secret tout de suite** : Google ne le réaffiche plus. Il va dans ton gestionnaire
-   de mots de passe, puis dans le magasin par `pnpm secrets:seed`, jamais dans le chat.
+6. **copie le Client secret tout de suite** : Google ne le réaffiche plus. Il va dans le magasin par
+   `pnpm secrets:seed`, qui le garde aussi sur AWS — jamais dans le chat.
 
 ### B6. Demander l'accès, dans le bon ordre — _minutes, puis ~10 jours ouvrés_
 
