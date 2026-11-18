@@ -15,8 +15,6 @@ outils, le profil AWS, la clé SSH, et ta préférence globale pour Claude Code.
 
 ## 0. Avant de quitter l'ancien poste
 
-Rien à sauvegarder à la main.
-
 - **Vérifie que tout est poussé** : dans `~/PinkWhale/omnipotent`, `git status` doit répondre
   `Your branch is up to date with 'origin/main'`. Même chose dans `~/PinkWhale/omnipass` si tu y as
   travaillé.
@@ -25,9 +23,30 @@ Rien à sauvegarder à la main.
 - **L'onglet `Untitled-1`** de VS Code : tout ce qu'il contenait est maintenant dans `A-FAIRE.md` § 2.
   Tu peux le fermer sans l'enregistrer.
 
-Deux choses ne sont pas sur AWS, et c'est voulu : la **clé SSH** (tu en crées une neuve au § 3, deux
-minutes) et l'**adresse de l'utilisateur de service Microsoft** (le compte outlook.com dédié, que tu
-connais — elle n'est pas dans le dépôt parce qu'il est public).
+**Une chose à emporter à la main : les sources d'Azerion** (`~/OmniAd/mbp`, avec `mbp-api` et
+`meta-dsp-lib`). Elles ne servent qu'aux phases des DSP, bien plus tard, mais elles **ne se reclonent
+pas** : le GitLab d'Azerion ne répondait plus depuis l'ancien poste le 2026-11-18. Et elles ne vont
+**ni sur GitHub ni sur AWS** : c'est le code d'Azerion, lu en vertu d'un accord (`CADRAGE.md` § 2), et
+une copie sur nos serveurs sortirait de cet accord. Elles passent d'un poste à l'autre directement,
+avec tes clés SSH :
+
+```sh
+cd ~ && tar czf transfert.tgz --exclude=node_modules .ssh OmniAd/mbp
+```
+
+Copie `transfert.tgz` sur une clé USB, puis, sur le nouveau poste :
+
+```sh
+cd ~ && tar xzf /chemin/vers/transfert.tgz && chmod 700 ~/.ssh && chmod 600 ~/.ssh/*
+```
+
+**L'archive contient tes clés privées** : garde la clé USB sur toi, ne la dépose sur aucun service en
+ligne, et efface l'archive une fois extraite. Avec `~/.ssh` recopié, le § 3 se réduit à sa
+vérification.
+
+Et une chose qui n'est nulle part, volontairement : l'**adresse de l'utilisateur de service
+Microsoft** (le compte outlook.com dédié, que tu connais). Elle n'est pas dans le dépôt parce qu'il
+est public.
 
 ## 1. Les outils
 
@@ -63,7 +82,8 @@ Le profil `default` de l'ancien poste portait des clés mortes : ne t'y fie pas.
 
 ## 3. La clé SSH de `PinkWhaleAds`
 
-Elle sert à **pousser** sur `omnipotent` et `omnipass`. Crée-la :
+Elle sert à **pousser** sur `omnipotent` et `omnipass`. Si tu as recopié `~/.ssh` avec l'archive du
+§ 0, elle est déjà là : passe directement à la vérification. Sinon, crée-la :
 
 ```sh
 ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_pinkwhale -C pinkwhale
@@ -107,8 +127,7 @@ git clone git@github.com:MultiSearchAd/multi-search.git     ~/OmniAd/multi-searc
 ```
 
 **multi-search est indispensable** : les adapters Google et Microsoft se transcrivent de son code. Les
-sources d'Azerion (`~/OmniAd/mbp`) ne servent qu'aux phases des DSP, bien plus tard : recopie le
-dossier depuis l'ancien poste le moment venu.
+sources d'Azerion (`~/OmniAd/mbp`) arrivent par l'archive du § 0, au même chemin.
 
 ## 5. Une commande
 
