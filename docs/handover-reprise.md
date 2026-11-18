@@ -1,8 +1,11 @@
 # Handover — reprendre le fil d'Omnipotent
 
 Écrit le **2026-11-17**, à la fin d'une session qui a branché la tenancy réelle et refermé la phase 1.
+**Repris le 2026-11-18**, à la fin d'une session qui a monté les accès Google et Microsoft avec Lorin,
+avant qu'il change de machine.
+
 Tu reprends le projet : ce document te dit **où est la vérité**, **dans quel état est le code**, **ce
-qui t'attend** et **ce qui m'a coûté du temps**, pour que ça ne te le coûte pas deux fois.
+qui t'attend** et **ce qui nous a coûté du temps**, pour que ça ne te le coûte pas deux fois.
 
 Ce n'est pas un document de référence. Les documents de référence sont ceux cités au § 1, et c'est eux
 qui font foi. Celui-ci est un passage de relais : il périme, et il a le droit.
@@ -22,8 +25,9 @@ Dans cet ordre, parce que chacun suppose le précédent :
 | `backend/docs/reporting.md`        | les décisions `R…` du reporting                                      |
 | `backend/docs/leviers.md`          | les décisions `L…` et `G…` des leviers                               |
 | `backend/docs/error-codes.md`      | le catalogue des codes d'erreur — **ils font partie du contrat**     |
-| `A-FAIRE.md`                       | ce qui dépend de Lorin : comptes, accès, relevés, décisions produit  |
-| `docs/runbook-acces.md`            | les mêmes démarches, **écran par écran** ; mis à jour le 2026-11-17  |
+| `A-FAIRE.md`                       | ce qui dépend de Lorin : comptes, accès, relevés, décisions produit ; et les identifiants reçus (§ 2) |
+| `docs/runbook-acces.md`            | les mêmes démarches, **écran par écran** ; mis à jour le 2026-11-18  |
+| `docs/nouveau-poste.md`            | monter une machine neuve : outils, clés, dépôts, secrets             |
 
 Les règles de travail sont dans `docs/README.md` § « Les règles » et valent pour une phase autant que
 pour un cadrage. Les trois qui se perdent le plus vite :
@@ -35,11 +39,12 @@ pour un cadrage. Les trois qui se perdent le plus vite :
   commentaire : ces nombres bougent, et un nombre écrit devient faux sans que personne le voie ;
 - **documentation en français, code et JSDoc en anglais.**
 
-## 2. Deux contraintes de la machine et de la personne, à ne pas découvrir seul
+## 2. Ce qu'il faut savoir de la machine et de la personne
 
-**Ne lance jamais `jest` ni la couverture sans l'accord explicite de Lorin.** Sa machine n'a pas la RAM
-pour les workers par défaut — 15 Go au total, ~6 Go disponibles, 20 cœurs, donc jest en lance 19 et la
-machine tombe. Quand il a donné son accord, la forme qui passe est :
+**Ne lance jamais `jest` ni la couverture sans l'accord explicite de Lorin.** L'ancien poste n'avait
+pas la RAM pour les workers par défaut — 15 Go au total, ~6 Go disponibles, 20 cœurs, donc jest en
+lançait 19 et la machine tombait. **Lorin change de poste le 2026-11-18** : demande-lui la RAM du
+nouveau avant de supposer quoi que ce soit. Sur l'ancien, la forme qui passait était :
 
 ```sh
 cd backend && npx jest --coverage true --coverageDirectory=coverage-unit --maxWorkers=4
@@ -50,16 +55,24 @@ L'extension VS Code envoie automatiquement la sélection de Lorin : un secret co
 sélectionné arrive dans la conversation comme s'il l'avait écrit, même si le fichier est ignoré par
 git. C'est arrivé **deux fois** le 2026-11-17 — le Client Secret du compte machine Auth0, puis un jeton
 d'accès utilisateur. Le premier a été mis en rotation, et c'était la seule réaction juste. La forme à
-proposer, toujours, est `read -rs` dans le terminal (`docs/runbook-acces.md`, en tête). Les
-identifiants **non secrets** — un `client_id`, un customer id, un numéro de compte — peuvent circuler
-dans le chat sans problème.
+proposer, toujours, est `read -rs` dans le terminal — et pour les secrets du magasin local,
+`pnpm secrets:seed`, qui le fait pour lui. Les identifiants **non secrets** — un `client_id`, un
+customer id, un numéro de compte — peuvent circuler dans le chat sans problème.
 
-Et une préférence de Lorin, dans son `CLAUDE.md` : **aucun message de co-auteur dans un commit git.**
+**Parle simplement, une chose à la fois.** Le 2026-11-18, mon premier message de reprise était une
+liste de déductions techniques sur le moteur ; la réponse a été « j'ai pas compris ce que tu veux ».
+Ce qui a marché ensuite : dire **à quoi sert** une étape avant de la demander, guider **écran par
+écran** (où cliquer, quoi noter), et marquer chaque valeur **[chat]** ou **[secret]**. Une question
+de vérification se pose avec le chemin exact de l'écran où la vérifier, pas avec des numéros d'étape.
 
-## 3. L'état du code, au commit `7ecbeff`
+Et une préférence de Lorin, dans son `~/.claude/CLAUDE.md` : **aucun message de co-auteur dans un
+commit git.** Ce fichier est sur sa machine, pas dans le dépôt : `docs/nouveau-poste.md` § 7 lui dit
+de le recréer.
 
-**Tout est vert, et vérifié deux fois** — en local et sur les runners GitHub (le workflow `backend` du
-2026-11-17 à 19:00 UTC, sur ce même commit) :
+## 3. L'état du code
+
+**Tout était vert au commit `7ecbeff`**, vérifié deux fois — en local et sur les runners GitHub (le
+workflow `backend` du 2026-11-17 à 19:00 UTC) :
 
 | Vérification                      | Dernier résultat                                        |
 | --------------------------------- | ------------------------------------------------------- |
@@ -70,54 +83,58 @@ Et une préférence de Lorin, dans son `CLAUDE.md` : **aucun message de co-auteu
 | `terraform validate` + `test` (prod / test) | ✅ 29 + 11 tests hors-ligne                   |
 | `terraform fmt -check -recursive` | ✅                                                      |
 
-**Les phases livrées** : le socle (phase 0) et les phases 1 à 9. Le détail et ce que chacune porte sont
-dans le tableau d'avancement de `backend/docs/plan.md` ; ne le recopie pas ici, lis-le là-bas.
+**Rien sous `backend/src/` n'a changé depuis.** Le 2026-11-18 n'a touché que de la documentation et
+l'outillage : `backend/scripts/seed-local-secrets.sh` (la commande `pnpm secrets:seed`),
+`backend/.env.example` (le Client ID d'omnipass, qui n'a pas de défaut, y est maintenant actif) et
+`backend/README.md`. Les tests n'ont pas été relancés, faute d'objet.
 
-**Ce que la phase 1 a changé le 2026-11-17**, puisque c'est le plus frais et donc le plus fragile :
+**Les phases livrées** : le socle (phase 0) et les phases 1 à 9. Le détail est dans le tableau
+d'avancement de `backend/docs/plan.md` ; ne le recopie pas ici, lis-le là-bas.
+
+**Ce que la phase 1 a changé le 2026-11-17** :
 
 - `@pinkwhaleads/omnipass-client` est installé, câblé, et ses types sont **réexportés** plutôt que
   recopiés (`backend/src/types/auth.types.ts`) ;
 - le **bouchon de tenancy est supprimé** : plus de `LocalAccessService`, plus d'`ACCESS_PROVIDER`, plus
   de `DEV_ACTOR_*`, plus de `tenancy-provider.ts`. Il n'y a **qu'une implémentation**, celle
   d'omnipass, et l'application **refuse de démarrer partout** sans compte machine ni secret dans le
-  magasin — plus seulement en production. D43 est **amendée** en ce sens dans `CADRAGE.md` ;
+  magasin. D43 est **amendée** en ce sens dans `CADRAGE.md` ;
 - le chemin relayé a été **vérifié contre le vrai omnipass** : jeton machine, `resolve` relayé → 200
   avec l'instantané complet, lecture autorisée → 200, Organization invisible → **404
-  `organization_not_found`**. Le détail est dans `backend/docs/phase-1.md` § 6 ;
+  `organization_not_found`** (`backend/docs/phase-1.md` § 6) ;
 - **ce qui reste non vérifié** : le **403 `role_required`**. Le seul compte existant est super-admin,
-  donc `admin` de toute Organization par la règle des rôles effectifs : il ne peut pas se faire
-  refuser. Il faut une deuxième personne avec un rôle `viewer`, invitée par omnipass. C'est dans
-  `A-FAIRE.md` et dans le runbook (A5).
+  donc `admin` de toute Organization : il ne peut pas se faire refuser. Il faut une deuxième personne
+  avec un rôle `viewer`, invitée par omnipass (`A-FAIRE.md`, runbook A5).
 
-## 4. Démarrer la machine en cinq minutes
+## 4. Démarrer la machine
 
-`backend/README.md` est à jour et fait autorité ; voici seulement ce qui se cherche le plus :
+**Sur une machine neuve**, `docs/nouveau-poste.md` est le pas à pas complet. Sur une machine déjà
+montée, `backend/README.md` fait autorité ; voici ce qui se cherche le plus :
 
 ```sh
 cd backend
 pnpm install                              # à la racine du dépôt ça échoue : il n'y a pas de package.json racine
 docker compose up -d postgres rustfs moto # 5442, 9012, 9022
 pnpm migration:run
+pnpm secrets:seed                         # les secrets du magasin local, demandés sans écho
 pnpm start:dev                            # API sur http://localhost:3002, Swagger sur /documentation
 ```
 
 **Le piège du démarrage** : l'application lit le secret du compte machine dans le magasin, et en
-développement le magasin est **moto**, pas AWS — `config/default.json` y pointe. Sans le secret,
-le démarrage échoue avec un message qui accuse AWS à tort
-(`ResourceNotFoundException: Secrets Manager can't find the specified secret`). La commande de
-réamorçage est dans `backend/README.md` et dans le runbook (A4) ; **moto n'a pas de volume**, donc un
-`docker compose down` l'efface et il faut la rejouer.
+développement le magasin est **moto**, pas AWS. **moto garde tout en mémoire** : un `down`, un `stop`
+ou un redémarrage du poste le vide, et le démarrage échoue alors avec un message qui accuse AWS à
+tort (`ResourceNotFoundException: Secrets Manager can't find the specified secret`). C'est arrivé
+entre le 17 et le 18 : le secret d'omnipass avait disparu. Le remède est `pnpm secrets:seed`.
 
 **Trois autres choses qui se cherchent** :
 
-- le profil AWS est **`omnilor`** (compte de test `903305161052`). Le profil `default` porte des clés
-  mortes et répond `UnrecognizedClientException`, qui ressemble à un problème de droits sans en être
-  un ;
+- le profil AWS est **`omnilor`** (compte `903305161052`). Le profil `default` portait des clés mortes
+  et répondait `UnrecognizedClientException`, qui ressemble à un problème de droits sans en être un ;
 - le dépôt `PinkWhaleAds/omnipotent` se pousse par l'alias SSH **`git@github-pinkwhale:`**, et il est
-  **public** (mesuré). `PinkWhaleAds` est un compte **personnel**, pas une organisation — je m'étais
-  trompé là-dessus, et `docs/consuming.md` d'omnipass porte encore la même erreur ;
+  **public** (mesuré). `PinkWhaleAds` est un compte **personnel**, pas une organisation, et
+  `docs/consuming.md` d'omnipass porte encore l'erreur inverse ;
 - les routes de campagne sont `GET /advertisers/:id/campaigns` et `GET /campaigns/:id`. Un
-  `GET /campaigns` répond 404, et ce n'est pas un trou d'authentification — j'y ai cru dix minutes.
+  `GET /campaigns` répond 404, et ce n'est pas un trou d'authentification.
 
 ## 5. Le partage avec omnipass, et pourquoi il ne se négocie pas localement
 
@@ -137,71 +154,147 @@ Ce qui en découle, et que `CLAUDE.md` développe :
   permission ne coûte **aucun** appel réseau. Aucun droit ne voyage dans le jeton (T3) ;
 - **écrire la tenancy passe par le paquet**, jamais par un appel HTTP écrit à la main : chaque écriture
   réussie invalide l'utilisateur dans le cache local toute seule, ce qu'un appel manuel oublierait ;
-- un `OmnipassError` traverse l'API **telle quelle**, sans adaptateur : elle porte déjà `statusCode`,
-  `code`, `params` et les alias que notre gestionnaire d'erreurs lit.
+- un `OmnipassError` traverse l'API **telle quelle**, sans adaptateur.
 
 **Si joindre omnipass devient gênant dans une phase, la réponse reste de passer par omnipass** — jamais
-d'ajouter une table ici. C'est la tentation que la suppression du bouchon rend visible, et c'est
-exactement celle à refuser.
+d'ajouter une table ici.
 
 ## 6. Ce qui t'attend, et dans quel ordre
 
-### La prochaine tâche : la phase 10, l'adapter Google contre des faux
+### Ce que Lorin veut : connecter ses vrais comptes Google et Microsoft
 
-C'est la tâche que j'avais annoncée et qui n'a pas commencé. Elle a un avantage rare : **elle ne dépend
-d'aucun accès en attente**. Son étude est faite et sourcée — `backend/docs/plateformes/google-ads.md`
-porte la projection, le ciblage, les deux credentials, les quotas, l'idempotence et les créas, chaque
-affirmation marquée de sa provenance. Son contrat est la ligne 10 du tableau des phases de
-`backend/docs/plan.md`.
+Il l'a dit le 2026-11-18. Les accès sont montés de son côté ; ce qui manque est **notre code**.
+**Aucune ligne d'Omnipotent ne parle encore à Google ni à Microsoft** : le registre
+`platform-rules.ts` et la table `ADAPTERS` sont vides, et un `AdAccount` n'est qu'une déclaration
+rangée en base.
 
-Ce qu'elle livre : le client REST avec son journal d'appels, la signature du JWT du compte de service,
-le mapping, l'adapter, son entrée au registre, la projection `AdGroup → campagne / TG → ad group /
-Line → RSA`, l'éclatement quand un TG porte un budget, et l'idempotence par paramètre d'URL
-personnalisé.
+### Les accès, au 2026-11-18
 
-**Et la contrainte qui tient tout** : `CADRAGE.md` § 14 — **aucun test n'appelle une plateforme**.
-L'adapter se développe et se couvre entièrement contre des faux. Les **huit preuves** sur un compte
-réel closent la phase, et elles attendent les accès Google (partie B du runbook), qui n'existent pas
-encore. Donc la phase s'écrit en entier maintenant et se **clôt** plus tard : dis-le explicitement
-quand tu la livres, plutôt que de la déclarer terminée.
+Les identifiants non secrets sont dans `A-FAIRE.md` § 2. Ce qui existe :
+
+| Google Ads                                                   | Microsoft Advertising                                         |
+| ------------------------------------------------------------ | ------------------------------------------------------------- |
+| projet Cloud payant, API activée                             | compte gestionnaire                                           |
+| compte de service, invité **Administrateur** du MCC de production | developer token de **production**, accordé tout de suite  |
+| client OAuth « Application de bureau » pour l'inviteur       | application Entra : « Any Entra ID Tenant + Personal Microsoft accounts », plateforme Web, retour `http://localhost:4102/microsoft/callback` |
+| accès **Basic** ; **Standard demandé le 2026-11-18** (revue ~10 jours ouvrés) | utilisateur de service dédié, **Super Admin**, double authentification active |
+| **pas** de MCC de test (B4) : à rediscuter avant les preuves, qui écriraient sur un vrai compte | **pas** de bac à sable (C4) : même remarque |
+
+Deux points à connaître sur les personnes :
+
+- l'**humain admin du MCC**, qui consentira pour l'inviteur Google, est probablement `admin@pinkwhale.co`
+  — à confirmer avec Lorin au moment du consentement ;
+- l'**utilisateur de service Microsoft** est un compte **personnel** outlook.com dédié. Son adresse
+  n'est **pas** dans le dépôt, qui est public : Lorin te la donnera. Limite assumée : un client dont la
+  politique exige des identités professionnelles répondra `PersonalIdentityNotAvailable` ; en changer
+  ne demandera que de refaire le consentement. `admin@pinkwhale.co` se connecte à Microsoft
+  Advertising par un **compte Google**, ce qui interdit de le prendre pour l'API.
+
+### Les secrets, et leur forme — c'est un contrat
+
+Dans le magasin local, sous le préfixe `omnipotent/`, posés par `pnpm secrets:seed`. Leurs noms et
+leurs formes sont **ceux de multi-search** (`src/platforms/google/google.auth.ts`,
+`src/platforms/microsoft/microsoft.auth.ts`), pour que la transcription n'ait rien à réinventer :
+
+| Nom                          | Forme                                                   | Écrit par                    |
+| ---------------------------- | ------------------------------------------------------- | ---------------------------- |
+| `omnipass/client-secret`     | la chaîne du Client Secret                              | `pnpm secrets:seed`          |
+| `google-ads/service-account` | le fichier JSON de la clé, tel quel                     | `pnpm secrets:seed`          |
+| `google-ads/inviter`         | `{ clientId, clientSecret }`, puis `refreshToken`        | le script, puis la commande de consentement Google |
+| `microsoft-ads/app`          | `{ clientId, clientSecret, developerToken }`            | `pnpm secrets:seed`          |
+| `microsoft-ads/oauth`        | `{ refreshToken, … }`                                    | la commande de consentement Microsoft, à écrire |
+
+La production les attend sous `omnipotent/prod/…`, dans des conteneurs que Terraform doit encore
+déclarer (`module "secrets"` de `infra/envs/prod/main.tf`), valeurs posées à la main.
+
+### La prochaine tâche : le code de connexion, Google puis Microsoft
+
+« Connecter un compte » veut dire : s'authentifier, **lire** le compte (nom, devise, fuseau),
+l'**inviter** sous notre compte gestionnaire, et **suivre** son acceptation. Pousser des campagnes
+vient après. L'ordre :
+
+1. **Écrire `backend/docs/phase-10.md`**, le contrat, comme chaque phase — avec les déductions
+   ci-dessous, numérotées, présentées **simplement** à Lorin (§ 2).
+2. **Combler les trous du moteur**, qui valent pour toutes les plateformes. La lecture du 2026-11-18
+   en a trouvé trois, **non validés** par Lorin — mon premier exposé était trop technique, il faudra
+   le refaire :
+   - le moteur **saute toute unité dont le compte n'a pas de `secretName`**
+     (`backend/src/services/sync.service.ts`, dans `syncUnit`), et `PlatformContext.credentials` ne
+     porte que le secret du compte. Or chez Google et Microsoft le credential est **celui de
+     l'application** (`backend/docs/phase-7.md` § 2) : tel quel, aucune unité Google ne serait jamais
+     synchronisée. Proposition : le registre déclare d'où vient le credential, et l'adapter reçoit à
+     sa construction de quoi lire le secret de l'application — c'est ce que fait multi-search ;
+   - **un refus de nos propres credentials invaliderait le compte du client** : `invalidCredentials`
+     passe l'`AdAccount` en `invalid`. multi-search distingue `ownCredentials` — c'est alors à un
+     opérateur d'agir (`backend/docs/plateformes/google-ads.md` § 4) ;
+   - **l'interface n'a que `apply`** (`backend/src/platforms/platform-adapter.ts`) : rien pour lire un
+     compte, ce que la première preuve de clôture exige, ni pour inviter et suivre un lien
+     (`account.links`, `backend/docs/phase-7.md` § 3). multi-search a des méthodes facultatives
+     `readAccount`, `requestLink`, `linkStatuses`.
+3. **La connexion Google** : la signature du JWT du compte de service, le client REST commun avec son
+   journal d'appels (`platform-http.ts` de multi-search), la lecture de `customer_client` depuis le
+   MCC, l'invitation par l'inviteur, le suivi des statuts, et la commande de consentement
+   (`src/scripts/google-connect.ts` de multi-search).
+4. **La connexion Microsoft**, sur le même modèle, avec sa commande de consentement
+   (`microsoft-connect.ts`) sur le port **4102**.
+5. **Puis les campagnes** : le reste des phases 10 et 11 — mapping, adapter, projection, éclatement,
+   idempotence — et les huit preuves de chaque phase, qui la **closent**.
+
+Côté multi-search, le Google à transcrire fait environ 5 800 lignes (client, auth, mapping, adapter,
+types, et le client HTTP commun). **`CADRAGE.md` § 14 tient tout** : aucun test n'appelle une
+plateforme ; l'adapter se couvre contre des faux.
+
+### Ce que la lecture du 2026-11-18 a trouvé, et qui n'est pas corrigé
+
+- **`backend/docs/plateformes/google-ads.md` contredit L6** : son § 3 et le point 1 de son § 9 disent
+  qu'un capping Search est un avertissement, alors que L6 — validée avant l'étude — le refuse en 400,
+  et que le code suit L6 (`CAPPING_NOWHERE` dans `backend/src/levers/lever-profiles.ts`). C'est
+  l'étude qui est périmée, à corriger sur place.
+- **Le point 3 de ce même § 9 est fait** : la pause à budget nul est dans `delivers()`
+  (`backend/src/platforms/desired-state.ts`).
+- **`backend/CLAUDE.md` n'existe pas**, alors que `CLAUDE.md` y renvoie deux fois ; il n'a jamais
+  existé dans l'historique.
+- **Des comptes sont déjà faux** : `backend/docs/plan.md` écrit « D1→D48 » alors que D53 existe, et
+  « 53 décisions », « 14 décisions » ; `CADRAGE.md` § 2 parle de « douze adapters » contre « onze »
+  dans D23.
 
 ### Ce qui attend Lorin, et rien d'autre
 
-`A-FAIRE.md` est la liste complète ; le runbook la détaille écran par écran. L'état au 2026-11-17 :
+`A-FAIRE.md` est la liste complète ; le runbook la détaille écran par écran.
 
-| Partie du runbook           | État                                                                       |
-| --------------------------- | -------------------------------------------------------------------------- |
-| **A. omnipass et Auth0**    | ✅ **close**, sauf l'API MCP d'Auth0, qui attend qu'on serve un `/mcp`     |
-| **B. Google Ads**           | le MCC de production existe ; **tout le reste est à faire** (B1 → B9)      |
-| **C. Microsoft Advertising** | le compte gestionnaire existe ; **tout le reste est à faire** (C1 → C4)   |
+| Partie du runbook            | État au 2026-11-18                                                          |
+| ---------------------------- | --------------------------------------------------------------------------- |
+| **A. omnipass et Auth0**     | ✅ **close**, sauf l'API MCP d'Auth0, qui attend qu'on serve un `/mcp`      |
+| **B. Google Ads**            | ✅ B1 → B6 et le client OAuth ; reste **B7** (Keyword Planner, phase 17), **B8** (le consentement, après notre code), **B9** (les limites du compte), la revue Standard |
+| **C. Microsoft Advertising** | ✅ C1 → C3 ; reste le **consentement**, après notre code, et la date d'expiration du client secret Entra à relever |
 
-Donc : **B est le seul blocage réel**, et il ne bloque que la **clôture** de la phase 10, pas son
-écriture.
+**Rien ne bloque plus l'écriture du code.**
 
 ### Un message écrit et jamais envoyé
 
-`docs/message-a-omnipass-paquet.md` est prêt et n'est pas parti. Il concède deux erreurs que j'avais
-faites, livre le constat « `PinkWhaleAds` est un compte personnel » avec le `403 permission_denied:
-read_package` mesuré, et dit qu'avec multi-search sur un autre tenant **notre première surface vivante
-est le MCP**, pas une page web. Il faut aussi annoncer à omnipass que **le chemin relayé a tourné** —
-c'était son premier essai réel, il avait proposé de regarder ses journaux en direct, et il mérite de
-savoir que ça a marché du premier coup. Les messages passent par Lorin, qui fait le relais entre les
-deux sessions.
+`docs/message-a-omnipass-paquet.md` est prêt et n'est pas parti. Il concède deux erreurs, livre le
+constat « `PinkWhaleAds` est un compte personnel » avec le `403 permission_denied: read_package`
+mesuré, et dit qu'avec multi-search sur un autre tenant **notre première surface vivante est le MCP**.
+Il faut aussi annoncer à omnipass que **le chemin relayé a tourné** du premier coup. Les messages
+passent par Lorin, qui fait le relais entre les deux sessions.
 
-## 7. Les erreurs que j'ai faites, parce qu'elles sont instructives
+## 7. Les erreurs que nous avons faites, parce qu'elles sont instructives
 
-Je les écris sans les arrondir : chacune était une déduction présentée comme un fait, et c'est le
-schéma à reconnaître, pas les détails.
+Écrites sans les arrondir : chacune était une déduction présentée comme un fait, ou une étape
+oubliée, et c'est le schéma à reconnaître, pas les détails.
 
-| Ce que j'ai affirmé                                   | Ce qui était vrai                                                                |
+| Ce qui a été affirmé                                  | Ce qui était vrai                                                                |
 | ----------------------------------------------------- | -------------------------------------------------------------------------------- |
 | « `PinkWhaleAds` est une organisation, déplaçons-y le dépôt » | C'est un compte **personnel** (`gh api users/PinkWhaleAds` → `"type": "User"`) |
 | « Le plan payant GitHub est la seule réponse durable » | Le dépôt est **public** : les environnements d'Actions y sont gratuits           |
 | « Le plafond Auth0 va déborder »                       | 3 API sur 10 et 2 applications sur 10 — omnipass a corrigé                        |
 | « Le `403` du paquet vient de la portée du jeton »     | Il venait du **compte** : `npm whoami` répondait `LorinProjects`                 |
 | « Gardons le bouchon de tenancy »                      | L'argument reposait sur « chaque personne qui touche au dépôt ». Il y en a **une** |
+| Le runbook B couvrait l'inviteur Google                | Il manquait le **client OAuth « Application de bureau »** : sans lui, pas de consentement (2026-11-18) |
+| « Pose le secret, puis supprime le fichier téléchargé » | moto oublie tout à chaque redémarrage : l'original doit rester dans le gestionnaire de mots de passe |
+| La commande A4 posait le secret d'omnipass            | Sa variable n'était pas exportée : `python3` ne la voyait pas. `pnpm secrets:seed` la remplace |
 
-La dernière est la plus utile. Mon raisonnement était correct et sa prémisse était fausse : Lorin
+La plus utile reste celle du bouchon. Le raisonnement était correct et sa prémisse fausse : Lorin
 développe seul et aucun client ne verra le produit avant qu'il soit terminé. **Demande la prémisse
 avant de bâtir la recommandation.**
 
@@ -213,6 +306,6 @@ débit partagé entre réplicas et par plateforme (D45), un verrou par campagne 
 jitter sur le rafraîchissement du pacing au minuit local (D47), une réplique de lecture pour les
 rapports (D48).
 
-Et quelques réserves qui ne sont pas des oublis : la réserve explicite sur tout total de conversions
+Et une réserve qui n'est pas un oubli : la réserve explicite sur tout total de conversions
 multi-plateformes (`reporting.md`, R9 famille 1) tient lieu de vérité jusqu'à ce que nos propres
 conversions existent, en V2.

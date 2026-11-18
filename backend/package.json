@@ -23,6 +23,7 @@
     "migration:generate": "pnpm typeorm migration:generate",
     "migration:run": "pnpm typeorm migration:run",
     "migration:revert": "pnpm typeorm migration:revert",
+    "secrets:seed": "bash ./scripts/seed-local-secrets.sh",
     "lint": "eslint . --fix",
     "lint:check": "eslint .",
     "prettier": "prettier . --write",

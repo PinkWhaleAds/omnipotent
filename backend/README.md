@@ -36,28 +36,27 @@ Ce que le socle livre :
 
 ```sh
 pnpm install
-cp .env.example .env                      # puis remplir les valeurs Auth0 (ci-dessous)
+cp .env.example .env                      # les valeurs de développement y sont déjà
 docker compose up -d postgres rustfs moto # PostgreSQL sur 5442, S3 (RustFS) sur 9012, Secrets Manager (moto) sur 9022
 pnpm migration:run                        # crée le schéma
 pnpm start:dev                            # API sur http://localhost:3002 (Swagger : /documentation)
 pnpm start:worker                         # optionnel : le worker de jobs, dans un autre terminal
 ```
 
-Il faut enfin le secret du compte machine dans le magasin local — sans lui l'application ne démarre
-pas — moto, sur 9022, et non AWS : `config/default.json` y pointe en développement. Il se
-pose une fois par vie du conteneur, et un `docker compose down` l'efface :
+Il faut enfin les secrets dans le magasin local — sans celui d'omnipass l'application ne démarre
+pas. Le magasin est moto, sur 9022, et non AWS : `config/default.json` y pointe en développement.
+**moto ne garde rien sur disque** : un `docker compose down`, comme une machine neuve, le rend vide.
+Une commande les pose tous :
 
 ```sh
-read -rs -p 'Client Secret du compte machine : ' S && echo
-python3 -c "import json,os;print(json.dumps({'Name':'omnipotent/omnipass/client-secret','SecretString':os.environ['S']}))" > /tmp/seed.json
-AWS_ACCESS_KEY_ID=local AWS_SECRET_ACCESS_KEY=local aws secretsmanager create-secret \
-  --endpoint-url http://localhost:9022 --region eu-north-1 --cli-input-json file:///tmp/seed.json
-rm -f /tmp/seed.json && unset S
+pnpm secrets:seed
 ```
 
-Le secret passe par un fichier temporaire plutôt que par un argument de commande : un argument est
-visible dans `ps` le temps de l'appel. Et il ne va **jamais** dans `.env` — le code ne le lit que dans
-le magasin.
+Elle demande chaque valeur sans l'afficher, saute celle qu'on laisse vide, ne remplace un secret déjà
+posé que sur un oui, et refuse tout magasin qui n'est pas sur la machine. Ce qu'elle demande, et où le
+trouver, est dans `../docs/nouveau-poste.md`. Les valeurs passent par un fichier temporaire plutôt que
+par un argument de commande, visible dans `ps` le temps de l'appel ; et un secret ne va **jamais**
+dans `.env` — le code ne le lit que dans le magasin.
 
 Les ports publiés sont ceux de multi-search décalés de un, pour que les deux piles cohabitent sur la
 même machine — **le port HTTP compris** : 3002, pendant que multi-search et omnipass gardent 3000. Un

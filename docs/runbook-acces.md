@@ -51,6 +51,22 @@ serve vraiment un `/mcp` ; et le secret dans le Secrets Manager de l'environneme
 jour où cet environnement monte. Les parties B et C, elles, sont intactes : c'est là qu'est tout ce
 qui bloque encore le développement.
 
+**Repris le 2026-11-18, et ce sont les parties B et C qui se montent.** Tu as fait Google et
+Microsoft en une matinée ; plus rien ne bloque l'écriture du code. Ce qui a bougé ce jour-là :
+
+| Ce qui a changé                                                                 | Où c'est écrit |
+| ------------------------------------------------------------------------------- | -------------- |
+| Le projet Cloud, le compte de service et son accès au MCC                       | B1 → B5        |
+| **Une étape manquait** : le client OAuth de l'inviteur                          | B5b, nouvelle  |
+| Basic obtenu, **Standard demandé**                                              | B6             |
+| Le developer token, l'application Entra, l'utilisateur de service               | C1 → C3        |
+| Les secrets se posent par **une commande**, `pnpm secrets:seed`                 | A4, B0         |
+| **Deux corrections** : ne pas supprimer la clé téléchargée, et la commande d'A4 | A4, B0         |
+
+Les identifiants reçus sont dans `A-FAIRE.md` § 2. Ce qui reste : les deux **consentements** (B8 et
+C3), qui attendent leurs commandes, puis B7 et B9, qui ne sont pas urgents. Et pour une machine
+neuve, `docs/nouveau-poste.md` dit tout ce qui ne voyage pas avec le dépôt.
+
 ---
 
 ## A. omnipass — ce qui débloque la mise en production
@@ -339,22 +355,21 @@ un démarrage raté le 2026-11-17 avec un message qui accuse AWS à tort
 
 ```sh
 docker compose up -d postgres rustfs moto
-read -rs -p 'Client Secret du compte machine : ' S && echo
-python3 -c "import json,os;print(json.dumps({'Name':'omnipotent/omnipass/client-secret','SecretString':os.environ['S']}))" > /tmp/seed.json
-AWS_ACCESS_KEY_ID=local AWS_SECRET_ACCESS_KEY=local aws secretsmanager create-secret \
-  --endpoint-url http://localhost:9022 --region eu-north-1 --cli-input-json file:///tmp/seed.json
-rm -f /tmp/seed.json && unset S
+pnpm secrets:seed
 ```
 
-Trois choses à savoir sur ces quatre lignes :
+_Corrigé le 2026-11-18_ : la commande en quatre lignes qui était ici ne pouvait pas marcher telle
+quelle — `read` pose une variable du shell que `python3` ne voit pas, faute d'`export`.
+`pnpm secrets:seed` la remplace, et pose du même coup les secrets Google et Microsoft. Ce qu'il faut
+en savoir :
 
-- **le secret passe par un fichier temporaire**, et pas par `--secret-string` : un argument de
-  commande est visible dans `ps` le temps de l'appel ;
-- **`read -rs` n'affiche rien et ne laisse rien dans l'historique** — c'est le chemin de la règle des
-  secrets en tête de ce document ;
-- **moto n'a pas de volume** : un `docker compose down` efface le secret, et l'application refuse
-  alors de démarrer. Ce n'est pas une panne, c'est cette commande à refaire. La même procédure est
-  dans `backend/README.md`, pour qu'on la trouve en démarrant le projet et pas seulement ici.
+- **chaque valeur passe par un fichier temporaire**, jamais par un argument de commande, visible dans
+  `ps` le temps de l'appel ;
+- **rien ne s'affiche** à la saisie, et rien ne reste dans l'historique ;
+- **moto garde tout en mémoire** : un `docker compose down`, un `stop` ou un redémarrage du poste
+  le vide, et l'application refuse alors de démarrer. Ce n'est pas une panne, c'est la commande à
+  refaire — c'est arrivé entre le 17 et le 18. Elle est aussi dans `backend/README.md`, pour qu'on la
+  trouve en démarrant le projet.
 
 **Et voir ce qu'il y a dans le magasin local**, quand on doute :
 
@@ -457,6 +472,11 @@ encore. Ce qui suit est donc à faire **une fois**, et sert les deux produits.
 **Depuis le 2026-11-14, le compte gestionnaire (MCC) de production existe.** Reste celui de test, et
 tout ce qui touche au projet Cloud.
 
+**Le 2026-11-18, B1 → B6 sont faits**, avec l'étape B5b qui manquait : projet payant, API activée,
+compte de service invité Administrateur du MCC de production, client OAuth de l'inviteur, accès Basic
+obtenu et Standard demandé. Restent B7 et B9, pas urgents, B8 après notre code, et le **MCC de test**,
+pas créé — à décider avant les preuves de la phase 10, qui sinon écrivent sur un vrai compte.
+
 **Deux choses ont changé chez Google en septembre 2026, et elles changent le chemin** :
 
 - **le developer token n'existe plus** comme unité de droits. L'en-tête est ignoré par les serveurs, et
@@ -496,19 +516,15 @@ Son chemin :
 
 1. **laisse le fichier téléchargé où il est**, hors du dépôt. Ne le colle pas dans un fichier du
    projet, même ignoré par git — et ne me dis pas son contenu, même tronqué ;
-2. le jour où l'adapter sait le lire, une seule commande le pose dans le magasin de secrets local, et
-   je te la donnerai telle quelle :
-
-   ```sh
-   aws --endpoint-url http://localhost:9022 --region eu-north-1 secretsmanager create-secret \
-     --name omnipotent/google-ads/service-account \
-     --secret-string "file:///chemin/vers/la-cle.json"
-   ```
+2. `pnpm secrets:seed` le pose dans le magasin local : la commande demande le chemin du fichier,
+   vérifie que c'est bien une clé de compte de service, et n'en affiche que l'adresse ;
 
 3. en production, le même secret s'appelle `omnipotent/prod/google-ads/service-account`, son conteneur
    est déclaré par Terraform à la phase 10, et sa valeur se pose à la main, jamais par Terraform ;
-4. une fois posée, **supprime le fichier téléchargé**. Une clé de compte de service ne s'expire pas
-   toute seule : elle vaut jusqu'à ce qu'on la révoque.
+4. une fois posée, **range le fichier dans ton gestionnaire de mots de passe**, puis supprime-le du
+   disque. _Corrigé le 2026-11-18_ : ce document disait de le supprimer tout court, mais moto oublie
+   tout à chaque redémarrage, et sans l'original il faudrait une nouvelle clé. Une clé de compte de
+   service ne s'expire pas toute seule : elle vaut jusqu'à ce qu'on la révoque.
 
 **Et une chose que tu ne peux pas me donner, parce qu'elle n'est pas à donner** : le consentement de
 l'humain administrateur du MCC (B8). Il passe par une commande que je dois d'abord transcrire, qui
@@ -583,6 +599,26 @@ Un compte de service **n'a pas de boîte mail** : selon les cas l'invitation est
 automatiquement, ou il faut l'accepter depuis la page **Invitations en attente** du même écran. Si
 l'accès ne fonctionne pas, c'est presque toujours ici.
 
+### B5b. Le client OAuth de l'inviteur — _10 minutes ; ajoutée le 2026-11-18, elle manquait_
+
+B8 fait consentir un humain admin du MCC, et ce consentement passe par **un client OAuth à nous**, du
+type « Application de bureau ». Sans lui, la commande de B8 n'a rien à présenter à Google. C'est
+l'équivalent Google de l'application Entra de C2.
+
+Sur la **console Google Cloud** :
+
+1. menu ☰ → **API et services** → **Écran de consentement OAuth** ; Google l'appelle maintenant
+   « Google Auth Platform » ;
+2. type d'utilisateur : **Interne** s'il est proposé, sinon **Externe** ; nom de l'application :
+   `Omnilor Ads` ;
+3. si tu as choisi Externe : rubrique **Audience** → **Publier l'application**, pour passer « En
+   production ». **En statut « Test », le jeton de l'inviteur expire au bout de 7 jours** ;
+4. rubrique **Clients** → **Créer un client** → type **Application de bureau** → nom
+   `omnipotent-inviter` → **Créer** ;
+5. **note le Client ID** — non secret, donne-le moi ;
+6. **copie le Client secret tout de suite** : Google ne le réaffiche plus. Il va dans ton gestionnaire
+   de mots de passe, puis dans le magasin par `pnpm secrets:seed`, jamais dans le chat.
+
 ### B6. Demander l'accès, dans le bon ordre — _minutes, puis ~10 jours ouvrés_
 
 Sur la **console Google Cloud**, pas dans le MCC :
@@ -617,8 +653,9 @@ humain administrateur du MCC consente une fois, et nous gardons son `refresh_tok
 
 Cette étape passe par une commande que je dois d'abord transcrire depuis multi-search
 (`pnpm google:connect`) : elle ouvre une page de consentement Google, tu te connectes **avec le compte
-admin du MCC**, et elle écrit le secret dans Secrets Manager sans qu'il passe par le chat. **Rien à
-faire maintenant** : je te préviendrai quand la commande existera.
+admin du MCC**, et elle écrit le secret dans Secrets Manager sans qu'il passe par le chat. Elle lit le
+client OAuth de B5b dans le secret `google-ads/inviter`, et y ajoute le jeton. **Rien à faire
+maintenant** : je te préviendrai quand la commande existera.
 
 ### B9. Relever les limites du compte — _10 minutes, après B4_
 
@@ -635,6 +672,10 @@ j'ai choisie basse exprès et sans fondement.
 Tu as créé un **compte gestionnaire Microsoft** le 2026-11-14. C'est la phase 11, et elle vient après
 Google : rien ici n'est urgent, mais le **developer token** demande une validation qui peut traîner,
 donc autant le lancer tôt.
+
+**Le 2026-11-18, C1 → C3 sont faits** : le developer token de production, accordé tout de suite ;
+l'application Entra ; l'utilisateur de service, Super Admin avec la double authentification. Reste le
+**consentement**, qui attend sa commande, et C4, pas monté.
 
 **Ne transpose pas Google ici.** Chez Microsoft le **developer token existe toujours** et il est
 **obligatoire** dans chaque appel (en-tête `DeveloperToken`) ; c'est chez Google qu'il a disparu en
@@ -678,8 +719,9 @@ C'est elle qui porte le flux OAuth. Deux pièges dès l'inscription :
    **professionnel** : Microsoft n'accepte plus l'inscription depuis un compte personnel ;
 2. **Supported account types** : **Accounts in any organizational directory and personal Microsoft
    accounts** ;
-3. **Redirect URI** : plateforme **Web**, et une URL que nous contrôlons. Pas une URI
-   `…/nativeclient` : celle-là est réservée aux applications publiques ;
+3. **Redirect URI** : plateforme **Web**, `http://localhost:4102/microsoft/callback` — l'adresse
+   de la commande de consentement, décalée comme les autres ports locaux d'Omnipotent (multi-search
+   prend 4100). Pas une URI `…/nativeclient` : celle-là est réservée aux applications publiques ;
 4. **Register**, puis **note le `Application (client) ID`** — non secret, donne-le moi ;
 5. **Certificates & secrets** → **New client secret** → durée **12 mois** → **Add**. La valeur n'est
    **affichée qu'une fois** : copie-la tout de suite, et ne me la donne pas.
@@ -699,6 +741,12 @@ Le jeton OAuth représente une **personne**. Il faut donc un utilisateur dédié
 2. donne-lui le rôle **Super Admin** sur le compte gestionnaire. C'est le rôle exigé pour créer et
    suivre les liens de comptes clients (phase 19) ;
 3. active l'**authentification multifacteur** sur cette adresse : le consentement l'exige.
+
+**Fait le 2026-11-18 avec un compte personnel Microsoft dédié** (outlook.com), pas avec
+`admin@pinkwhale.co` : celui-ci se connecte à Microsoft Advertising par un **compte Google**, et
+l'API exige une identité Microsoft. L'adresse n'est pas écrite ici, le dépôt étant public. Limite
+assumée : un client dont la politique exige des comptes professionnels répondra
+`PersonalIdentityNotAvailable` ; en changer ne demandera que de refaire le consentement.
 
 Le consentement lui-même passera par une commande que je dois écrire — elle ouvre la page Microsoft,
 tu te connectes **avec cette adresse**, et elle écrit le refresh token dans le magasin sans qu'il
@@ -759,9 +807,8 @@ règle en tête de ce document.
 | Partie                       | État                                                                    |
 | ---------------------------- | ----------------------------------------------------------------------- |
 | **A. omnipass et Auth0**     | ✅ **close**, sauf l'API MCP (A2) qui attend qu'on serve un `/mcp`      |
-| **B. Google Ads**            | le MCC de production existe ; **tout le reste est à faire** (B1 → B9)   |
-| **C. Microsoft Advertising** | le compte gestionnaire existe ; **tout le reste est à faire** (C1 → C4) |
+| **B. Google Ads**            | ✅ B1 → B6 et B5b le 2026-11-18 ; restent B7, B8 (après le code), B9, et le MCC de test |
+| **C. Microsoft Advertising** | ✅ C1 → C3 le 2026-11-18 ; restent le consentement (après le code) et C4   |
 
-Ce qui bloque le développement aujourd'hui est donc **B**, et seulement B : la phase 10 écrit
-l'adapter Google contre des faux et n'a besoin de rien de ta part, mais ses huit preuves finales,
-elles, ont besoin de B1 à B9.
+**Plus rien ne bloque le développement.** Ce qui reste de ton côté vient après le code — les deux
+consentements — ou attend sa phase.

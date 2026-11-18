@@ -6,7 +6,9 @@ Ce qui ne dépend que de toi : comptes à créer, accès à demander, clés à g
 
 **Règle des secrets** : une clé, un mot de passe ou un fichier de clé ne passe **jamais** par le chat. Les secrets vont dans `backend/.env` (ignoré par git) ou dans Secrets Manager. Les identifiants non secrets (ID de compte, ID de MCC, numéro de réseau, nom de dépôt) peuvent m'être donnés dans le chat.
 
-Mis à jour le **2026-11-17** : la partie **Auth0 et omnipass est close** — tenant, audience commune, compte machine, secret, entrée de registre, et le chemin relayé vérifié pour de vrai. Ce qui reste de ce côté est l'API MCP, qui attend du code, et une deuxième personne pour éprouver le refus d'un rôle trop faible. **Ce qui bloque le développement est désormais Google (point 2 et point 4), et seulement lui.**
+Mis à jour le **2026-11-18** : les accès **Google et Microsoft sont montés** (§ 2, avec les identifiants reçus) et l'accès Standard de Google est demandé (§ 4). **Plus rien ne bloque l'écriture du code** ; ce qui reste de ton côté vient après lui — les deux consentements — ou n'est pas urgent.
+
+Mis à jour le **2026-11-17** : la partie **Auth0 et omnipass est close** — tenant, audience commune, compte machine, secret, entrée de registre, et le chemin relayé vérifié pour de vrai. Ce qui reste de ce côté est l'API MCP, qui attend du code, et une deuxième personne pour éprouver le refus d'un rôle trop faible.
 
 ## En bref
 
@@ -14,9 +16,9 @@ Mis à jour le **2026-11-17** : la partie **Auth0 et omnipass est close** — te
 | --- | -------------------------------------------------------------------------------------- | ------------------------------------------------- | ---------------------------------- |
 | 1   | Comptes et credentials des plateformes du périmètre (Pinterest comprise, si F14 passe) | Chaque adapter, au fil des phases                 | Au fil des phases                  |
 | 1b  | Qui développe omnipass, et quand le lancer                                             | Le socle d'identité                               | **Avant la mise en production**    |
-| 2   | Confirmer la réutilisation des accès de multi-search                                   | Les 4 premiers adapters (phase Search)            | **Avant la phase 1**               |
+| 2   | Confirmer la réutilisation des accès de multi-search                                   | Les 4 premiers adapters (phase Search)            | ✅ Google et Microsoft montés le 2026-11-18 |
 | 3   | omnipass — qui le développe, et quand                                                  | Le socle d'identité de tous les projets           | **Avant la phase 1**               |
-| 4   | Accès **Standard** à l'API Google Ads                                                  | Lève le plafond de 15 000 opérations/jour         | Avant les tests Search réels       |
+| 4   | Accès **Standard** à l'API Google Ads                                                  | Lève le plafond de 15 000 opérations/jour         | **Demandé le 2026-11-18**, en revue |
 | 5   | Vérifier les limites d'objets Google par compte                                        | Le garde-fou de l'éclatement par TargetingGroup   | Avant les tests Search réels       |
 | 6   | Amazon Ads — accès API **Partner** + un compte vendeur réel                            | Levier Search, puis Audio et CTV                  | Avant la phase Amazon              |
 | 7   | DV360 — accès partenaire + API                                                         | Leviers Audio, CTV & TVS, DAC                     | Avant la phase DV360               |
@@ -46,15 +48,38 @@ Conséquence pratique : les comptes DV360, GAM et Hawk utilisés par MBP étaien
 Omnipotent reprend les quatre plateformes Search de multi-search. Ces accès existent déjà côté MS.
 
 - [ ] Confirmer qu'Omnipotent **réutilise** les mêmes comptes et accès, et ne refait pas la démarche :
-  - **Google Ads** : **décidé le 2026-10-27 — on réutilise les accès de multi-search**, un seul projet Google Cloud et un seul MCC pour les deux produits. Mais ils **n'existent pas encore** : la section 7 de `~/OmniAd/multi-search/A-FAIRE.md` est entièrement à cocher. Il faut donc projet Google Cloud (**compte de facturation payant**, un projet en essai gratuit est refusé), API Google Ads activée, MCC de production, MCC de test avec un compte client dedans, compte de service ajouté comme utilisateur du MCC, compte Keyword Planner, et le **`refresh_token` OAuth d'un humain admin du MCC** — Google refuse les invitations de lien manager à un compte de service (`backend/docs/plateformes/google-ads.md` § 4). **Il n'y a plus de developer token** depuis le 2026-09-09 : le niveau d'accès est celui du projet Cloud. Les clés vont dans Secrets Manager, jamais dans le chat ; le customer id du MCC n'étant pas secret, tu peux me le donner ici.
+  - **Google Ads** : **décidé le 2026-10-27 — on réutilise les accès de multi-search**, un seul projet Google Cloud et un seul MCC pour les deux produits. **Montés le 2026-11-18** — les identifiants sont ci-dessous. Ce qu'il a fallu : projet Google Cloud (**compte de facturation payant**, un projet en essai gratuit est refusé), API Google Ads activée, MCC de production, MCC de test avec un compte client dedans, compte de service ajouté comme utilisateur du MCC, compte Keyword Planner, et le **`refresh_token` OAuth d'un humain admin du MCC** — Google refuse les invitations de lien manager à un compte de service (`backend/docs/plateformes/google-ads.md` § 4). **Il n'y a plus de developer token** depuis le 2026-09-09 : le niveau d'accès est celui du projet Cloud. Les clés vont dans Secrets Manager, jamais dans le chat ; le customer id du MCC n'étant pas secret, tu peux me le donner ici.
     **Conséquence du partage** : le plafond d'opérations est celui du projet, tous clients confondus — les deux produits se le partagent. L'étude de multi-search chiffre cinquante AdGroups à ~8 400 opérations par jour avant la moindre écriture, sur 15 000 en Basic. L'accès **Standard** devient donc une condition, pas une optimisation.
-  - **Microsoft Advertising** : compte gestionnaire, sandbox, application Entra ID, developer token.
+  - **Microsoft Advertising** : compte gestionnaire, application Entra ID, developer token de production et utilisateur de service — **montés le 2026-11-18** (identifiants ci-dessous). Le bac à sable n'est pas monté.
   - **OpenAI Ads** : compte `OmniAd` et sa clé Ads API.
   - **Thrad** : organisation et clé API.
   - **Anthropic** : clé API pour la génération de textes.
   - **Auth0** : tenant, application SPA, les deux API (REST et MCP).
 - [x] Auth0 : **tenant partagé**, celui de multi-search. Omnipotent y aura ses **propres** audiences (REST et MCP), omnipass aussi.
 - [ ] Le statut de **partenaire API OpenAI** (point 1 du `A-FAIRE.md` de multi-search) reste ouvert : il conditionne la gestion du pixel OpenAI et les enchères à la conversion.
+
+### Les identifiants reçus le 2026-11-18
+
+Non secrets. Les secrets sont dans le magasin, posés par `pnpm secrets:seed` (`docs/nouveau-poste.md` § 5), jamais ici. Une exception volontaire : l'**adresse de l'utilisateur de service Microsoft** n'est pas écrite ici — le dépôt est public, et publier l'adresse de connexion d'un Super Admin, c'est dire quel compte attaquer. Tu la gardes, et tu la donnes à la session qui en a besoin.
+
+| Google Ads                                             | Valeur                                                                       |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| Projet Google Cloud                                    | `pinkwhale-514419`                                                           |
+| Compte de service, Administrateur du MCC               | `pink-whale-ads@pinkwhale-514419.iam.gserviceaccount.com`                    |
+| MCC de production (`login-customer-id`, sans tirets dans l'en-tête : `7719345054`) | `771-934-5054`                   |
+| Client OAuth de l'inviteur (« Application de bureau ») | `308567215963-6rqec0btbtf0grt5ob0hu66ud2g2cp9f.apps.googleusercontent.com`   |
+| Niveau d'accès                                         | Basic ; **Standard demandé le 2026-11-18**                                   |
+
+| Microsoft Advertising                             | Valeur                                                                                                   |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Compte gestionnaire (`cid`)                       | `255113635`                                                                                              |
+| Application Entra                                 | Client ID dans le secret `microsoft-ads/app` ; « Any Entra ID Tenant + Personal Microsoft accounts » ; plateforme Web, retour `http://localhost:4102/microsoft/callback` |
+| Developer token                                   | de production, accordé le 2026-11-18 ; dans le secret `microsoft-ads/app`                                |
+| Utilisateur de service                            | compte personnel Microsoft dédié, Super Admin du compte gestionnaire, double authentification active     |
+
+- [ ] Relever la **date d'expiration du client secret Entra** (Azure → l'application → Certificates & secrets, colonne « Expires ») et la noter ici : ce jour-là, la connexion Microsoft s'arrête. Le renouveler un mois avant.
+- [ ] Donner les **deux consentements**, une fois leurs commandes écrites : l'humain admin du MCC pour l'inviteur Google, l'utilisateur de service pour Microsoft.
+- [ ] Décider s'il faut un **MCC de test** Google et le **bac à sable** Microsoft avant les preuves de clôture, qui sinon écrivent sur de vrais comptes.
 
 ## 3. omnipass — le service de tenancy
 
@@ -68,7 +93,7 @@ Décision prise : un service séparé, dépôt `git@github.com:PinkWhaleAds/omni
 
 ## 4. Google Ads — accès Standard
 
-- [ ] Demander l'accès **Basic** dès le projet créé (automatisé, quelques minutes après la vérification de marque), **puis** l'accès **Standard** (revue d'environ 10 jours ouvrés). Un projet neuf démarre au niveau `Test`, qui ne parle qu'à des comptes de test, et `Explorer` tombe à **2 880 opérations par jour en production** : c'est le piège à éviter. `Basic` plafonne à **15 000 opérations par jour pour tout le projet**, partagé avec multi-search depuis la décision de réutiliser ses accès, ce qui rend `Standard` nécessaire plus tôt qu'il n'y paraît.
+- [x] **Basic obtenu, Standard demandé le 2026-11-18** (revue d'environ 10 jours ouvrés). Demander l'accès **Basic** dès le projet créé (automatisé, quelques minutes après la vérification de marque), **puis** l'accès **Standard** (revue d'environ 10 jours ouvrés). Un projet neuf démarre au niveau `Test`, qui ne parle qu'à des comptes de test, et `Explorer` tombe à **2 880 opérations par jour en production** : c'est le piège à éviter. `Basic` plafonne à **15 000 opérations par jour pour tout le projet**, partagé avec multi-search depuis la décision de réutiliser ses accès, ce qui rend `Standard` nécessaire plus tôt qu'il n'y paraît.
 - [ ] Rappel : le niveau d'accès d'un projet est retiré après **90 jours sans appel**. Ne pas laisser le projet inactif pendant le développement d'Omnipotent.
 
 ## 5. Limites d'objets Google — vérification

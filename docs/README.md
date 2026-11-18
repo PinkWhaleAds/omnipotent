@@ -22,7 +22,8 @@ Un cadrage ne code pas. Il établit, il tranche, il documente. L'implémentation
 | [`cadrage-leviers.md`](cadrage-leviers.md) | `backend/docs/leviers.md` | ✅ **mené** — le document de référence existe |
 | [`cadrage-plateforme.md`](cadrage-plateforme.md) | `backend/docs/plateformes/<plateforme>.md` | au début de la phase de chaque plateforme ; sa section 6 seule pour une plateforme non décidée |
 | [`handover-socle-backend.md`](handover-socle-backend.md) | le squelette de `backend/` et `infra/` | ✅ **mené** — le socle est livré |
-| [`handover-reprise.md`](handover-reprise.md) | rien : il passe le fil à une session qui reprend | écrit le 2026-11-17, à relire **avant** de reprendre le projet |
+| [`handover-reprise.md`](handover-reprise.md) | rien : il passe le fil à une session qui reprend | écrit le 2026-11-17, repris le 2026-11-18, à relire **avant** de reprendre le projet |
+| [`nouveau-poste.md`](nouveau-poste.md) | rien : il monte une machine neuve — outils, clés, dépôts, secrets | avant de travailler sur un autre poste |
 | [`../../omnipass/HANDOVER.md`](../../omnipass/HANDOVER.md) | le service de tenancy, dépôt séparé | **tout de suite** |
 
 Les prompts de lancement de ces sessions sont dans [`prompts-sessions.md`](prompts-sessions.md).
