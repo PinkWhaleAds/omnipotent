@@ -113,6 +113,33 @@ sys.stdout.write(json.dumps({key: os.environ[var] for key, var in pairs}))
 ' "$@" >"$file"
 }
 
+# Whether a value has the shape its consumer reads, so that a broken one is never copied to the other
+# side: a file path stored instead of the key file's content was, on 2026-11-18, and the sync carried
+# it to AWS. A value that is not well formed counts as absent, so the sync asks for it again.
+# $1 name, $2 file holding the value
+well_formed() {
+  python3 -I -c '
+import json, sys
+name, path = sys.argv[1], sys.argv[2]
+text = open(path, encoding="utf-8").read()
+fields = {
+    "google-ads/service-account": ("type", "client_email", "private_key"),
+    "google-ads/inviter": ("clientId", "clientSecret"),
+    "microsoft-ads/app": ("clientId", "clientSecret", "developerToken"),
+}.get(name)
+if fields is None:
+    sys.exit(0 if text.strip() else 1)
+try:
+    value = json.loads(text)
+except ValueError:
+    sys.exit(1)
+ok = isinstance(value, dict) and all(isinstance(value.get(f), str) and value[f] for f in fields)
+if name == "google-ads/service-account":
+    ok = ok and value["type"] == "service_account"
+sys.exit(0 if ok else 1)
+' "$1" "$2"
+}
+
 # --- Asking, when no side has a value. Each writes $NEW_VALUE, or fails when the answer is empty. --
 
 ask_omnipass() {
@@ -231,8 +258,12 @@ os.chmod(path, 0o600)
 # $1 name, relative to both prefixes
 sync_secret() {
   local name="$1" local_id="$LOCAL_PREFIX/$1" remote_id="$REMOTE_PREFIX/$1" here=0 there=0
-  read_secret local "$local_id" "$LOCAL_VALUE" && here=1
-  read_secret remote "$remote_id" "$REMOTE_VALUE" && there=1
+  if read_secret local "$local_id" "$LOCAL_VALUE"; then
+    if well_formed "$name" "$LOCAL_VALUE"; then here=1; else echo "  !  $name: the value here is not well formed, ignored"; fi
+  fi
+  if read_secret remote "$remote_id" "$REMOTE_VALUE"; then
+    if well_formed "$name" "$REMOTE_VALUE"; then there=1; else echo "  !  $name: the value on AWS is not well formed, ignored"; fi
+  fi
 
   if ((here && there)); then
     if cmp -s "$LOCAL_VALUE" "$REMOTE_VALUE"; then

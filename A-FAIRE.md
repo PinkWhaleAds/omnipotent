@@ -69,6 +69,13 @@ Non secrets. Les secrets vivent sur AWS, dans Secrets Manager sous `omnipotent/d
 | MCC de production (`login-customer-id`, sans tirets dans l'en-tête : `7719345054`) | `771-934-5054`                   |
 | Client OAuth de l'inviteur (« Application de bureau ») | `308567215963-6rqec0btbtf0grt5ob0hu66ud2g2cp9f.apps.googleusercontent.com`   |
 | Niveau d'accès                                         | Basic ; **Standard demandé le 2026-11-18**                                   |
+| Premier compte client à connecter (donné le 2026-11-19) | un vrai compte client, **déjà lié à notre MCC** (lien `ACTIVE`), en EUR, fuseau Europe/Paris, lu le 2026-11-19. Son numéro n'est pas écrit ici : c'est le compte d'un client, et le dépôt est public |
+
+- [x] ~~**Refaire la clé JSON du compte de service**~~ — **refaite le 2026-11-19 et vérifiée** : Google délivre un jeton avec elle, et l'accès Basic lit un vrai compte depuis notre MCC. Trouvé le même jour. Le secret `google-ads/service-account` ne contient pas la clé mais **le chemin de son fichier**, rangé ainsi le 2026-11-18 par l'ancienne commande du runbook, puis recopié sur AWS par la synchronisation. Le fichier a été effacé depuis, donc la clé est perdue. La synchronisation **vérifie désormais la forme** de chaque valeur et n'en recopie plus une cassée. Les gestes :
+  1. Google Cloud, projet `pinkwhale-514419` → ☰ → **IAM et administration** → **Comptes de service** → `pink-whale-ads@…` → onglet **Clés** → **Ajouter une clé** → **Créer une clé** → **JSON** → **Créer**. Le fichier se télécharge : laisse-le dans `Téléchargements`, **hors du dépôt** ;
+  2. dans `backend/` : `pnpm secrets:seed set google-ads/service-account`, puis donne le chemin du fichier. La commande vérifie que c'est une clé, n'affiche que l'adresse du compte de service, et la range sur AWS et sur le poste ;
+  3. efface le fichier téléchargé ;
+  4. dans le même onglet **Clés**, supprime la clé **créée le 2026-11-18** : son fichier est perdu, elle ne sert plus à personne. **Ne touche pas aux clés plus anciennes** : multi-search utilise le même compte de service.
 
 | Microsoft Advertising                             | Valeur                                                                                                   |
 | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |

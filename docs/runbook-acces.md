@@ -576,7 +576,14 @@ pour ça que l'étape B6 existe.
    `omnilor-ads-api@omnilor-ads.iam.gserviceaccount.com`) : l'étape B5 en a besoin.
 
 **Le fichier JSON est un secret** : il va dans Secrets Manager, jamais dans le chat ni dans le dépôt.
-Je te donnerai la commande `aws secretsmanager` quand l'adapter saura le lire.
+La commande, depuis `backend/` : `pnpm secrets:seed set google-ads/service-account`, qui demande le
+chemin du fichier et vérifie que c'est une clé (B0, point 2).
+
+_Constaté le 2026-11-19_ : la clé rangée le 2026-11-18 n'était pas la clé mais **le chemin de son
+fichier**, posé par l'ancienne commande A4, puis recopié sur AWS par la synchronisation. Le fichier
+ayant été effacé, la clé est à refaire (`A-FAIRE.md` § 2). La synchronisation vérifie désormais la
+forme de chaque valeur et n'en recopie plus une cassée. **Refaite le jour même, et vérifiée** : un jeton
+obtenu, puis un vrai compte lu depuis notre MCC.
 
 ### B4. Les MCC — _le premier est fait, le second demande un autre compte Google_
 

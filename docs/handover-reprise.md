@@ -227,7 +227,9 @@ déclarer (`module "secrets"` de `infra/envs/prod/main.tf`), valeurs posées à 
 l'**inviter** sous notre compte gestionnaire, et **suivre** son acceptation. Pousser des campagnes
 vient après. L'ordre :
 
-1. **Écrire `backend/docs/phase-10.md`**, le contrat, comme chaque phase — avec les déductions
+1. ✅ **Fait le 2026-11-19, et validé par Lorin** : `backend/docs/phase-10.md`, en trois lots, avec
+   ses points numérotés (§ 7) et la règle du super-admin (§ 4.5). Ce qui suit est l'état d'avant :
+   écrire `backend/docs/phase-10.md`, le contrat, comme chaque phase — avec les déductions
    ci-dessous, numérotées, présentées **simplement** à Lorin (§ 2).
 2. **Combler les trous du moteur**, qui valent pour toutes les plateformes. La lecture du 2026-11-18
    en a trouvé trois, **non validés** par Lorin — mon premier exposé était trop technique, il faudra
