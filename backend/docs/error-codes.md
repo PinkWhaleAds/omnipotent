@@ -403,9 +403,10 @@ sans deviner.
 Elles ne sont pas des réponses HTTP : elles sont **enregistrées sur l'unité**, et la route de statut
 les rend dans `errorCode` et `errorParams`. Le front les traduit comme les autres.
 
-| Code                   | Quand                                                                   | `params`   |
-| ---------------------- | ----------------------------------------------------------------------- | ---------- |
-| `sync_adapter_missing` | Le couple est déclaré au registre mais aucune phase n'a écrit l'adapter | `platform` |
+| Code                               | Quand                                                                                                                                                                                                                                                                                               | `params`   |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `sync_adapter_missing`             | Le couple est déclaré au registre mais aucune phase n'a écrit l'adapter                                                                                                                                                                                                                             | `platform` |
+| `sync_platform_credentials_failed` | **Nos** credentials ont échoué chez la plateforme — un compte de service, l'autorisation de notre compte gestionnaire. Le compte du client reste `active`, et l'unité réessaie avec le recul habituel : c'est à un opérateur d'agir, et tout repart seul une fois réparé (`docs/phase-10.md` § 4.2) | `platform` |
 
 Une erreur venue d'une plateforme garde **son** texte et son code à elle : `errorCode` est alors nul,
 sauf quand c'est nous qui avons formulé le message — les phases plateformes ajouteront leurs codes

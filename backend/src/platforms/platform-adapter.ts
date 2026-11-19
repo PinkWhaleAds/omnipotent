@@ -16,7 +16,9 @@ import { DesiredUnit } from './desired-state';
  * What an adapter needs to talk to one account.
  *
  * The credentials are read from the secret store **at the last moment** and never leave this object:
- * they are not in the desired state, not in the journal, not in a log (`../../CADRAGE.md` § 12).
+ * they are not in the desired state, not in the journal, not in a log (`../../CADRAGE.md` § 12). They
+ * are those of the **account**, and `null` on a platform whose credentials are ours
+ * ({@link PlatformConnection}): its adapter reads them itself, from what it was built with.
  *
  * @property platform - The platform
  * @property adAccountId - Our id of the account, for the call journal
@@ -25,7 +27,7 @@ import { DesiredUnit } from './desired-state';
  * @property currency - The account's currency, which the budgets sent are expressed in
  * @property timezone - The timezone the platform counts its days in
  * @property scope - What the platform demands above the account (a partner id, a profile)
- * @property credentials - The secret's value
+ * @property credentials - The account's secret, `null` on a `manager_link` platform
  */
 export type PlatformContext = {
   platform: Platform;
@@ -35,7 +37,46 @@ export type PlatformContext = {
   currency: string;
   timezone: string;
   scope: Readonly<Record<string, string | number>>;
-  credentials: string;
+  credentials: string | null;
+};
+
+/**
+ * How a platform reaches the account of a client (`docs/phase-10.md` § 4.1).
+ *
+ * - `manager_link` — **our** manager account manages theirs once the client accepts a link, so the
+ *   credentials are ours, the same for every client, and no account carries a secret (Google Ads,
+ *   Microsoft Advertising);
+ * - `account_secret` — each account brings its own secret, kept under the name its `AdAccount`
+ *   holds (OpenAI, Thrad).
+ */
+export type PlatformConnection = 'manager_link' | 'account_secret';
+
+/**
+ * Where the link of one client account to our manager account stands, as the platform says it.
+ *
+ * - `pending` — invited, no answer yet;
+ * - `active` — accepted: the account can be managed;
+ * - `refused` — the client refused, or the invitation was withdrawn;
+ * - `ended` — accepted, then ended.
+ */
+export type LinkStatus = 'pending' | 'active' | 'refused' | 'ended';
+
+/**
+ * A client account, read through our manager account once linked.
+ *
+ * @property externalId - The id the platform's calls take, which may differ from the reference the
+ *   client gave (the Microsoft account number is not its id)
+ * @property name - Its name there
+ * @property currency - ISO 4217, upper case
+ * @property timezone - IANA
+ * @property manager - Whether it is itself a manager account, which runs no campaign
+ */
+export type LinkedAccountInfo = {
+  externalId: string;
+  name: string;
+  currency: string;
+  timezone: string;
+  manager: boolean;
 };
 
 /**
@@ -62,12 +103,53 @@ export type ApplyResult = {
 /**
  * Everything Omnipotent does on one platform.
  *
- * One implementation per platform, each added by its own phase to {@link ADAPTERS}. The interface is
- * deliberately one method wide: the engine computes **what must be true**, the adapter makes it true.
+ * One implementation per platform, each added by its own phase to {@link ADAPTERS}. Pushing is one
+ * method wide: the engine computes **what must be true**, the adapter makes it true. A `manager_link`
+ * platform adds the four methods of the link (`docs/phase-10.md` § 4.3), keyed by the account's
+ * **reference** — the account as the client reads it in the platform's interface.
  */
 export interface PlatformAdapter {
   /** The platform it talks to. */
   readonly platform: Platform;
+
+  /** How it reaches a client's account, which decides where the credentials come from. */
+  readonly connection: PlatformConnection;
+
+  /**
+   * Link a client account to our manager account: nothing to send when ours already manages it,
+   * else an invitation the client accepts in the platform's interface.
+   *
+   * @param reference - The account as the client gave it
+   * @returns `active` when our manager account already manages it, `pending` once invited
+   * @throws PlatformError
+   */
+  requestLink?(reference: string): Promise<'pending' | 'active'>;
+
+  /**
+   * Where **every** link of our manager account stands, in one read.
+   *
+   * @returns The status of each, by reference
+   * @throws PlatformError
+   */
+  linkStatuses?(): Promise<Map<string, LinkStatus>>;
+
+  /**
+   * Withdraw the pending invitation of a client account; nothing happens when none is pending.
+   *
+   * @param reference - The account
+   * @returns A promise that resolves once no invitation is pending
+   * @throws PlatformError
+   */
+  cancelLink?(reference: string): Promise<void>;
+
+  /**
+   * Read a client account through our manager account.
+   *
+   * @param reference - The account
+   * @returns Its id, name, currency, timezone, and whether it is itself a manager account
+   * @throws PlatformError
+   */
+  readLinkedAccount?(reference: string): Promise<LinkedAccountInfo>;
 
   /**
    * Make the platform match the desired state, idempotently.
@@ -92,6 +174,9 @@ export interface PlatformAdapter {
  *   `false` means the unit waits for a modification or an explicit retry, never for a timer
  *   (`docs/phase-9.md` § 5)
  * @property invalidCredentials - Whether the platform refused the key, which invalidates the account
+ * @property ownCredentials - Whether the credentials that failed are **ours** (a service account, an
+ *   OAuth authorization of our manager account): the client can do nothing, an operator must act, and
+ *   the account is left alone whatever `invalidCredentials` says (`docs/phase-10.md` § 4.2)
  * @property requestId - The id the platform gives for its own support
  * @property code - Its machine-readable error code, when it gives one
  * @property messageCode - Our stable code, when **we** worded the message rather than the platform
@@ -105,6 +190,7 @@ export class PlatformError extends Error {
    * @param options.statusCode - HTTP status of the response, `null` when none came back
    * @param options.retryable - Whether trying again later can succeed
    * @param options.invalidCredentials - Whether the key was refused
+   * @param options.ownCredentials - Whether the credentials that failed are ours
    * @param options.requestId - Request id of the platform
    * @param options.code - Error code of the platform
    * @param options.messageCode - Our stable code, when we worded the message
@@ -117,6 +203,7 @@ export class PlatformError extends Error {
       statusCode: number | null;
       retryable: boolean;
       invalidCredentials: boolean;
+      ownCredentials?: boolean;
       requestId: string | null;
       code?: string | null;
       messageCode?: string | null;
@@ -131,11 +218,27 @@ export class PlatformError extends Error {
 /**
  * The adapter of every platform that has one.
  *
- * Empty in the socle, exactly like `platform-rules.ts`: a platform arrives with its phase, and until
- * then the preview answers `preview_adapter_missing` and the engine refuses the unit definitively —
- * no amount of retrying writes code.
+ * Filled **at startup** by {@link registerAdapter}, because an adapter whose credentials are ours is
+ * built with what reads them: a platform whose settings are missing gets none, and the application
+ * starts without it (`docs/phase-10.md` § 5). Until a platform has one, the preview answers
+ * `preview_adapter_missing` and the engine refuses its units definitively — no amount of retrying
+ * writes code.
  */
 export const ADAPTERS: Readonly<Partial<Record<Platform, PlatformAdapter>>> = {};
+
+/**
+ * Make an adapter the one of its platform, replacing any before it.
+ *
+ * @param adapter - The adapter
+ *
+ * @example
+ * ```typescript
+ * registerAdapter(createGoogleAdsAdapter(setup, journal));
+ * ```
+ */
+export function registerAdapter(adapter: PlatformAdapter): void {
+  (ADAPTERS as Partial<Record<Platform, PlatformAdapter>>)[adapter.platform] = adapter;
+}
 
 /**
  * The adapter of one platform.

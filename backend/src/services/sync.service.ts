@@ -406,7 +406,6 @@ export class SyncService {
     // preview says so, and the sweep comes back once it is mended — the account's own write marks
     // these units again.
     if (!group || !account || !link || account.deletedAt !== null || account.status !== 'active') return;
-    if (!account.secretName) return;
 
     try {
       if (!hasAdapterFor(unit.platform)) {
@@ -415,6 +414,13 @@ export class SyncService {
           params: { platform: unit.platform },
         });
       }
+      const adapter: PlatformAdapter = adapterOf(unit.platform);
+      // Only an account that brings its own key needs one; on a `manager_link` platform the key is
+      // ours, and its adapter reads it (`docs/phase-10.md` § 4.1). Without it, there is nothing to
+      // apply with yet: posting it marks the units again.
+      const secretName: string | null = adapter.connection === 'account_secret' ? account.secretName : null;
+      if (adapter.connection === 'account_secret' && secretName === null) return;
+
       const { desired, hash }: { desired: DesiredUnit; hash: string } = await this.buildDesired(
         tree,
         unit,
@@ -424,7 +430,6 @@ export class SyncService {
       // Nothing changed: no call at all, which is the whole point of the fingerprint.
       if (unit.syncState === 'synced' && unit.syncedHash === hash) return;
 
-      const adapter: PlatformAdapter = adapterOf(unit.platform);
       const context: PlatformContext = {
         platform: unit.platform,
         adAccountId: account.id,
@@ -433,7 +438,7 @@ export class SyncService {
         currency: account.currency,
         timezone: account.timezone,
         scope: account.scope,
-        credentials: await this.secrets.get(account.secretName),
+        credentials: secretName === null ? null : await this.secrets.get(secretName),
       };
       const result: ApplyResult = await adapter.apply(context, desired, unit.refs);
       await this.recordSuccess(unit, desired, hash, result);
@@ -732,7 +737,10 @@ export class SyncService {
    *   no adapter): no next attempt is scheduled at all. Retrying cannot help, so the unit waits for a
    *   modification, which clears the backoff, or for an explicit retry;
    * - **a refused key** invalidates the account, which stops every unit of that account rather than
-   *   this one — the preview names it, and an admin has to act.
+   *   this one — the preview names it, and an admin has to act;
+   * - **our own credentials failing** (`ownCredentials`) is none of the client's doing: the account is
+   *   left alone, the unit keeps trying with the same backoff — so everything resumes on its own once
+   *   an operator mends them — and the log says so at `error` (`docs/phase-10.md` § 4.2).
    *
    * @param unit - The unit
    * @param account - Its account
@@ -741,19 +749,30 @@ export class SyncService {
    */
   private async recordFailure(unit: PlatformUnitEntity, account: AdAccountEntity, error: unknown): Promise<void> {
     const platformError: PlatformError | null = error instanceof PlatformError ? error : null;
-    const retryable: boolean = platformError?.options.retryable ?? false;
-    const coded: { code: string; params: MessageParams } | undefined = platformError
-      ? platformError.options.messageCode
-        ? { code: platformError.options.messageCode, params: platformError.options.messageParams ?? {} }
-        : undefined
-      : errorCodeOf(error);
+    const ours: boolean = platformError?.options.ownCredentials === true;
+    const retryable: boolean = ours || (platformError?.options.retryable ?? false);
+    const coded: { code: string; params: MessageParams } | undefined = ours
+      ? { code: 'sync_platform_credentials_failed', params: { platform: unit.platform } }
+      : platformError
+        ? platformError.options.messageCode
+          ? { code: platformError.options.messageCode, params: platformError.options.messageParams ?? {} }
+          : undefined
+        : errorCodeOf(error);
     const attempts: number = unit.attempts + 1;
     const now: Date = new Date(this.now());
     const delayMinutes: number = Math.min(this.config.maxBackoffMinutes, 2 ** (attempts - 1));
-    this.logger.warn('A platform sync failed', { unitId: unit.id, platform: unit.platform, retryable, error });
+    if (ours) {
+      this.logger.error('Our own credentials failed on a platform: an operator must mend them', {
+        unitId: unit.id,
+        platform: unit.platform,
+        error,
+      });
+    } else {
+      this.logger.warn('A platform sync failed', { unitId: unit.id, platform: unit.platform, retryable, error });
+    }
 
     await this.dataSource.transaction(async (manager: EntityManager): Promise<void> => {
-      if (platformError?.options.invalidCredentials) {
+      if (platformError?.options.invalidCredentials && !ours) {
         await manager.update(
           AdAccountEntity,
           { id: account.id },

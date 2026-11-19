@@ -1,4 +1,11 @@
-import { ADAPTERS, adapterOf, hasAdapterFor, PlatformAdapter, PlatformError } from '@src/platforms/platform-adapter';
+import {
+  ADAPTERS,
+  adapterOf,
+  hasAdapterFor,
+  PlatformAdapter,
+  PlatformError,
+  registerAdapter,
+} from '@src/platforms/platform-adapter';
 import { Platform } from '@src/types';
 import { errorCodeOf, statusCodeOf } from '@utils';
 
@@ -31,11 +38,23 @@ describe('Unit::Platforms::PlatformAdapter', () => {
     });
 
     it('should answer the adapter a phase declared', (): void => {
-      const adapter: PlatformAdapter = { platform: 'hawk', apply: jest.fn() };
+      const adapter: PlatformAdapter = { platform: 'hawk', connection: 'account_secret', apply: jest.fn() };
       registry.hawk = adapter;
 
       expect(adapterOf('hawk')).toBe(adapter);
       expect(hasAdapterFor('hawk')).toBe(true);
+    });
+  });
+
+  describe('registerAdapter', () => {
+    it('should make an adapter the one of its platform, replacing any before it', (): void => {
+      const first: PlatformAdapter = { platform: 'hawk', connection: 'account_secret', apply: jest.fn() };
+      const second: PlatformAdapter = { platform: 'hawk', connection: 'manager_link', apply: jest.fn() };
+
+      registerAdapter(first);
+      registerAdapter(second);
+
+      expect(adapterOf('hawk')).toBe(second);
     });
   });
 
@@ -53,6 +72,8 @@ describe('Unit::Platforms::PlatformAdapter', () => {
       expect(error.message).toBe('Too many requests');
       expect(error.platform).toBe('hawk');
       expect(error.options).toMatchObject({ retryable: true, invalidCredentials: false, requestId: 'r-1' });
+      // Not ours unless said: a failure blames the account by default.
+      expect(error.options.ownCredentials).toBeUndefined();
     });
   });
 });

@@ -295,7 +295,7 @@ describe('Unit::Services::SyncService', () => {
       refs: Object.fromEntries(desired.objects.map((object, index: number) => [object.key, `x-${index}`])),
       appliedStatus: desired.status,
     }));
-    adapters.hawk = { platform: 'hawk', apply };
+    adapters.hawk = { platform: 'hawk', connection: 'account_secret', apply };
 
     store = createTreeStore();
     access = createAccessMock();
@@ -406,6 +406,32 @@ describe('Unit::Services::SyncService', () => {
       expect(refs).toEqual({});
       expect(units()[0]).toMatchObject({ syncState: 'synced', attempts: 0, nextAttemptAt: null });
       expect(units()[0].syncedHash).toHaveLength(64);
+    });
+
+    it('should apply a unit of a platform whose credentials are ours, with no secret of the account', async (): Promise<void> => {
+      // A `manager_link` platform: our manager account manages theirs, so the account carries no
+      // secret, and the adapter reads ours itself (`docs/phase-10.md` § 4.1).
+      adapters.hawk = { platform: 'hawk', connection: 'manager_link', apply };
+      seedTree({ account: { secretName: null } });
+      seedUnit();
+
+      await service.syncCampaign(CAMPAIGN_ID);
+
+      expect(apply).toHaveBeenCalledTimes(1);
+      expect(apply.mock.calls[0][0]).toMatchObject({ platform: 'hawk', credentials: null });
+      expect(secrets.get).not.toHaveBeenCalled();
+      expect(units()[0]).toMatchObject({ syncState: 'synced' });
+    });
+
+    it('should not read a secret an account of a manager_link platform happens to name', async (): Promise<void> => {
+      adapters.hawk = { platform: 'hawk', connection: 'manager_link', apply };
+      seedTree();
+      seedUnit();
+
+      await service.syncCampaign(CAMPAIGN_ID);
+
+      expect(apply.mock.calls[0][0]).toMatchObject({ credentials: null });
+      expect(secrets.get).not.toHaveBeenCalled();
     });
 
     it('should make no call at all when nothing changed', async (): Promise<void> => {
@@ -792,6 +818,39 @@ describe('Unit::Services::SyncService', () => {
         statusReason: 'credentials_rejected',
       });
     });
+
+    it.each([
+      ['alone', false],
+      ['even when the platform also called the key refused', true],
+    ])(
+      'should leave the account alone when our own credentials failed, %s',
+      async (_label: string, invalidCredentials: boolean): Promise<void> => {
+        seedTree();
+        seedUnit({ attempts: 1 });
+        apply.mockRejectedValue(
+          new PlatformError('hawk', 'The service account key was revoked', {
+            statusCode: 401,
+            retryable: false,
+            invalidCredentials,
+            ownCredentials: true,
+            requestId: null,
+          })
+        );
+
+        await service.syncCampaign(CAMPAIGN_ID);
+
+        // The client did nothing and can do nothing: the account stays usable, and the unit keeps
+        // trying, so that it resumes on its own once an operator mends our credentials.
+        expect(store.rows(AdAccountEntity)[0]).toMatchObject({ status: 'active' });
+        expect(units()[0]).toMatchObject({
+          syncState: 'error',
+          attempts: 2,
+          lastErrorCode: 'sync_platform_credentials_failed',
+          lastErrorParams: { platform: 'hawk' },
+        });
+        expect((units()[0].nextAttemptAt as Date).getTime()).toBe(NOW.getTime() + 2 * 60_000);
+      }
+    );
 
     it('should treat a failure of ours as definitive, with its own code', async (): Promise<void> => {
       seedTree();
