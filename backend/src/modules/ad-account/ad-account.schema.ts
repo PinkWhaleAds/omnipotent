@@ -40,11 +40,15 @@ export const listAdAccountsSchema: FastifySchema = {
 export const connectAdAccountSchema: FastifySchema = {
   tags: TAGS,
   description:
-    'Connect a platform account. It arrives **pending**: most platforms ask the client to accept the ' +
-    'access, and PUT /ad-accounts/:id/status records their answer. Its currency never changes (admin)',
+    'Connect a platform account (admin). On a platform whose accounts link to our manager account ' +
+    '(Google Ads), give the reference alone: the account is invited and arrives **pending**, or **active** ' +
+    'when our manager account already manages it — for a super-admin, or the Organization that held it ' +
+    'last. Its name, currency and timezone are then read there, never declared, and a linked account ' +
+    'belongs to one Organization only. On any other platform, declare all three: the account arrives ' +
+    'pending, and PUT /ad-accounts/:id/status records the answer. Its currency never changes',
   headers,
   body: toJsonSchema(connectAdAccountBodySchema, 'input'),
-  response: { 201: toJsonSchema(adAccountSchema), ...errorResponses(400, 401, 403, 404, 409) },
+  response: { 201: toJsonSchema(adAccountSchema), ...errorResponses(400, 401, 403, 404, 409, 500, 502, 503) },
 };
 
 /** Fastify schema for `GET /ad-accounts/:id`. */
@@ -61,7 +65,8 @@ export const updateAdAccountSchema: FastifySchema = {
   tags: TAGS,
   description:
     'Update the name, the timezone or the scope of an account. Its platform, its identifier and its ' +
-    'currency never change — another currency is another account (admin)',
+    'currency never change — another currency is another account. On an account linked to our manager ' +
+    "account, the name and the timezone are the platform's: only the scope changes (admin)",
   headers,
   params,
   body: toJsonSchema(updateAdAccountBodySchema, 'input'),
@@ -73,11 +78,13 @@ export const setAdAccountStatusSchema: FastifySchema = {
   tags: TAGS,
   description:
     'Apply a transition of the lifecycle: pending → active or invalid, active → invalid, invalid → ' +
-    'pending for a new request. Anything else is refused rather than silently stored (admin)',
+    'pending for a new request. Anything else is refused rather than silently stored. On an account ' +
+    'linked to our manager account, the status follows the platform: only invalid → pending is asked, ' +
+    'and it sends a new invitation (admin)',
   headers,
   params,
   body: toJsonSchema(setAdAccountStatusBodySchema, 'input'),
-  response: { 200: toJsonSchema(adAccountSchema), ...errorResponses(400, 401, 403, 404) },
+  response: { 200: toJsonSchema(adAccountSchema), ...errorResponses(400, 401, 403, 404, 500, 502, 503) },
 };
 
 /** Fastify schema for `PUT /ad-accounts/:id/credentials`. */

@@ -226,6 +226,8 @@ describe('Unit::Services::SyncService', () => {
         statusReason: null,
         scope: {},
         secretName: 'omnipotent/ad-account/1',
+        linkRef: null,
+        linkRequestedAt: null,
         deletedAt: null,
         ...overrides.account,
       },
@@ -412,7 +414,7 @@ describe('Unit::Services::SyncService', () => {
       // A `manager_link` platform: our manager account manages theirs, so the account carries no
       // secret, and the adapter reads ours itself (`docs/phase-10.md` § 4.1).
       adapters.hawk = { platform: 'hawk', connection: 'manager_link', apply };
-      seedTree({ account: { secretName: null } });
+      seedTree({ account: { secretName: null, linkRef: 'A1' } });
       seedUnit();
 
       await service.syncCampaign(CAMPAIGN_ID);
@@ -425,7 +427,7 @@ describe('Unit::Services::SyncService', () => {
 
     it('should not read a secret an account of a manager_link platform happens to name', async (): Promise<void> => {
       adapters.hawk = { platform: 'hawk', connection: 'manager_link', apply };
-      seedTree();
+      seedTree({ account: { linkRef: 'A1' } });
       seedUnit();
 
       await service.syncCampaign(CAMPAIGN_ID);
@@ -531,6 +533,8 @@ describe('Unit::Services::SyncService', () => {
       ['an account that was disconnected', { account: { deletedAt: new Date() } }],
       ['an account whose link is still pending', { account: { status: 'pending' } }],
       ['an account with no credentials', { account: { secretName: null } }],
+      ['an account whose client has not accepted, so no currency', { account: { currency: null } }],
+      ['an account whose client has not accepted, so no timezone', { account: { timezone: null } }],
     ])('should skip a unit with %s', async (_label: string, overrides: object): Promise<void> => {
       seedTree(overrides);
       seedUnit();
@@ -656,6 +660,24 @@ describe('Unit::Services::SyncService', () => {
 
       const desired: DesiredUnit = (apply.mock.calls[0] as [unknown, DesiredUnit])[1];
       expect(desired.objects.some((object): boolean => object.object === 'keyword')).toBe(false);
+    });
+
+    it('should push nothing to an account declared by hand on a platform whose credentials are ours', async (): Promise<void> => {
+      // Our credentials reach every account linked to our manager account: one that never went
+      // through the link was never granted by its client through us (`docs/phase-10.md` § 4.5).
+      adapters.hawk = { platform: 'hawk', connection: 'manager_link', apply };
+      seedTree({ account: { secretName: null, linkRef: null } });
+      seedUnit();
+
+      await service.syncCampaign(CAMPAIGN_ID);
+
+      expect(apply).not.toHaveBeenCalled();
+      expect(units()[0]).toMatchObject({
+        syncState: 'error',
+        lastErrorCode: 'sync_account_not_linked',
+        lastErrorParams: { platform: 'hawk' },
+        nextAttemptAt: null,
+      });
     });
 
     it('should refuse definitively a platform with no adapter', async (): Promise<void> => {

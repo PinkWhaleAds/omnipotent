@@ -58,6 +58,14 @@ import { resolvePlatformShares } from './tree.helpers';
 /** One minute, in milliseconds. */
 const MINUTE_IN_MS = 60_000;
 
+/**
+ * What an account buys in, once known.
+ *
+ * @property currency - ISO 4217; every amount sent is expressed in it
+ * @property timezone - IANA; the platform counts its days in it
+ */
+type AccountMoney = { currency: string; timezone: string };
+
 /** The statuses of a campaign whose units are kept in step with the platforms. */
 const LIVE_STATUSES: readonly CampaignEntity['status'][] = ['active', 'paused'];
 
@@ -406,6 +414,10 @@ export class SyncService {
     // preview says so, and the sweep comes back once it is mended — the account's own write marks
     // these units again.
     if (!group || !account || !link || account.deletedAt !== null || account.status !== 'active') return;
+    // A linked account is read at its client's acceptance: until then there is no currency to express
+    // a budget in, nor a timezone to count its days in (`docs/phase-10.md` § 4.4).
+    if (account.currency === null || account.timezone === null) return;
+    const bought: AccountMoney = { currency: account.currency, timezone: account.timezone };
 
     try {
       if (!hasAdapterFor(unit.platform)) {
@@ -420,12 +432,21 @@ export class SyncService {
       // apply with yet: posting it marks the units again.
       const secretName: string | null = adapter.connection === 'account_secret' ? account.secretName : null;
       if (adapter.connection === 'account_secret' && secretName === null) return;
+      // Our credentials reach every account linked to our manager account, so one that never went
+      // through the link — declared by hand before the platform had its adapter — was never granted
+      // by its client through us: nothing is pushed to it (`docs/phase-10.md` § 4.5).
+      if (adapter.connection === 'manager_link' && account.linkRef === null) {
+        throw httpError(409, `This ${unit.platform} account was declared, never linked to our manager account`, {
+          code: 'sync_account_not_linked',
+          params: { platform: unit.platform },
+        });
+      }
 
       const { desired, hash }: { desired: DesiredUnit; hash: string } = await this.buildDesired(
         tree,
         unit,
         group,
-        account
+        bought
       );
       // Nothing changed: no call at all, which is the whole point of the fingerprint.
       if (unit.syncState === 'synced' && unit.syncedHash === hash) return;
@@ -435,8 +456,8 @@ export class SyncService {
         adAccountId: account.id,
         externalId: account.externalId,
         externalAdvertiserId: link.externalAdvertiserId,
-        currency: account.currency,
-        timezone: account.timezone,
+        currency: bought.currency,
+        timezone: bought.timezone,
         scope: account.scope,
         credentials: secretName === null ? null : await this.secrets.get(secretName),
       };
@@ -453,14 +474,15 @@ export class SyncService {
    * @param tree - The campaign's tree
    * @param unit - The unit
    * @param group - Its AdGroup
-   * @param account - The account it buys on, which every amount here is expressed in
+   * @param bought - The currency of the account it buys on, which every amount here is expressed in,
+   *   and the timezone its platform counts days in
    * @returns The desired state and its fingerprint
    */
   private async buildDesired(
     tree: CampaignTree,
     unit: PlatformUnitEntity,
     group: AdGroupEntity,
-    account: AdAccountEntity
+    bought: AccountMoney
   ): Promise<{ desired: DesiredUnit; hash: string }> {
     const campaign: CampaignEntity = tree.campaign;
     const timezone: string = resolveCampaignTimezone(campaign.timezone, null, campaign.organizationId);
@@ -522,8 +544,8 @@ export class SyncService {
       projection,
       campaign: branch,
       insertionOrderNumber: campaign.insertionOrderNumber,
-      currency: account.currency,
-      timezone: account.timezone,
+      currency: bought.currency,
+      timezone: bought.timezone,
       fxRate: unit.fxRate,
       live: campaign.status === 'active',
       today: dayAt(this.now(), timezone),

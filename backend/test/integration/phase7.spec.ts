@@ -67,7 +67,7 @@ describe('Integration::Phase7', () => {
         organizationId: ORGANIZATION,
         advertiserId,
         platform: account.platform,
-        currency: account.currency,
+        currency: account.currency as string,
         adAccountId: account.id,
         externalAdvertiserId: '555',
       })

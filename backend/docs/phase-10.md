@@ -130,6 +130,11 @@ plateforme `manager_link`, quatre méthodes de plus, facultatives, aux noms de m
 `reference` est le compte **tel que le client le lit** dans son interface : le customer id chez
 Google, le numéro de compte chez Microsoft, où il diffère de l'identifiant des appels.
 
+_Ajouté en écrivant le code, le 2026-11-19_ : une cinquième méthode, `referenceOf(saisie)`, pure et
+sans appel, qui rend la référence sous sa forme canonique — `972-563-0707` devient `9725630707` — ou
+`null` si ce n'en est pas une. Sans elle, deux saisies du même compte passeraient pour deux comptes,
+et la règle du § 4.5 tomberait.
+
 ### 4.4 Le compte : ce que le client ne peut pas déclarer
 
 Aujourd'hui, `POST /ad-accounts` exige un nom, une devise et un fuseau, **déclarés**, et
@@ -143,7 +148,9 @@ ce compromis devient dangereux :
 - **le statut vient de Google, pas de l'appelant.** Un `active` posé à la main ferait pousser des
   campagnes sur un compte dont le client n'a jamais accepté le lien. La transition à la main est donc
   **refusée** pour un compte `manager_link`, sauf `invalid → pending`, qui **renvoie une invitation** ;
-- **une marque ne se relie qu'à un compte dont la devise est connue**, donc accepté.
+- **une marque ne se relie qu'à un compte dont la devise est connue**, donc accepté ;
+- **le nom et le fuseau ne se changent pas non plus** après coup, `PATCH` répondant
+  `ad_account_field_read` : seul le `scope` reste à nous.
 
 Deux colonnes s'ajoutent, celles de multi-search : `linkRef`, la référence du lien, et
 `linkRequestedAt`, d'où partent les trente jours.
@@ -175,6 +182,10 @@ Déconnecter un compte **retire son invitation** si elle est encore en attente. 
 en place : c'est au client d'y mettre fin, et c'est ce qui permet de reconnecter son compte sans lui
 redemander son accord.
 
+**Restaurer** un compte lié déconnecté obéit aux mêmes règles : aucune autre Organization ne doit le
+tenir, et celle qui le restaure doit être la dernière à l'avoir tenu, ou l'appelant un super-admin.
+Il revient `pending`, et le job du § 4.6 lit où en est son lien.
+
 ### 4.6 Le job `account.links`
 
 Déjà prévu par `plan.md` et `phase-7.md` § 3, il est écrit par cette phase. Toutes les **15 minutes**,
@@ -184,8 +195,8 @@ pour chaque plateforme `manager_link` :
   reste proportionnel au travail (`../../CADRAGE.md` § 14) ;
 - sinon, **un** appel `linkStatuses()`, quelle que soit la quantité de comptes, puis les transitions du
   § 2. À l'acceptation, **un** `readLinkedAccount` par compte accepté, pour sa devise et son fuseau ;
-- un compte qui se révèle être **lui-même un MCC** à l'acceptation passe `invalid` : un compte
-  gestionnaire ne diffuse aucune campagne.
+- un compte qui se révèle être **lui-même un MCC** à l'acceptation passe `invalid`, avec un motif
+  à lui, `manager_account` : un compte gestionnaire ne diffuse aucune campagne.
 
 Chaque transition passe par la même méthode de service que la route, avec sa table de transitions, et
 marque les unités du compte comme le fait déjà une écriture du compte (`phase-9.md`).
@@ -208,27 +219,38 @@ tourner contre la vraie API :
 (l'étude de multi-search, lue sur la documentation de Google le 2026-10-07). Monter de version est un
 changement d'une ligne, suivi d'une relecture des notes de version.
 
-**Sans le MCC configuré, Google n'a pas d'adapter**, comme chez multi-search : l'application démarre,
-et une connexion Google répond `platform_not_connectable`. Un poste de développement sans les secrets
-Google reste donc utilisable pour tout le reste. C'est l'inverse d'omnipass, sans lequel l'application
-refuse de démarrer, et c'est voulu : sans omnipass, aucune requête n'aurait de sens.
+**Sans le MCC configuré, Google n'a pas d'adapter**, comme chez multi-search : l'application démarre.
+Un poste de développement sans les secrets Google reste donc utilisable pour tout le reste. C'est
+l'inverse d'omnipass, sans lequel l'application refuse de démarrer, et c'est voulu : sans omnipass,
+aucune requête n'aurait de sens.
+
+_Corrigé en écrivant le code, le 2026-11-19_ : ce paragraphe disait qu'une connexion Google
+répondrait alors `platform_not_connectable`. Ce n'est pas possible tel que le point 1 est tranché : la
+façon de se connecter est déclarée **par l'adapter**, donc sans adapter rien ne dit que Google est une
+plateforme `manager_link`. Un compte Google se **déclare** alors comme en phase 7, comme celui de
+toute plateforme pas encore branchée. Le danger serait qu'il soit poussé plus tard, une fois l'adapter
+présent, sans que son client ait rien accordé : le moteur l'interdit — une unité `manager_link` dont
+le compte n'a pas de `linkRef` s'arrête sur `sync_account_not_linked`, définitivement. Le code
+`platform_not_connectable` n'existe donc pas.
 
 ### Les codes d'erreur du lot
 
 | Code                           | Statut | Quand                                                                                | `params`                |
 | ------------------------------ | ------ | ------------------------------------------------------------------------------------ | ----------------------- |
+| `ad_account_field_required`    | 400    | Déclarer un compte d'une autre plateforme sans son nom, sa devise ou son fuseau      | `platform`, `field`     |
 | `ad_account_reference_invalid` | 400    | Le customer id n'a pas dix chiffres, tirets permis                                   | `platform`, `field`     |
 | `ad_account_field_read`        | 400    | Une devise, un fuseau ou un nom déclarés pour un compte dont la plateforme les donne | `platform`, `field`     |
 | `ad_account_status_read`       | 400    | Une transition à la main sur un compte dont la plateforme tient le statut            | `platform`, `to`        |
 | `ad_account_currency_unknown`  | 400    | Relier une marque à un compte pas encore accepté                                     | `status`                |
 | `ad_account_manager`           | 400    | Le compte est lui-même un MCC                                                        | `platform`, `reference` |
+| `ad_account_link_refused`      | 400    | Google refuse le lien ; `reason` porte son code quand il en donne un                 | `platform`, `reason`    |
 | `ad_account_linked_elsewhere`  | 409    | Une autre Organization tient ce compte (§ 4.5)                                       | `platform`              |
 | `ad_account_already_managed`   | 409    | Notre MCC le gère déjà sans que le client l'ait accordé à celle-ci                   | `platform`              |
-| `platform_not_connectable`     | 400    | Aucun adapter pour cette plateforme, ou pas configuré                                | `platform`              |
 | `platform_credentials_failed`  | 502    | **Nos** credentials ont échoué : un opérateur doit agir                              | `platform`              |
 | `platform_unavailable`         | 503    | La plateforme ne répond pas, ou demande d'attendre                                   | `platform`              |
 
-Ils iront dans `error-codes.md` avec le code, comme toujours.
+Ils sont dans `error-codes.md` depuis le lot 1, avec `sync_account_not_linked` et
+`sync_platform_credentials_failed`, que le moteur garde sur une unité.
 
 ## 6. Comment la phase se teste
 

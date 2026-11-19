@@ -2,11 +2,12 @@
  * @module configs
  *
  * Barrel file that re-exports all application configuration modules.
- * Provides centralized access to the access provider, application, authentication, database,
+ * Provides centralized access to the access provider, platform accounts, application, authentication, database,
  * documentation, HTTP server, logger, MCP server, omnipass, preview, queue, secret store, storage
  * and synchronization configurations.
  */
 export * from './access.config';
+export * from './ad-account.config';
 export * from './app.config';
 export * from './auth.config';
 export * from './database.config';

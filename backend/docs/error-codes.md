@@ -334,6 +334,35 @@ sont exprimés, donc un compte d'une autre devise est un autre compte — l'envo
 `validation_failed`. Et il n'existe **aucun code** au sujet d'un credential : sa valeur n'est jamais
 lue, donc jamais refusée ; l'API ne dit que `hasCredentials`.
 
+### Les comptes liés à notre compte gestionnaire
+
+Phase 10 (`docs/phase-10.md` § 4). Une plateforme dont l'adapter déclare `manager_link` — Google Ads,
+puis Microsoft — connecte un compte par sa seule **référence** : nous l'invitons sous notre compte
+gestionnaire, ou le lisons tout de suite quand celui-ci le gère déjà. Son nom, sa devise et son fuseau
+sont **lus** chez la plateforme, et son statut suit le lien.
+
+| Code                           | Statut | Quand                                                                                                                                                      | `params`                |
+| ------------------------------ | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| `ad_account_field_required`    | 400    | Déclarer un compte d'une plateforme qui ne les donne pas sans son nom, sa devise ou son fuseau                                                             | `platform`, `field`     |
+| `ad_account_field_read`        | 400    | Déclarer, ou changer, un nom, une devise ou un fuseau que la plateforme donne                                                                              | `platform`, `field`     |
+| `ad_account_reference_invalid` | 400    | La référence n'en est pas une : un customer id Google a dix chiffres, tirets permis                                                                        | `platform`, `field`     |
+| `ad_account_status_read`       | 400    | Une transition à la main sur un compte lié ; seule `invalid → pending` se demande, et réinvite                                                             | `platform`, `to`        |
+| `ad_account_currency_unknown`  | 400    | Relier une marque à un compte dont le client n'a pas encore accepté le lien : pas de devise                                                                | `status`                |
+| `ad_account_manager`           | 400    | Le compte est lui-même un compte gestionnaire, qui ne diffuse aucune campagne                                                                              | `platform`, `reference` |
+| `ad_account_link_refused`      | 400    | La plateforme refuse le lien, avec son propre code quand elle en donne un                                                                                  | `platform`, `reason`    |
+| `ad_account_linked_elsewhere`  | 409    | Une autre Organization tient ce compte — sans dire laquelle                                                                                                | `platform`              |
+| `ad_account_already_managed`   | 409    | Notre compte gestionnaire gère déjà ce compte, et ni un super-admin ni l'Organization qui l'a tenu en dernier ne le demande (règle de Lorin du 2026-11-19) | `platform`              |
+| `platform_credentials_failed`  | 502    | **Nos** credentials ont échoué : un opérateur doit agir, le client n'y peut rien                                                                           | `platform`              |
+| `platform_unavailable`         | 503    | La plateforme n'a pas répondu, ou demande d'attendre : réessayer dans un moment                                                                            | `platform`              |
+
+Un refus que **nous** avons formulé arrive avec notre code à nous, et les valeurs de son message : la
+phase de chaque plateforme les ajoute ici. Un compte dont la plateforme n'a pas d'adapter, ou dont
+l'adapter se dit `manager_link` sans implémenter le lien, répond `sync_adapter_missing` (500) : c'est
+notre manque, jamais celui de l'appelant.
+
+Le **motif de statut** `manager_account` s'ajoute aux autres : un compte qui se révèle, à
+l'acceptation, être lui-même un compte gestionnaire passe `invalid` avec lui.
+
 ## La preview et le cycle de vie
 
 `src/services/preview.service.ts` (phase 8, `docs/phase-8.md` § 3 et § 4).
@@ -406,6 +435,7 @@ les rend dans `errorCode` et `errorParams`. Le front les traduit comme les autre
 | Code                               | Quand                                                                                                                                                                                                                                                                                               | `params`   |
 | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
 | `sync_adapter_missing`             | Le couple est déclaré au registre mais aucune phase n'a écrit l'adapter                                                                                                                                                                                                                             | `platform` |
+| `sync_account_not_linked`          | Un compte **déclaré à la main** sur une plateforme dont les credentials sont les nôtres, donc jamais lié par nous : rien n'y est poussé. Le déconnecter, puis le connecter par sa référence (`docs/phase-10.md` § 4.5)                                                                              | `platform` |
 | `sync_platform_credentials_failed` | **Nos** credentials ont échoué chez la plateforme — un compte de service, l'autorisation de notre compte gestionnaire. Le compte du client reste `active`, et l'unité réessaie avec le recul habituel : c'est à un opérateur d'agir, et tout repart seul une fois réparé (`docs/phase-10.md` § 4.2) | `platform` |
 
 Une erreur venue d'une plateforme garde **son** texte et son code à elle : `errorCode` est alors nul,

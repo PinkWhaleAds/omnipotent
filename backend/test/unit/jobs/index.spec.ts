@@ -1,6 +1,13 @@
 import { FastifyInstance } from 'fastify';
 
-import { CAMPAIGN_END_JOB, JOB_DEFINITIONS, PACING_REFRESH_JOB, SYNC_CAMPAIGN_JOB, SYNC_SWEEP_JOB } from '@src/jobs';
+import {
+  ACCOUNT_LINKS_JOB,
+  CAMPAIGN_END_JOB,
+  JOB_DEFINITIONS,
+  PACING_REFRESH_JOB,
+  SYNC_CAMPAIGN_JOB,
+  SYNC_SWEEP_JOB,
+} from '@src/jobs';
 import { JobDefinition } from '@src/types/job.types';
 
 /** The campaign a job names. */
@@ -8,6 +15,7 @@ const CAMPAIGN_ID = 'f1000000-0000-4000-8000-000000000001';
 
 describe('Unit::Jobs', () => {
   let sync: Record<string, jest.Mock>;
+  let accounts: Record<string, jest.Mock>;
   let fastify: FastifyInstance;
 
   beforeEach((): void => {
@@ -18,13 +26,14 @@ describe('Unit::Jobs', () => {
       refreshPacing: jest.fn().mockResolvedValue(undefined),
       endCampaigns: jest.fn().mockResolvedValue(undefined),
     };
-    fastify = { syncService: sync } as unknown as FastifyInstance;
+    accounts = { checkLinks: jest.fn().mockResolvedValue(undefined) };
+    fastify = { syncService: sync, adAccountService: accounts } as unknown as FastifyInstance;
   });
 
   it('should declare every job exactly once, under a queue name a process can create', (): void => {
     const names: string[] = JOB_DEFINITIONS.map((job: JobDefinition): string => job.name);
 
-    expect(names).toEqual(['sync.campaign', 'sync.sweep', 'pacing.refresh', 'campaign.end']);
+    expect(names).toEqual(['sync.campaign', 'sync.sweep', 'pacing.refresh', 'campaign.end', 'account.links']);
     expect(new Set(names).size).toBe(names.length);
     for (const name of names) expect(name).toMatch(/^[\w.\-/]+$/);
   });
@@ -75,6 +84,17 @@ describe('Unit::Jobs', () => {
       await (CAMPAIGN_END_JOB.createHandler(fastify) as () => Promise<void>)();
 
       expect(sync.endCampaigns).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('account.links', () => {
+    it('should follow the links of the accounts every fifteen minutes, one pass at a time', async (): Promise<void> => {
+      expect(ACCOUNT_LINKS_JOB.cron).toBe('*/15 * * * *');
+      expect(ACCOUNT_LINKS_JOB.policy).toMatchObject({ policy: 'exclusive', retryLimit: 0 });
+
+      await (ACCOUNT_LINKS_JOB.createHandler(fastify) as () => Promise<void>)();
+
+      expect(accounts.checkLinks).toHaveBeenCalledTimes(1);
     });
   });
 });

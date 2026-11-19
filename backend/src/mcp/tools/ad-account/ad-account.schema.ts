@@ -129,10 +129,15 @@ export const getAdAccountSchema = {
 export const connectAdAccountSchema = {
   title: 'Connect a platform account',
   description:
-    'Connect an account of a platform to an Organization. It arrives **pending**: most platforms ask ' +
-    'the client to accept the access first. The currency never changes afterwards — another currency ' +
-    'is another account — and the credentials are posted from the web interface or the HTTP API, never ' +
-    'through a tool: never ask the user for a key or a token. Requires the admin role',
+    'Connect an account of a platform to an Organization. On a platform whose accounts link to our ' +
+    'manager account (Google Ads), give its reference alone — the Google customer id, dashes allowed: it ' +
+    'is invited and arrives **pending** until an admin of the client accepts in Google Ads (Admin → ' +
+    'Access and security → Managers), or **active** at once when our manager account already manages ' +
+    'it, which only a super-admin or the Organization that held it last may take. Its name, currency ' +
+    'and timezone are then read there: do not send them. On any other platform, send all three; it ' +
+    'arrives pending. The currency never changes afterwards — another currency is another account — ' +
+    'and the credentials are posted from the web interface or the HTTP API, never through a tool: never ' +
+    'ask the user for a key or a token. Requires the admin role',
   inputSchema: connectAdAccountInputSchema,
   outputSchema: adAccountSchema,
   annotations: {},
@@ -143,7 +148,8 @@ export const updateAdAccountSchema = {
   title: 'Change a platform account',
   description:
     'Change the name, the timezone or the scope of an account. Its platform, its identifier and its ' +
-    'currency never change. Requires the admin role',
+    'currency never change, and on an account linked to our manager account the name and the timezone ' +
+    'are read from the platform: only the scope changes. Requires the admin role',
   inputSchema: updateAdAccountInputSchema,
   outputSchema: adAccountSchema,
   annotations: { idempotentHint: true },
@@ -155,7 +161,9 @@ export const setAdAccountStatusSchema = {
   description:
     'Apply a transition: pending → active when the client accepted, pending → invalid on a refusal or ' +
     'an expiry, active → invalid on a revocation or rejected credentials, invalid → pending for a new ' +
-    'request. Any other passage is refused. Requires the admin role',
+    'request. Any other passage is refused. On an account linked to our manager account the status ' +
+    'follows the platform, checked every fifteen minutes: only invalid → pending is asked, and it ' +
+    'sends a new invitation. Requires the admin role',
   inputSchema: setAdAccountStatusInputSchema,
   outputSchema: adAccountSchema,
   annotations: { idempotentHint: true },

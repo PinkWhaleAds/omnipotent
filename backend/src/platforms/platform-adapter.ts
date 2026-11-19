@@ -116,6 +116,15 @@ export interface PlatformAdapter {
   readonly connection: PlatformConnection;
 
   /**
+   * The canonical form of a reference, from what a person typed: the one every check of uniqueness
+   * compares and every link status is keyed by. Pure, no call.
+   *
+   * @param input - As given, a Google customer id with or without its dashes
+   * @returns The reference, or `null` when it is not one
+   */
+  referenceOf?(input: string): string | null;
+
+  /**
    * Link a client account to our manager account: nothing to send when ours already manages it,
    * else an invitation the client accepts in the platform's interface.
    *

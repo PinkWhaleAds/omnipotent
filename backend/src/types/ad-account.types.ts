@@ -22,6 +22,8 @@ export type AdAccountStatus = z.infer<typeof adAccountStatusSchema>;
  * Why an account is not `active`, with a **stable code** the front translates.
  *
  * `link_requested` is the only reason of a `pending` account; the others say what ended the access.
+ * `manager_account` is an account that turned out, once accepted, to be itself a manager account,
+ * which runs no campaign (`docs/phase-10.md` § 4.6).
  */
 export const adAccountStatusReasonSchema = z.enum([
   'link_requested',
@@ -29,6 +31,7 @@ export const adAccountStatusReasonSchema = z.enum([
   'link_expired',
   'link_revoked',
   'credentials_rejected',
+  'manager_account',
 ]);
 
 /** TypeScript type inferred from {@link adAccountStatusReasonSchema}. */
@@ -75,8 +78,10 @@ export type AdAccountScope = z.infer<typeof adAccountScopeSchema>;
  * @property platform - The platform it lives on
  * @property externalId - Its identifier there
  * @property name - What an interface shows
- * @property currency - ISO 4217; the pacing and the exchange rates depend on it, and it never changes
- * @property timezone - IANA timezone the platform counts its days in
+ * @property currency - ISO 4217; the pacing and the exchange rates depend on it, and it never changes.
+ *   `null` while an account linked to our manager account waits for its client: it is **read** there
+ *   at the acceptance, never declared (`docs/phase-10.md` § 4.4)
+ * @property timezone - IANA timezone the platform counts its days in; `null` like the currency
  * @property status - Where the access stands
  * @property statusReason - Why, when it is not `active`
  * @property scope - What the platform requires above the account
@@ -90,9 +95,9 @@ export const adAccountSchema = z.object({
   organizationId: z.uuid(),
   platform: platformSchema,
   externalId: z.string(),
-  name: z.string(),
-  currency: z.string(),
-  timezone: z.string(),
+  name: z.string().nullable(),
+  currency: z.string().nullable(),
+  timezone: z.string().nullable(),
   status: adAccountStatusSchema,
   statusReason: adAccountStatusReasonSchema.nullable(),
   scope: adAccountScopeSchema,
@@ -127,22 +132,29 @@ export type ListAdAccountsQuery = z.infer<typeof listAdAccountsQuerySchema>;
 /**
  * Zod schema of the body connecting an account.
  *
- * It arrives `pending`: the client has to accept the access, and `PUT /ad-accounts/:id/status` is
- * what records their answer (`docs/phase-7.md` § 3).
+ * Two ways, decided by the platform's adapter rather than by the body (`docs/phase-10.md` § 4.4):
+ *
+ * - a platform whose accounts link to **our** manager account (`manager_link`) takes the reference
+ *   alone — the name, the currency and the timezone are **read** there, and declaring one is refused;
+ * - any other declares all three, as in phase 7, and the account waits for its client's answer,
+ *   which `PUT /ad-accounts/:id/status` records (`docs/phase-7.md` § 3).
+ *
+ * Hence three optional fields here, whose presence the service checks.
  *
  * @property platform - The platform
- * @property externalId - Its identifier there
- * @property name - What an interface shows
- * @property currency - ISO 4217; it never changes afterwards
- * @property timezone - IANA timezone; declared until an adapter reads it from the platform
+ * @property externalId - Its identifier there; for a `manager_link` platform, the account as the
+ *   client reads it in the platform's interface (a Google customer id, dashes allowed)
+ * @property name - What an interface shows; declared only where the platform does not give it
+ * @property currency - ISO 4217; it never changes afterwards; declared likewise
+ * @property timezone - IANA timezone; declared likewise
  * @property scope - What the platform requires above the account
  */
 export const connectAdAccountBodySchema = z.strictObject({
   platform: platformSchema,
   externalId: externalIdSchema,
-  name: z.string().trim().min(1).max(255),
-  currency: currencySchema,
-  timezone: timezoneSchema,
+  name: z.string().trim().min(1).max(255).optional(),
+  currency: currencySchema.optional(),
+  timezone: timezoneSchema.optional(),
   scope: adAccountScopeSchema.optional(),
 });
 

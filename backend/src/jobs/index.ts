@@ -12,7 +12,8 @@
  * (`../../CADRAGE.md` § 14, `docs/phase-9.md` § 4). What they have in common is that **none of them
  * walks the fleet**: the sweep reads the units that have something to apply, the pacing reads the
  * campaigns whose own midnight has passed, and the end of a campaign is a single statement. The cost
- * of a minute therefore follows the work waiting, not the size of the database.
+ * of a minute therefore follows the work waiting, not the size of the database. The job that follows
+ * the links of the accounts keeps to the same rule (`docs/phase-10.md` § 4.6).
  */
 import type { FastifyInstance } from 'fastify';
 
@@ -80,10 +81,28 @@ export const CAMPAIGN_END_JOB: JobDefinition = {
       fastify.syncService.endCampaigns(),
 };
 
+/**
+ * Follow the links of the accounts invited to, or managed by, our manager accounts, every fifteen
+ * minutes (`docs/phase-7.md` § 3, `docs/phase-10.md` § 4.6).
+ *
+ * It does not walk the fleet either: one read of the links per platform, whatever the number of
+ * accounts, and none for a platform with no account to follow.
+ */
+export const ACCOUNT_LINKS_JOB: JobDefinition = {
+  name: 'account.links',
+  policy: { policy: 'exclusive', retryLimit: 0, expireInSeconds: 600 },
+  cron: '*/15 * * * *',
+  createHandler:
+    (fastify: FastifyInstance): (() => Promise<void>) =>
+    (): Promise<void> =>
+      fastify.adAccountService.checkLinks(),
+};
+
 /** Job definitions, see {@link JobDefinition}. */
 export const JOB_DEFINITIONS: JobDefinition[] = [
   SYNC_CAMPAIGN_JOB as JobDefinition,
   SYNC_SWEEP_JOB,
   PACING_REFRESH_JOB,
   CAMPAIGN_END_JOB,
+  ACCOUNT_LINKS_JOB,
 ];
