@@ -125,16 +125,36 @@ Vérifiable sans omnipass, et vérifié :
 - `POST /identity/resolve`, jeton de la personne relayé en `X-End-User-Token` : **200**, instantané
   complet — l'utilisateur, son Seat, son Organization avec son rôle effectif, ses invitations ;
 - une lecture dans une Organization où la personne a un rôle : **200** ;
-- une Organization qu'elle ne voit pas : **404 `organization_not_found`**, et c'est la preuve que le
-  vrai service répond — le bouchon fait de l'appelant un `admin` de **toute** Organization et aurait
-  répondu 200.
+- une Organization qu'elle ne voit pas : **404 `organization_not_found`**. Ce refus **n'est pas venu
+  d'omnipass** : le paquet l'a levé dans notre processus, sur l'instantané en cache, sans appel réseau.
+  Les journaux d'omnipass ne montrent ce soir-là que trois `resolve`, tous en 200, et aucun 404 ni 403
+  (sa lettre du 2026-11-17). C'est T3 vérifié en vrai : une autorisation ne coûte aucun aller-retour.
+  Le 404 reste la preuve que l'instantané est le vrai, puisque le bouchon faisait de l'appelant un
+  `admin` de **toute** Organization et aurait répondu 200.
+
+Pourquoi trois `resolve` et pas un seul : un instantané est gardé **60 s** (`DEFAULT_CACHE_TTL` du
+paquet, et notre `cacheTtl` par défaut), et les étapes se sont étalées sur trois minutes. Le premier
+appel a pris 343 ms, parce qu'il allait chercher les clés du tenant à froid ; les suivants ont pris 15
+et 32 ms. Ne rien dimensionner sur le premier chiffre. Et pour suivre ce qu'omnipass reçoit vraiment,
+il ne faut regarder que `resolve` dans ses journaux : nos 404 et 403 n'y apparaîtront jamais.
 
 Ce qui reste à vérifier, et pourquoi :
 
-- **un rôle trop faible : 403 `role_required`.** Intestable aujourd'hui : le seul compte dont nous
-  disposons est super-admin, donc `admin` de toute Organization par la règle des rôles effectifs. Il
-  faut une **deuxième personne**, avec un rôle `viewer`, invitée par omnipass ;
+- **un rôle trop faible : 403 `role_required`.** Il est intestable avec notre compte, et c'est
+  **structurel**. Chez omnipass, un super-admin est `seat_admin` de tout Seat (`loadSeatRole`), donc
+  `admin` de toute Organization. **Le piège** : le drapeau super-admin s'accorde mais ne se retire
+  jamais (`user.isSuperAdmin ||= …`). Retirer l'adresse de la liste des super-admins ne rétrograde donc
+  rien, et on chercherait la panne du mauvais côté. **La recette** d'omnipass (`A-FAIRE.md`) :
+  1. inviter une seconde adresse (un alias `+` suffit) avec le rôle `viewer` ;
+  2. se connecter avec cette adresse et accepter l'invitation ;
+  3. appeler une action qui exige `manager`.
+
+  Il faut bien l'**inviter** d'abord : une adresse jamais invitée et non super-admin ne peut pas se
+  connecter du tout (`user_not_invited`) ;
+
 - **le même parcours par le MCP**, qui attend que notre API MCP existe et que son audience soit
-  ajoutée à l'entrée `pinkwhale` ;
+  ajoutée à l'entrée `pinkwhale`. Ce parcours passe par **notre** `/mcp`, avec le jeton d'une personne,
+  relayé à `resolve` comme en REST. Le `/mcp` d'omnipass n'est pas sur ce chemin, et il refuse de toute
+  façon un jeton machine (`user_required`) ;
 - les quatre cas de dégradation du § 4 de `branchement-omnipotent.md` contre un vrai omnipass ; ils
   sont déjà couverts chez lui contre un `fetchFn` injecté.

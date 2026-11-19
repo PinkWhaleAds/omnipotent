@@ -419,14 +419,26 @@ qu'on ait le refus exact plutôt qu'un 403 à deviner.
 | Une lecture dans une Organization où la personne a un rôle           | **200**                          |
 | Une Organization qu'elle ne voit pas                                 | **404 `organization_not_found`** |
 
-Le dernier est le plus instructif : c'est la preuve que c'est le **vrai** service qui répond. Le
-bouchon faisait de l'appelant un `admin` de **toute** Organization et aurait répondu 200. C'est aussi
-ce qui a permis de supprimer le bouchon le même soir.
+Le dernier est le plus instructif, et il n'est **pas venu d'omnipass** : le paquet l'a levé chez nous,
+sur l'instantané en cache, sans appel réseau. Les journaux d'omnipass le confirment : ce soir-là, trois
+`resolve`, tous en 200, et rien d'autre (sa lettre du 2026-11-17, détail dans
+`backend/docs/phase-1.md` § 6). C'est la preuve que l'instantané est le **vrai**, puisque le bouchon
+faisait de l'appelant un `admin` de **toute** Organization et aurait répondu 200. C'est aussi ce qui a
+permis de supprimer le bouchon le même soir.
 
 **Ce qui n'est toujours pas vérifié, et pourquoi** : le **403 `role_required`**, celui d'un rôle trop
-faible. Le seul compte dont nous disposons est super-admin, donc `admin` de toute Organization par la
-règle des rôles effectifs : il ne peut pas se faire refuser. Il faut une **deuxième personne**, avec
-un rôle `viewer`, invitée par omnipass. C'est la dernière case de la phase 1, et elle dépend de toi.
+faible. Ton compte est super-admin, et chez omnipass un super-admin est `admin` de toute Organization :
+il ne peut pas se faire refuser. **N'essaie pas de te rétrograder** en retirant ton adresse de la liste
+des super-admins : le drapeau ne se retire jamais, et rien ne changerait. Il faut une **deuxième
+adresse** — un alias comme `admin+viewer@…` suffit. La recette, en trois gestes :
+
+1. tu l'invites dans une Organization avec le rôle **`viewer`** — une adresse jamais invitée ne peut
+   pas se connecter du tout (`user_not_invited`) ;
+2. tu te connectes avec elle et tu acceptes l'invitation ;
+3. tu appelles une action qui exige `manager` : la réponse attendue est 403 `role_required`, avec
+   `params: { required, actual }`.
+
+C'est la dernière case de la phase 1, et elle dépend de toi.
 
 Le même déménagement attend **multi-search** : il n'est pas encore sur ce tenant, donc son chemin
 relayé est hors service jusqu'à sa bascule — ce qu'omnipass assume, ce chemin n'ayant jamais servi en

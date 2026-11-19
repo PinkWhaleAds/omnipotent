@@ -103,10 +103,13 @@ d'avancement de `backend/docs/plan.md` ; ne le recopie pas ici, lis-le là-bas.
   magasin. D43 est **amendée** en ce sens dans `CADRAGE.md` ;
 - le chemin relayé a été **vérifié contre le vrai omnipass** : jeton machine, `resolve` relayé → 200
   avec l'instantané complet, lecture autorisée → 200, Organization invisible → **404
-  `organization_not_found`** (`backend/docs/phase-1.md` § 6) ;
+  `organization_not_found`** (`backend/docs/phase-1.md` § 6). Ce 404 a été levé **chez nous**, par le
+  paquet, sur l'instantané en cache : omnipass n'a servi que des `resolve` en 200 (sa lettre du
+  2026-11-17). Une trace de nos 404 ou 403 ne se cherche donc **jamais** dans ses journaux ;
 - **ce qui reste non vérifié** : le **403 `role_required`**. Le seul compte existant est super-admin,
-  donc `admin` de toute Organization : il ne peut pas se faire refuser. Il faut une deuxième personne
-  avec un rôle `viewer`, invitée par omnipass (`A-FAIRE.md`, runbook A5).
+  donc `admin` de toute Organization : il ne peut pas se faire refuser, et le drapeau ne se retire
+  jamais. Il faut une seconde adresse (un alias `+` suffit) invitée en `viewer` : la recette d'omnipass
+  est dans `A-FAIRE.md` et le runbook, A5.
 
 ## 4. Démarrer la machine
 

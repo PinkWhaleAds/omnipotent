@@ -2,7 +2,7 @@
   "mcpServers": {
     "omnipotent": {
       "type": "http",
-      "url": "http://localhost:3000/mcp",
+      "url": "http://localhost:3002/mcp",
       "headers": {
         "Authorization": "Bearer ${OMNIPOTENT_TOKEN}",
         "X-Organization-Id": "${OMNIPOTENT_ORGANIZATION_ID:-}"
