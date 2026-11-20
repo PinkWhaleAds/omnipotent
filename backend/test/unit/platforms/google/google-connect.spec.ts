@@ -123,6 +123,17 @@ describe('Unit::Platforms::Google::Connect', () => {
     };
   }
 
+  /**
+   * Wait until the command listens: it reads the secret store first, so its server starts later.
+   *
+   * @returns A promise that resolves once the consent page is printed
+   */
+  async function listening(): Promise<void> {
+    while (server.listener === null || printed.length < 2) {
+      await new Promise<void>((resolve): void => void setImmediate(resolve));
+    }
+  }
+
   beforeEach((): void => {
     server = new FakeServer();
     secrets = { get: jest.fn().mockResolvedValue(CLIENT_JSON), put: jest.fn().mockResolvedValue(undefined) };
@@ -190,6 +201,7 @@ describe('Unit::Platforms::Google::Connect', () => {
   describe('connectGoogleAds', () => {
     it('should keep the consent of our inviter, and say so without printing a secret', async (): Promise<void> => {
       const run: Promise<unknown> = connectGoogleAds(options());
+      await listening();
 
       const consentUrl = new URL(printed[1]);
       expect(consentUrl.searchParams.get('redirect_uri')).toBe('http://127.0.0.1:5555');
@@ -230,6 +242,7 @@ describe('Unit::Platforms::Google::Connect', () => {
       ask.mockResolvedValueOnce(' c-2 ').mockResolvedValueOnce(' s-2 ');
       fetchFn.mockImplementation(async (): Promise<Response> => tokenResponse({ refresh_token: 'r-2' }));
       const run: Promise<unknown> = connectGoogleAds(options());
+      await listening();
 
       await server.hit(`/?state=${STATE}&code=c`);
 
@@ -243,6 +256,7 @@ describe('Unit::Platforms::Google::Connect', () => {
       ['a request without an address', undefined, 'does not carry the state'],
     ])('should stop on %s', async (_label: string, url: string | undefined, reason: string): Promise<void> => {
       const run: Promise<unknown> = connectGoogleAds(options());
+      await listening();
       const failed: Promise<void> = expect(run).rejects.toThrow(reason);
 
       const page: Page = await server.hit(url);
@@ -254,6 +268,7 @@ describe('Unit::Platforms::Google::Connect', () => {
 
     it('should answer 404 to anything but its own page, and 410 once the consent is over', async (): Promise<void> => {
       const run: Promise<unknown> = connectGoogleAds(options());
+      await listening();
 
       await expect(server.hit('/favicon.ico')).resolves.toMatchObject({ status: 404 });
       await server.hit(`/?state=${STATE}&code=c`);
@@ -309,6 +324,7 @@ describe('Unit::Platforms::Google::Connect', () => {
       async (_label: string, arrange: () => void, reason: string): Promise<void> => {
         arrange();
         const run: Promise<unknown> = connectGoogleAds(options());
+        await listening();
         const failed: Promise<void> = expect(run).rejects.toThrow(reason);
 
         const page: Page = await server.hit(`/?state=${STATE}&code=c`);
@@ -321,6 +337,7 @@ describe('Unit::Platforms::Google::Connect', () => {
 
     it('should stop when the server fails', async (): Promise<void> => {
       const run: Promise<unknown> = connectGoogleAds(options());
+      await listening();
 
       (server.onError as (error: Error) => void)(new Error('EADDRINUSE'));
 

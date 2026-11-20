@@ -260,6 +260,22 @@ describe('Unit::Platforms::Google::Adapter', () => {
       });
     });
 
+    it('should ask the inviter a new token when Google refuses the one kept, and try once more', async (): Promise<void> => {
+      let refusals = 1;
+      mutate = (): Response =>
+        refusals-- > 0 ? json({ error: { status: 'UNAUTHENTICATED', message: 'Expired' } }, 401) : json({ result: {} });
+
+      await expect(adapter.requestLink(CLIENT)).resolves.toBe('pending');
+
+      const inviterExchanges = fetchFn.mock.calls.filter(
+        ([url, init]: [string, RequestInit]): boolean =>
+          url === GOOGLE_ADS_API.tokenUrl &&
+          new URLSearchParams(init.body as string).get('grant_type') === 'refresh_token'
+      );
+      expect(inviterExchanges).toHaveLength(2);
+      expect(linkChanges()).toHaveLength(2);
+    });
+
     it('should blame our own credentials when the inviter never consented', async (): Promise<void> => {
       inviterSecret = JSON.stringify({ clientId: 'c-1', clientSecret: 's-1' });
 
