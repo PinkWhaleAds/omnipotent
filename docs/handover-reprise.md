@@ -50,6 +50,19 @@ nouveau avant de supposer quoi que ce soit. Sur l'ancien, la forme qui passait �
 cd backend && npx jest --coverage true --coverageDirectory=coverage-unit --maxWorkers=4
 ```
 
+**Et même ça ne suffit plus** : le 2026-11-19, `--runInBand` avec la couverture, sur **deux** fichiers,
+a coïncidé avec un plantage du poste (le serveur VS Code a redémarré). ts-jest vérifie le typage de
+tout le programme pour chaque fichier, et trois fenêtres VS Code tiennent déjà ~4 Go. **La voie qui
+marche est GitHub** : la CI (`.github/workflows/backend.yml`) lance lint, format, build, unitaires à
+100 % et intégration en ~7 minutes, sur `main` **et sur toute pull request**. On pousse donc une
+branche, Lorin ouvre la PR — `gh` est connecté en `LorinProjects`, qui n'est pas collaborateur de
+`PinkWhaleAds/omnipotent` et ne peut pas la créer : il faut le lien
+`https://github.com/PinkWhaleAds/omnipotent/pull/new/<branche>` et son clic —, on suit le run avec
+`gh run list -R PinkWhaleAds/omnipotent -b <branche>` (la lecture passe), puis on avance `main` en
+`--ff-only` et on pousse : la PR se marque fusionnée d'elle-même. En local, au plus les fichiers
+touchés, un processus, la mémoire plafonnée :
+`NODE_OPTIONS=--max-old-space-size=2048 npx jest --runInBand <fichiers>`, et seulement avec son accord.
+
 **Un secret ne passe jamais par le chat, et « le chat » inclut un fichier ouvert dans l'éditeur.**
 L'extension VS Code envoie automatiquement la sélection de Lorin : un secret collé dans un fichier puis
 sélectionné arrive dans la conversation comme s'il l'avait écrit, même si le fichier est ignoré par
@@ -231,7 +244,9 @@ vient après. L'ordre :
    ses points numérotés (§ 7) et la règle du super-admin (§ 4.5). Ce qui suit est l'état d'avant :
    écrire `backend/docs/phase-10.md`, le contrat, comme chaque phase — avec les déductions
    ci-dessous, numérotées, présentées **simplement** à Lorin (§ 2).
-2. **Combler les trous du moteur**, qui valent pour toutes les plateformes. La lecture du 2026-11-18
+2. ✅ **Fait le 2026-11-19 : le lot 1 de `phase-10.md`**, sur `main` depuis `a815263` et vert sur
+   GitHub (PR n°3). Ce qui suit est l'état d'avant.
+   **Combler les trous du moteur**, qui valent pour toutes les plateformes. La lecture du 2026-11-18
    en a trouvé trois, **non validés** par Lorin — mon premier exposé était trop technique, il faudra
    le refaire :
    - le moteur **saute toute unité dont le compte n'a pas de `secretName`**
