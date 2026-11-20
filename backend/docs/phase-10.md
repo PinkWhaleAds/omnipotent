@@ -560,6 +560,23 @@ Le compte se désigne par son customer id, et la marque aussi : Google n'a pas d
 sous un compte, donc l'`externalAdvertiserId` d'un `AdvertiserAdAccount` Google vaut le customer id
 (étude § 9, point 2).
 
+### 8.5 bis Où en est 3a
+
+Livré en pas successifs sur la branche `phase-10-lot-3` (PR n°7), chacun vert sur GitHub :
+
+1. ✅ l'état voulu porte la stratégie d'enchère, la déclaration politique et la page où va un clic ; le
+   registre gagne `bidStrategies`, `sharedTargeting` et `maxActiveAds`, que la preview fait respecter ;
+   un compte relié à notre MCC passe la preview (§ 8.4, points 1, 8, 9 et 10) ;
+2. ✅ le statut d'un nœud se change seul, aux quatre niveaux, et un AdGroup jamais activé n'a pas
+   d'unité (point 2) ;
+3. ✅ l'heure de départ (point 3) ;
+4. ✅ les réglages par plateforme, les extensions et l'intention de lieu (points 4 à 6) ;
+5. ✅ la marque sur la créa RSA, et les fichiers d'une créa décrits dans l'état voulu (point 7) ;
+6. **à faire** : le couple `(google_ads, search)` du registre, le `mutate` du client, le mapping et
+   `apply` (§ 8.3 et § 8.5) — transcrits de `google.mapping.ts` et `google.adapter.ts` de multi-search,
+   adaptés à notre état voulu fait d'objets projetés ;
+7. **à faire** : les preuves du § 8.6, par Lorin.
+
 ### 8.6 Les preuves de 3a, sur le vrai compte
 
 Aux règles du § 1, depuis le Swagger local, par Lorin :

@@ -54,7 +54,7 @@ export function toCampaignLever(
     status: entity.status,
     productsMode: entity.productsMode,
     platformShares: entity.platformShares,
-    platformSettings: entity.platformSettings ?? {},
+    platformSettings: entity.platformSettings,
     extensions: entity.extensions ?? null,
     budget,
     startsOn: entity.startsOn,

@@ -284,7 +284,10 @@ vient après. L'ordre :
    (`~/PinkWhale/multi-search`, pas l'ancienne copie de `~/OmniAd`). Le lot 3 de la phase 10 se fait
    donc en quatre temps (`backend/docs/phase-10.md` § 8) : pousser, avec les petits manques ajoutés
    (3a) ; les verdicts (3b) ; le ciblage fin, avancé de la phase 21 (3c) ; les conversions, avancées
-   de la phase 18 (3d). Le lot B de Microsoft suit le même chemin.
+   de la phase 18 (3d). Le lot B de Microsoft suit le même chemin. **Où en est 3a** : `phase-10.md`
+   § 8.5 bis — le modèle est prêt (cinq pas, PR n°7) ; reste le code Google lui-même, puis les
+   preuves de Lorin. Les tests ne tournent **qu'en CI** : jest en local a fait planter le poste de
+   Lorin, on ne le lance pas sans son accord.
 
 Côté multi-search, le Google à transcrire fait environ 5 800 lignes (client, auth, mapping, adapter,
 types, et le client HTTP commun). **`CADRAGE.md` § 14 tient tout** : aucun test n'appelle une
