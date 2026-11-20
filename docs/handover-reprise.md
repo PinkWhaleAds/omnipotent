@@ -59,7 +59,10 @@ branche, Lorin ouvre la PR — `gh` est connecté en `LorinProjects`, qui n'est 
 `PinkWhaleAds/omnipotent` et ne peut pas la créer : il faut le lien
 `https://github.com/PinkWhaleAds/omnipotent/pull/new/<branche>` et son clic —, on suit le run avec
 `gh run list -R PinkWhaleAds/omnipotent -b <branche>` (la lecture passe), puis on avance `main` en
-`--ff-only` et on pousse : la PR se marque fusionnée d'elle-même. En local, au plus les fichiers
+`--ff-only` et on pousse : la PR se marque fusionnée d'elle-même. **Attention** : sur une PR, **tout** envoi relance la CI,
+même un commit de documentation seule — le filtre de chemins porte sur le diff entier de la PR —, et
+le run en cours est **annulé** (« Canceling since a higher priority waiting request exists ») :
+ce n'est pas un échec, suivre le run suivant. En local, au plus les fichiers
 touchés, un processus, la mémoire plafonnée :
 `NODE_OPTIONS=--max-old-space-size=2048 npx jest --runInBand <fichiers>`, et seulement avec son accord.
 
