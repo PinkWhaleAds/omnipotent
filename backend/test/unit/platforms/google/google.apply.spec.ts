@@ -294,7 +294,10 @@ function existing(google: FakeGoogle): void {
       },
     },
   ];
+  // Google answers a row for every device with no modifier: not ours, and never to remove.
   google.rows.modifier = [
+    { adGroupBidModifier: { resourceName: `${AD_GROUP}~30000`, adGroup: AD_GROUP, device: { type: 'MOBILE' } } },
+    { adGroupBidModifier: { resourceName: `${AD_GROUP}~30001`, adGroup: AD_GROUP, device: { type: 'DESKTOP' } } },
     {
       adGroupBidModifier: {
         resourceName: `${AD_GROUP}~m`,

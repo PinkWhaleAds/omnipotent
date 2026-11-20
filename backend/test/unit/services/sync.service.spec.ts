@@ -491,6 +491,48 @@ describe('Unit::Services::SyncService', () => {
       expect(secrets.get).not.toHaveBeenCalled();
     });
 
+    it('should make no call either when a write marked the unit without changing it, and clear the mark', async (): Promise<void> => {
+      seedTree();
+      seedUnit();
+      await service.syncCampaign(CAMPAIGN_ID);
+      apply.mockClear();
+      // A sync asked by hand, or a write of a field this platform does not read, marks the unit.
+      await store.manager.update(PlatformUnitEntity, { id: UNIT_ID }, { syncState: 'pending' });
+
+      await service.syncCampaign(CAMPAIGN_ID);
+
+      expect(apply).not.toHaveBeenCalled();
+      expect(units()[0]).toMatchObject({ syncState: 'synced', attempts: 0, nextAttemptAt: null });
+    });
+
+    it('should ask again a platform that had not taken the status, even with nothing changed', async (): Promise<void> => {
+      seedTree();
+      seedUnit();
+      apply.mockResolvedValueOnce({ refs: {}, appliedStatus: 'paused' });
+      await service.syncCampaign(CAMPAIGN_ID);
+      apply.mockClear();
+
+      await service.syncCampaign(CAMPAIGN_ID);
+
+      expect(apply).toHaveBeenCalledTimes(1);
+    });
+
+    it('should try a unit in error again, even with nothing changed', async (): Promise<void> => {
+      seedTree();
+      seedUnit();
+      await service.syncCampaign(CAMPAIGN_ID);
+      apply.mockClear();
+      await store.manager.update(
+        PlatformUnitEntity,
+        { id: UNIT_ID },
+        { syncState: 'error', nextAttemptAt: new Date(NOW.getTime() - 1) }
+      );
+
+      await service.syncCampaign(CAMPAIGN_ID);
+
+      expect(apply).toHaveBeenCalledTimes(1);
+    });
+
     it('should apply a change once, however many modifications caused it', async (): Promise<void> => {
       seedTree();
       seedUnit();

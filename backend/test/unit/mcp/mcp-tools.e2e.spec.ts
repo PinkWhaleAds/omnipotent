@@ -592,6 +592,14 @@ const AD_ACCOUNT_CASES: ToolCase[] = [
     expected: [AD_ACCOUNT.id],
   },
   {
+    tool: 'list-platform-calls',
+    args: { adAccountId: AD_ACCOUNT.id, since: '2026-11-20T19:00:00.000Z' },
+    service: 'adAccountService',
+    method: 'calls',
+    answer: { items: [], total: 0, page: 1, limit: 50 },
+    expected: [AD_ACCOUNT.id, { since: '2026-11-20T19:00:00.000Z', page: 1, limit: 50 }],
+  },
+  {
     tool: 'connect-ad-account',
     args: {
       platform: 'dv360',
@@ -1510,6 +1518,7 @@ function fakeServices(): FakeServices {
       link: jest.fn(),
       updateLink: jest.fn(),
       unlink: jest.fn(),
+      calls: jest.fn(),
     },
     creativeService: {
       ...crud(),

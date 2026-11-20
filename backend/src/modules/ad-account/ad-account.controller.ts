@@ -5,6 +5,7 @@ import {
   deleteAdAccountCredentials,
   disconnectAdAccount,
   getAdAccount,
+  listPlatformCalls,
   linkAdvertiserAccount,
   listAdAccounts,
   listAdvertiserAccounts,
@@ -20,6 +21,7 @@ import {
   deleteAdAccountCredentialsSchema,
   disconnectAdAccountSchema,
   getAdAccountSchema,
+  listPlatformCallsSchema,
   linkAdvertiserAccountSchema,
   listAdAccountsSchema,
   listAdvertiserAccountsSchema,
@@ -47,6 +49,12 @@ export default async function AdAccountController(fastify: FastifyInstance): Pro
   fastify.route({ method: 'GET', url: '/ad-accounts', schema: listAdAccountsSchema, handler: listAdAccounts });
   fastify.route({ method: 'POST', url: '/ad-accounts', schema: connectAdAccountSchema, handler: connectAdAccount });
   fastify.route({ method: 'GET', url: '/ad-accounts/:id', schema: getAdAccountSchema, handler: getAdAccount });
+  fastify.route({
+    method: 'GET',
+    url: '/ad-accounts/:id/platform-calls',
+    schema: listPlatformCallsSchema,
+    handler: listPlatformCalls,
+  });
   fastify.route({
     method: 'PATCH',
     url: '/ad-accounts/:id',

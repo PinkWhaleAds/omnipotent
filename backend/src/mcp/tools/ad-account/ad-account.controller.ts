@@ -6,6 +6,7 @@ import {
   connectAdAccount,
   disconnectAdAccount,
   getAdAccount,
+  listPlatformCalls,
   linkAdvertiserAccount,
   listAdAccounts,
   listAdvertiserAccounts,
@@ -19,6 +20,7 @@ import {
   connectAdAccountSchema,
   disconnectAdAccountSchema,
   getAdAccountSchema,
+  listPlatformCallsSchema,
   linkAdvertiserAccountSchema,
   listAdAccountsSchema,
   listAdvertiserAccountsSchema,
@@ -50,6 +52,9 @@ export default function AdAccountToolsController(
   );
   server.registerTool('get-ad-account', getAdAccountSchema, async (args) =>
     getAdAccount(fastify.adAccountService, context, args)
+  );
+  server.registerTool('list-platform-calls', listPlatformCallsSchema, async (args) =>
+    listPlatformCalls(fastify.adAccountService, context, args)
   );
   server.registerTool('connect-ad-account', connectAdAccountSchema, async (args) =>
     connectAdAccount(fastify.adAccountService, context, args)

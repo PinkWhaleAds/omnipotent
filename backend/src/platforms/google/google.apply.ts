@@ -339,7 +339,9 @@ export class GoogleUnitSync {
         'SELECT ad_group_bid_modifier.resource_name, ad_group_bid_modifier.ad_group, ad_group_bid_modifier.device.type, ' +
           `ad_group_bid_modifier.bid_modifier FROM ad_group_bid_modifier WHERE campaign.resource_name IN (${alive})`
       ),
-      (row: GoogleAdsRow) => row.adGroupBidModifier?.adGroup,
+      // Google answers a row for every device of an ad group, with no modifier: only the exclusions we
+      // set — a modifier of zero — are ours to keep or remove; the others cannot be removed at all.
+      (row: GoogleAdsRow) => (row.adGroupBidModifier?.bidModifier === 0 ? row.adGroupBidModifier.adGroup : undefined),
       (row: GoogleAdsRow) => row.adGroupBidModifier as GoogleAdGroupBidModifier
     );
     state.ads = groupBy(

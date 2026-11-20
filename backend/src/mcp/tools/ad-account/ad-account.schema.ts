@@ -9,7 +9,9 @@ import {
   deletionResultSchema,
   linkAdvertiserAccountBodySchema,
   listAdAccountsQuerySchema,
+  listPlatformCallsQuerySchema,
   organizationArgSchema,
+  platformCallPageSchema,
   setAdAccountStatusBodySchema,
   updateAdAccountBodySchema,
   updateAdvertiserAccountBodySchema,
@@ -122,6 +124,28 @@ export const getAdAccountSchema = {
   description: 'One account, connected or disconnected, and whether it carries credentials. Requires the viewer role',
   inputSchema: adAccountInputSchema,
   outputSchema: adAccountSchema,
+  annotations: { readOnlyHint: true },
+};
+
+/** Arguments of `list-platform-calls`. */
+export const listPlatformCallsInputSchema = listPlatformCallsQuerySchema.extend({
+  organizationId: organizationArgSchema,
+  adAccountId: adAccountIdArg,
+});
+
+/** TypeScript type inferred from {@link listPlatformCallsInputSchema}. */
+export type ListPlatformCallsInput = z.infer<typeof listPlatformCallsInputSchema>;
+
+/** MCP tool schema for `list-platform-calls`. */
+export const listPlatformCallsSchema = {
+  title: 'List the calls made to a platform for an account',
+  description:
+    'The calls made to its platform for one account, oldest first: status, duration, the platform request id ' +
+    'and what each cost against the quota — Google counts every operation of a change, which tells a change ' +
+    'of one object from a change of the whole campaign. since reads from an instant (ISO 8601): what one ' +
+    'synchronization sent. Requires the viewer role',
+  inputSchema: listPlatformCallsInputSchema,
+  outputSchema: platformCallPageSchema,
   annotations: { readOnlyHint: true },
 };
 

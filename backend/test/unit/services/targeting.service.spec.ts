@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 
-import { ListEntity, TargetingGroupEntity } from '@src/database/entities';
+import { ListEntity, PlatformUnitEntity, TargetingGroupEntity } from '@src/database/entities';
 import TargetingServicePlugin, { TargetingService } from '@src/services/targeting.service';
 import { Targeting, TargetingResponse } from '@src/types';
 import { AccessServiceMock, buildServiceApp, createAccessMock } from '@test/unit/mocks/access.mock';
@@ -100,6 +100,17 @@ describe('Unit::Services::TargetingService', () => {
       );
       expect(answer.targeting).toEqual({ country: { include: ['FR'], exclude: [] } });
       expect(access.assertOrganizationRole).toHaveBeenCalledWith(JANE, IDS.organization, 'manager');
+    });
+
+    it('should mark the units of its campaign, in the same transaction', async (): Promise<void> => {
+      await service.replace(JANE, IDS.organization, NODE_ID, { country: { include: ['FR'] } } as Targeting);
+
+      // A country or a radius changed on a launched campaign must reach the platforms.
+      expect(db.manager.update).toHaveBeenCalledWith(
+        PlatformUnitEntity,
+        expect.objectContaining({ campaignId: 'f1000000-0000-4000-8000-000000000001' }),
+        { syncState: 'pending', attempts: 0, nextAttemptAt: null }
+      );
     });
 
     it('should accept an empty targeting: a node that restricts nothing is valid', async (): Promise<void> => {

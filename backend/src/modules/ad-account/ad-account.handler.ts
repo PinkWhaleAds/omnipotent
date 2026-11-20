@@ -5,6 +5,7 @@ import {
   IdParam,
   LinkAdvertiserAccountBody,
   ListAdAccountsQuery,
+  ListPlatformCallsQuery,
   SetAdAccountCredentialsBody,
   SetAdAccountStatusBody,
   UpdateAdAccountBody,
@@ -55,6 +56,24 @@ export async function getAdAccount(
   reply: FastifyReply
 ): Promise<void> {
   reply.send(await this.adAccountService.get(actorOf(request), organizationIdOf(request), request.params.id));
+}
+
+/**
+ * Handler for `GET /ad-accounts/:id/platform-calls`.
+ *
+ * @param this - The Fastify instance
+ * @param request - The request
+ * @param reply - The reply
+ * @returns A promise that resolves once sent
+ */
+export async function listPlatformCalls(
+  this: FastifyInstance,
+  request: FastifyRequest<{ Params: IdParam; Querystring: ListPlatformCallsQuery }>,
+  reply: FastifyReply
+): Promise<void> {
+  reply.send(
+    await this.adAccountService.calls(actorOf(request), organizationIdOf(request), request.params.id, request.query)
+  );
 }
 
 /**

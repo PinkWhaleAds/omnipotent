@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { paginatedSchema } from './api.types';
+import { paginatedSchema, paginationQuerySchema } from './api.types';
 import { listQuerySchema } from './crud.types';
 import { platformSchema } from './platform.types';
 
@@ -280,3 +280,50 @@ export const updateAdvertiserAccountBodySchema = z.strictObject({
 
 /** TypeScript type inferred from {@link updateAdvertiserAccountBodySchema}. */
 export type UpdateAdvertiserAccountBody = z.infer<typeof updateAdvertiserAccountBodySchema>;
+
+/**
+ * Zod schema of one call made to a platform for an account, as the journal keeps it
+ * (`../../CADRAGE.md` § 14: one line per call).
+ *
+ * @property id - The line
+ * @property platform - The platform called
+ * @property method - HTTP method
+ * @property path - Path called, below the platform's base URL
+ * @property statusCode - HTTP status answered, `null` when nothing came back
+ * @property durationMs - How long it took
+ * @property requestId - The platform's id of the request, for its support
+ * @property error - What went wrong, `null` on a success
+ * @property operations - What it cost against the platform's quota: Google counts every operation of
+ *   a `mutate`, which is what tells a change of one object from a change of the whole tree
+ * @property createdAt - When it was made (ISO 8601)
+ */
+export const platformCallSchema = z.object({
+  id: z.uuid(),
+  platform: platformSchema,
+  method: z.string(),
+  path: z.string(),
+  statusCode: z.number().int().nullable(),
+  durationMs: z.number().int(),
+  requestId: z.string().nullable(),
+  error: z.string().nullable(),
+  operations: z.number().int(),
+  createdAt: z.iso.datetime(),
+});
+
+/** TypeScript type inferred from {@link platformCallSchema}. */
+export type PlatformCall = z.infer<typeof platformCallSchema>;
+
+/** Zod schema of a page of calls. */
+export const platformCallPageSchema = paginatedSchema(platformCallSchema);
+
+/**
+ * Zod schema of the querystring listing the calls of an account, oldest first.
+ *
+ * @property since - Only the calls made from this instant (ISO 8601)
+ */
+export const listPlatformCallsQuerySchema = paginationQuerySchema.extend({
+  since: z.iso.datetime().optional(),
+});
+
+/** TypeScript type inferred from {@link listPlatformCallsQuerySchema}, after defaults apply. */
+export type ListPlatformCallsQuery = z.infer<typeof listPlatformCallsQuerySchema>;

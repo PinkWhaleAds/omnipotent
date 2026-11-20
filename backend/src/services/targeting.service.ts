@@ -8,6 +8,7 @@ import { allDimensions, listKindOf, parseTargeting } from '@src/targeting/dimens
 import { AuthContext, ListKind, Targeting, TargetingDimension, TargetingResponse } from '@src/types';
 import { httpError } from '@utils';
 import { AccessService } from './access.service';
+import { markCampaignDirty } from './sync.helpers';
 
 /**
  * The targeting of a TargetingGroup: one object, written atomically.
@@ -189,6 +190,8 @@ export class TargetingService {
       const node: TargetingGroupEntity = await this.findOrFail(manager, organizationId, targetingGroupId);
       const targeting: Targeting = await shape(node, manager);
       await manager.update(TargetingGroupEntity, { id: node.id }, { targeting });
+      // A launched campaign carries its targeting to the platforms: the change waits for its sync.
+      await markCampaignDirty(manager, node.campaignId);
       return this.toResponse({ ...node, targeting });
     });
   }

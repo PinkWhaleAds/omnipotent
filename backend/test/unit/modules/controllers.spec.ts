@@ -151,6 +151,7 @@ const API_ROUTES: RouteKey[] = [
   { method: 'GET', url: '/ad-accounts' },
   { method: 'POST', url: '/ad-accounts' },
   { method: 'GET', url: '/ad-accounts/:id' },
+  { method: 'GET', url: '/ad-accounts/:id/platform-calls' },
   { method: 'PATCH', url: '/ad-accounts/:id' },
   { method: 'DELETE', url: '/ad-accounts/:id' },
   { method: 'POST', url: '/ad-accounts/:id/restore' },

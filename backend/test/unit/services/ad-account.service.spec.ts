@@ -1,6 +1,8 @@
 import { FastifyInstance } from 'fastify';
 
-import { AdAccountEntity, AdvertiserAdAccountEntity } from '@src/database/entities';
+import { MoreThanOrEqual } from 'typeorm';
+
+import { AdAccountEntity, AdvertiserAdAccountEntity, PlatformCallEntity } from '@src/database/entities';
 import { ADAPTERS, LinkedAccountInfo, PlatformAdapter, PlatformError } from '@src/platforms/platform-adapter';
 import AdAccountServicePlugin, { AdAccountService, toAdAccount } from '@src/services/ad-account.service';
 import { AdAccount, AdvertiserAdAccount, ListAdAccountsQuery, Paginated, Platform } from '@src/types';
@@ -183,6 +185,82 @@ describe('Unit::Services::AdAccountService', () => {
       expect(builder.andWhere).toHaveBeenCalledWith('account.status = :status', { status: 'active' });
       expect(builder.andWhere).toHaveBeenCalledWith(expect.stringContaining('ILIKE'), { search: '%Omnilor%' });
       expect(builder.andWhere).not.toHaveBeenCalledWith('account.deleted_at IS NULL');
+    });
+  });
+
+  describe('calls', () => {
+    const CALL = {
+      id: 'fc100000-0000-4000-8000-000000000001',
+      platform: 'google_ads',
+      adAccountId: ACCOUNT_ID,
+      method: 'POST',
+      path: '/customers/5550001111/googleAds:mutate',
+      statusCode: 200,
+      durationMs: 812,
+      requestId: 'r-1',
+      error: null,
+      operations: 17,
+      createdAt: NOW,
+      updatedAt: NOW,
+    };
+
+    it('should read the calls made for an account from an instant, oldest first', async (): Promise<void> => {
+      db.manager.findOne.mockResolvedValue(row());
+      db.manager.findAndCount.mockResolvedValue([[CALL], 1]);
+
+      const page = await service.calls(JANE, IDS.organization, ACCOUNT_ID, {
+        page: 2,
+        limit: 10,
+        since: '2026-10-06T09:00:00.000Z',
+      });
+
+      expect(page).toEqual({
+        items: [
+          {
+            id: CALL.id,
+            platform: 'google_ads',
+            method: 'POST',
+            path: CALL.path,
+            statusCode: 200,
+            durationMs: 812,
+            requestId: 'r-1',
+            error: null,
+            operations: 17,
+            createdAt: NOW.toISOString(),
+          },
+        ],
+        total: 1,
+        page: 2,
+        limit: 10,
+      });
+      expect(db.manager.findAndCount).toHaveBeenCalledWith(PlatformCallEntity, {
+        where: { adAccountId: ACCOUNT_ID, createdAt: MoreThanOrEqual(new Date('2026-10-06T09:00:00.000Z')) },
+        order: { createdAt: 'ASC' },
+        skip: 10,
+        take: 10,
+      });
+      expect(access.assertOrganizationRole).toHaveBeenCalledWith(JANE, IDS.organization, 'viewer');
+    });
+
+    it('should read every call without an instant', async (): Promise<void> => {
+      db.manager.findOne.mockResolvedValue(row());
+      db.manager.findAndCount.mockResolvedValue([[], 0]);
+
+      await service.calls(JANE, IDS.organization, ACCOUNT_ID, { page: 1, limit: 50 });
+
+      expect(db.manager.findAndCount).toHaveBeenCalledWith(
+        PlatformCallEntity,
+        expect.objectContaining({ where: { adAccountId: ACCOUNT_ID } })
+      );
+    });
+
+    it('should not find an account of another Organization', async (): Promise<void> => {
+      db.manager.findOne.mockResolvedValue(null);
+
+      await expect(service.calls(JANE, IDS.organization, ACCOUNT_ID, { page: 1, limit: 50 })).rejects.toMatchObject({
+        statusCode: 404,
+        errorCode: 'ad_account_not_found',
+      });
     });
   });
 

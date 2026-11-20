@@ -10,7 +10,9 @@ import {
   idParamSchema,
   linkAdvertiserAccountBodySchema,
   listAdAccountsQuerySchema,
+  listPlatformCallsQuerySchema,
   organizationHeadersSchema,
+  platformCallPageSchema,
   setAdAccountCredentialsBodySchema,
   setAdAccountStatusBodySchema,
   updateAdAccountBodySchema,
@@ -58,6 +60,20 @@ export const getAdAccountSchema: FastifySchema = {
   headers,
   params,
   response: { 200: toJsonSchema(adAccountSchema), ...errorResponses(400, 401, 403, 404) },
+};
+
+/** Fastify schema for `GET /ad-accounts/:id/platform-calls`. */
+export const listPlatformCallsSchema: FastifySchema = {
+  tags: TAGS,
+  description: [
+    'The calls made to its platform for one account, oldest first (viewer): one line per call, with its',
+    "status, its duration, the platform's request id and what it cost against the quota — Google counts",
+    'every operation of a change. `since` reads from an instant: what one synchronization sent.',
+  ].join('\n'),
+  headers,
+  params,
+  querystring: toJsonSchema(listPlatformCallsQuerySchema, 'input'),
+  response: { 200: toJsonSchema(platformCallPageSchema), ...errorResponses(400, 401, 403, 404) },
 };
 
 /** Fastify schema for `PATCH /ad-accounts/:id`. */

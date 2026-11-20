@@ -20,6 +20,20 @@ const ADVERTISER_ID = IDS.advertiser;
 /** Headers of every call: the Organization the caller acts in. */
 const HEADERS: Record<string, string> = { 'x-organization-id': IDS.organization };
 
+/** One call of the journal. */
+const CALL = {
+  id: 'fc100000-0000-4000-8000-000000000001',
+  platform: 'google_ads',
+  method: 'POST',
+  path: '/customers/5550001111/googleAds:mutate',
+  statusCode: 200,
+  durationMs: 812,
+  requestId: 'r-1',
+  error: null,
+  operations: 17,
+  createdAt: '2026-11-20T19:08:54.000Z',
+};
+
 /** An instant, as the API writes it. */
 const ISO: string = new Date('2026-10-06T10:00:00.000Z').toISOString();
 
@@ -74,6 +88,7 @@ describe('Unit::Modules::AdAccountController', () => {
       link: jest.fn().mockResolvedValue(LINK),
       updateLink: jest.fn().mockResolvedValue(LINK),
       unlink: jest.fn().mockResolvedValue({ id: LINK_ID, deletedAt: ISO }),
+      calls: jest.fn().mockResolvedValue({ items: [CALL], total: 1, page: 1, limit: 50 }),
     };
     app = await setupRouteAppForTest(AdAccountController, { adAccountService: service }, JANE);
   });
@@ -94,6 +109,23 @@ describe('Unit::Modules::AdAccountController', () => {
       JANE,
       IDS.organization,
       expect.objectContaining({ platform: 'hawk', status: 'active' })
+    );
+  });
+
+  it('should read the calls made for an account from an instant, oldest first', async (): Promise<void> => {
+    const response: LightMyRequestResponse = await app.inject({
+      method: 'GET',
+      url: `/ad-accounts/${ACCOUNT_ID}/platform-calls?since=2026-11-20T19:00:00.000Z`,
+      headers: HEADERS,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body).items).toEqual([CALL]);
+    expect(service.calls).toHaveBeenCalledWith(
+      JANE,
+      IDS.organization,
+      ACCOUNT_ID,
+      expect.objectContaining({ since: '2026-11-20T19:00:00.000Z', page: 1 })
     );
   });
 

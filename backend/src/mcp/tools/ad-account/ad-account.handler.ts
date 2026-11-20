@@ -8,6 +8,7 @@ import {
   LinkAdvertiserAccountInput,
   ListAdAccountsInput,
   ListAdvertiserAccountsInput,
+  ListPlatformCallsInput,
   SetAdAccountStatusInput,
   UpdateAdAccountInput,
   UpdateAdvertiserAccountInput,
@@ -45,6 +46,25 @@ export async function getAdAccount(
 ): Promise<McpToolResult> {
   return runTool(async () =>
     service.get(context.auth, resolveOrganizationId(context, args.organizationId), args.adAccountId)
+  );
+}
+
+/**
+ * Handler for `list-platform-calls`.
+ *
+ * @param service - Platform account service
+ * @param context - MCP context of the call
+ * @param args - Organization, account, page and instant to read from
+ * @returns A page of calls
+ */
+export async function listPlatformCalls(
+  service: AdAccountService,
+  context: McpContext,
+  args: ListPlatformCallsInput
+): Promise<McpToolResult> {
+  const { organizationId, adAccountId, ...query } = args;
+  return runTool(async () =>
+    service.calls(context.auth, resolveOrganizationId(context, organizationId), adAccountId, query)
   );
 }
 

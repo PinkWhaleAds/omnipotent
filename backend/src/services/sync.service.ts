@@ -461,8 +461,23 @@ export class SyncService {
         group,
         bought
       );
-      // Nothing changed: no call at all, which is the whole point of the fingerprint.
-      if (unit.syncState === 'synced' && unit.syncedHash === hash) return;
+      // Nothing changed since the last success: no call at all, which is the whole point of the
+      // fingerprint (`../../CADRAGE.md` § 14). A write that marked the unit without changing what its
+      // platform holds — a field another platform reads, a sync asked by hand, a pacing day that
+      // spends the same — only clears the mark. A unit in error is tried again, and so is one whose
+      // platform had not taken the status asked for: it is still waiting for it.
+      const settled: boolean =
+        unit.syncState === 'synced' || (unit.syncState === 'pending' && unit.appliedStatus === desired.status);
+      if (settled && unit.syncedHash === hash) {
+        if (unit.syncState === 'pending') {
+          await this.dataSource.manager.update(
+            PlatformUnitEntity,
+            { id: unit.id },
+            { syncState: 'synced', attempts: 0, nextAttemptAt: null }
+          );
+        }
+        return;
+      }
 
       const context: PlatformContext = {
         platform: unit.platform,

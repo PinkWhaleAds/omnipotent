@@ -152,6 +152,7 @@ export const EXPECTED_TOOLS: string[] = [
   'bulk-restore-creatives',
   'list-ad-accounts',
   'get-ad-account',
+  'list-platform-calls',
   'connect-ad-account',
   'update-ad-account',
   'set-ad-account-status',

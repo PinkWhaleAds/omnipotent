@@ -4,26 +4,37 @@
  * preview read — then, if asked, launched and paused at once (`backend/docs/phase-10.md` § 1 and
  * § 8.6). Every call and its outcome are printed, in French, for Lorin.
  *
- * Run from the repository root, the API running locally (`pnpm start:dev` in `backend/`):
+ * Run from the repository root, the API and a worker running locally (`scenarios/README.md`):
  *
  *   node scenarios/campagne-google.mjs
  *
- * What the scenario needs is set in CONFIG just below; whatever is left empty is asked at launch.
+ * Its settings are in CONFIG; Lorin's own values go in `config.local.mjs`, which git ignores — never
+ * here: this file is committed, and the repository is public. Whatever is left empty is asked.
  */
-import { createInterface } from 'node:readline';
-import { Writable } from 'node:stream';
-import { deflateSync } from 'node:zlib';
+import {
+  ask,
+  chooseAdvertiser,
+  chooseOrganization,
+  closeTerminal,
+  createApi,
+  dayIn,
+  ensureToken,
+  loadConfig,
+  printUnits,
+  say,
+  settled,
+  squarePng,
+  stop,
+  title,
+} from './commun.mjs';
 
-/**
- * What the scenario needs. Empty: asked at launch. **Your own values go in `config.local.mjs`**, beside
- * this file, which git ignores — never here: this file is committed, and the repository is public.
- */
-const CONFIG = {
+/** What the scenario needs, before `config.local.mjs`. Empty: asked at launch. */
+const CONFIG = await loadConfig({
   /** The API. */
   url: 'http://localhost:3002',
   /** Your token, from the Swagger. Empty here, always: in `config.local.mjs`, or asked without showing. */
   token: '',
-  /** The Organization to create the campaign in. Empty: yours are read from /me, and asked when several. */
+  /** The Organization. Empty: yours are read from /me, and asked when several. */
   organizationId: '',
   /** The brand. Empty: the brands of the Organization are listed, and asked when there are several. */
   advertiserId: '',
@@ -33,232 +44,14 @@ const CONFIG = {
   keywords: ['devis gratuit', 'prise de rendez-vous', 'conseil personnalisé'],
   /** Whether to launch, then pause at once. `null`: asked once the preview is clean. */
   launch: null,
-};
+});
 
-// Your own values, kept out of git: `export default { organizationId: '…', token: '…' }`.
-try {
-  Object.assign(CONFIG, (await import('./config.local.mjs')).default);
-} catch (error) {
-  if (error.code !== 'ERR_MODULE_NOT_FOUND') throw error;
-}
-
-/** The terminal, opened at the first question and shared by all of them. */
-let reader;
-
-/** The lines typed, in order: one read per question, none lost when several come at once. */
-let lines;
-
-/** Whether what is typed is hidden: a secret is being entered. */
-let muted = false;
-
-/**
- * Ask a question in the terminal.
- *
- * @param {string} question - What is asked
- * @param {{ hidden?: boolean }} [options] - `hidden` for a secret: what is typed is not shown
- * @returns {Promise<string>} The answer, trimmed; empty when nothing more can be read
- */
-async function ask(question, { hidden = false } = {}) {
-  if (!reader) {
-    // The terminal echoes through this, which keeps quiet while a secret is typed.
-    const output = new Writable({
-      write(chunk, encoding, done) {
-        if (!muted) process.stdout.write(chunk, encoding);
-        done();
-      },
-    });
-    reader = createInterface({ input: process.stdin, output, terminal: true });
-    lines = reader[Symbol.asyncIterator]();
-  }
-  process.stdout.write(question);
-  muted = hidden;
-  const { value = '' } = await lines.next();
-  muted = false;
-  if (hidden) process.stdout.write('\n');
-  return value.trim();
-}
-
-let step = 0;
-
-/**
- * Print the title of a step.
- *
- * @param {string} title - What the step does
- */
-function title(title) {
-  step += 1;
-  console.log(`\n\x1b[1m${step}. ${title}\x1b[0m`);
-}
-
-/**
- * Print one line of a step's outcome.
- *
- * @param {string} line - The line
- */
-function say(line) {
-  console.log(`   ${line}`);
-}
-
-/**
- * Stop the scenario, saying why.
- *
- * @param {string} reason - Why
- * @returns {never}
- */
-function stop(reason) {
-  console.error(`\n\x1b[31m✗ ${reason}\x1b[0m`);
-  process.exit(1);
-}
-
-/**
- * Call the API as the person whose token this is, and stop on a refusal, printing its stable code.
- *
- * @param {string} method - HTTP method
- * @param {string} path - Path, query included
- * @param {object} [body] - JSON body, or a FormData
- * @returns {Promise<any>} The answer
- */
-async function call(method, path, body) {
-  const headers = { authorization: `Bearer ${CONFIG.token}`, 'x-organization-id': CONFIG.organizationId };
-  const init = { method, headers };
-  if (body instanceof FormData) init.body = body;
-  else if (body !== undefined) {
-    headers['content-type'] = 'application/json';
-    init.body = JSON.stringify(body);
-  }
-  const response = await fetch(`${CONFIG.url}${path}`, init);
-  const text = await response.text();
-  const answer = text ? JSON.parse(text) : null;
-  if (!response.ok) {
-    stop(
-      `${method} ${path} → ${response.status} ${answer?.code ?? ''}\n  ${answer?.message ?? text}` +
-        (answer?.params ? `\n  ${JSON.stringify(answer.params)}` : '')
-    );
-  }
-  return answer;
-}
-
-/**
- * A plain square PNG, generated here so the scenario needs no file: Google wants a square logo of at
- * least 128 pixels.
- *
- * @param {number} side - Its side, in pixels
- * @returns {Buffer} The PNG
- */
-function squarePng(side) {
-  const crcTable = Array.from({ length: 256 }, (_, n) => {
-    let c = n;
-    for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-    return c >>> 0;
-  });
-  const crc = (bytes) => {
-    let c = 0xffffffff;
-    for (const byte of bytes) c = crcTable[(c ^ byte) & 0xff] ^ (c >>> 8);
-    return (c ^ 0xffffffff) >>> 0;
-  };
-  const chunk = (type, data) => {
-    const length = Buffer.alloc(4);
-    length.writeUInt32BE(data.length);
-    const body = Buffer.concat([Buffer.from(type, 'ascii'), data]);
-    const sum = Buffer.alloc(4);
-    sum.writeUInt32BE(crc(body));
-    return Buffer.concat([length, body, sum]);
-  };
-  const header = Buffer.alloc(13);
-  header.writeUInt32BE(side, 0);
-  header.writeUInt32BE(side, 4);
-  header.set([8, 2, 0, 0, 0], 8); // 8 bits, RGB
-  const row = Buffer.concat([Buffer.from([0]), Buffer.alloc(side * 3, 0)]);
-  for (let x = 0; x < side; x += 1) row.set([236, 72, 153], 1 + x * 3); // pink
-  const pixels = deflateSync(Buffer.concat(Array.from({ length: side }, () => row)));
-  return Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    chunk('IHDR', header),
-    chunk('IDAT', pixels),
-    chunk('IEND', Buffer.alloc(0)),
-  ]);
-}
-
-/**
- * A day, `days` after today in Paris.
- *
- * @param {number} days - How many days after today
- * @returns {string} `YYYY-MM-DD`
- */
-function dayIn(days) {
-  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris' }).format(new Date());
-  return new Date(Date.parse(`${today}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
-}
-
-/**
- * Wait.
- *
- * @param {number} ms - How long
- * @returns {Promise<void>}
- */
-const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-/**
- * Print where each unit of the campaign stands at its platforms.
- *
- * @param {string} campaignId - The campaign
- * @returns {Promise<any[]>} The units
- */
-async function platformStatus(campaignId) {
-  const status = await call('GET', `/campaigns/${campaignId}/platform-status`);
-  for (const unit of status.units ?? []) {
-    say(
-      `${unit.platform} — synchro ${unit.state}, ${unit.attempts} tentative(s)` +
-        (unit.errorCode || unit.errorMessage ? ` — erreur ${unit.errorCode ?? ''} ${unit.errorMessage ?? ''}` : '')
-    );
-    for (const object of unit.objects ?? [])
-      say(`   ${object.object} ${object.key} → ${object.externalId ?? 'pas encore créé'}`);
-  }
-  return status.units ?? [];
-}
-
-if (!CONFIG.token) {
-  console.log(
-    'Ton jeton : dans le Swagger, « Authorize », exécute une route, et copie ce qui suit « Bearer » dans la boîte Curl.'
-  );
-  CONFIG.token = await ask('Jeton (il ne s’affiche pas) : ', { hidden: true });
-}
-if (!CONFIG.token) stop('Il faut un jeton.');
-
+await ensureToken(CONFIG);
+const call = createApi(CONFIG);
 console.log(`\nScénario « campagne Google à 10 € » contre ${CONFIG.url}`);
 
-title('Toi, et ton Organization');
-const me = await call('GET', '/me');
-say(`${me.user.name ?? me.user.email} — ${me.organizations.length} Organization(s)`);
-let organization = me.organizations.find((one) => one.id === CONFIG.organizationId);
-if (!organization && !CONFIG.organizationId && me.organizations.length === 1) [organization] = me.organizations;
-if (!organization && !CONFIG.organizationId && me.organizations.length > 1) {
-  me.organizations.forEach((one, index) => say(`${index + 1}. ${one.name} (rôle ${one.role})`));
-  organization = me.organizations[Number(await ask('   Laquelle (son numéro) : ')) - 1];
-}
-if (!organization) stop('Aucune Organization à prendre : omnipass ne t’en donne aucune, ou pas celle du réglage.');
-CONFIG.organizationId = organization.id;
-say(`${organization.name}, rôle ${organization.role} (${organization.id})`);
-
-title('La marque');
-const advertisers = (await call('GET', '/advertisers?limit=100')).items;
-let advertiser = CONFIG.advertiserId
-  ? advertisers.find((one) => one.id === CONFIG.advertiserId)
-  : advertisers.length === 1
-    ? advertisers[0]
-    : undefined;
-if (!advertiser && !CONFIG.advertiserId && advertisers.length > 1) {
-  advertisers.forEach((one, index) => say(`${index + 1}. ${one.name}`));
-  advertiser = advertisers[Number(await ask('   Laquelle (son numéro) : ')) - 1];
-}
-if (!advertiser && CONFIG.advertiserId) stop('La marque du réglage n’est pas dans cette Organization.');
-if (!advertiser) {
-  say('Aucune marque dans cette Organization : le scénario en crée une.');
-  const name = await ask('   Son nom : ');
-  const site = CONFIG.site || (await ask('   Son vrai site, que Google examinera (https://…) : '));
-  advertiser = await call('POST', '/advertisers', { name, websiteUrl: site });
-}
-say(`${advertiser.name}${advertiser.websiteUrl ? `, ${advertiser.websiteUrl}` : ''} (${advertiser.id})`);
+await chooseOrganization(call, CONFIG);
+const advertiser = await chooseAdvertiser(call, CONFIG, { create: true });
 // The page every ad leads to: the setting, else the brand's own site, else asked.
 CONFIG.site ||= advertiser.websiteUrl ?? (await ask('   Son vrai site, que Google examinera (https://…) : '));
 if (!/^https?:\/\//.test(CONFIG.site)) stop('Il faut le site de la marque, en http(s).');
@@ -387,7 +180,7 @@ const launch =
   /^o(ui)?$/i.test(await ask('\nLa lancer chez Google, puis la mettre en pause aussitôt ? (oui/non) : '));
 if (!launch) {
   console.log(`\nCampagne ${campaign.id} prête, en brouillon. Rien n’est parti chez Google.`);
-  reader?.close();
+  closeTerminal();
   process.exit(0);
 }
 
@@ -398,21 +191,8 @@ await call('PUT', `/campaigns/${campaign.id}/status`, { status: 'paused' });
 say('En pause.');
 
 title('Ce que Google a reçu');
-let units = [];
-for (let attempt = 1; attempt <= 12; attempt += 1) {
-  await wait(5_000);
-  console.log(`   — après ${attempt * 5} s`);
-  units = await platformStatus(campaign.id);
-  if (units.length > 0 && units.every((unit) => unit.state !== 'pending')) break;
-}
-// Still waiting, never tried: no worker runs the jobs — the API only queues them.
-if (units.some((unit) => unit.state === 'pending' && unit.attempts === 0)) {
-  console.log(
-    '\n\x1b[33m⚠ La synchro n’a jamais été tentée : aucun worker ne traite les jobs. Dans backend/ :' +
-      '\n  APP_PORT=3012 pnpm start:worker\nElle part alors toute seule, dans la minute.\x1b[0m'
-  );
-}
-reader?.close();
+printUnits(await settled(call, campaign.id));
+closeTerminal();
 console.log(
   `\nRegarde maintenant dans Google Ads la campagne dont le nom se termine par [op:…] : en pause, ` +
     `avec son budget, son pays et son rayon, ses mots-clés, ses deux annonces, ses extensions et son logo.`

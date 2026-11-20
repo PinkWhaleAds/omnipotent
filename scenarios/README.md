@@ -44,3 +44,20 @@ son levier Search avec un lien annexe et deux accroches, un AdGroup en CPC manue
 ciblage France et 20 km autour de Paris, des mots-clés, un logo carré, deux annonces et leurs Lines,
 puis lit la preview. S'il lance, il met en pause aussitôt, suit la synchronisation et affiche ce que
 Google a créé.
+
+## `campagne-google-preuves.mjs` — les preuves qui suivent
+
+Les autres preuves du lot 3a, sur une campagne que `campagne-google.mjs` a lancée et mise en pause :
+
+1. **une modification** — un mot-clé ajouté : chez Google, seul ce changement part, une opération ;
+2. **rien n'a changé** — une synchro demandée à la main : **aucun appel** à Google ;
+3. **un AdGroup ajouté après le lancement** : en pause, absent de Google ; puis activé, et présent ;
+4. **une erreur provoquée** — un pays que Google ne cible pas — remontée avec son code, puis réparée.
+
+```sh
+node scenarios/campagne-google-preuves.mjs
+```
+
+Chaque preuve affiche les appels faits à Google pendant sa synchro, lus dans le journal
+(`GET /ad-accounts/:id/platform-calls`), le numéro du compte masqué. Tout reste en pause chez Google.
+Reste à relever à la main les limites d'objets du compte Google (`A-FAIRE.md` § 5).

@@ -1,9 +1,9 @@
 import { FastifyInstance } from 'fastify';
 import fastifyPlugin from 'fastify-plugin';
-import { DataSource, EntityManager, In, IsNull, Not, Repository, SelectQueryBuilder } from 'typeorm';
+import { DataSource, EntityManager, In, IsNull, MoreThanOrEqual, Not, Repository, SelectQueryBuilder } from 'typeorm';
 
 import { adAccountConfig, AdAccountConfig } from '@configs';
-import { AdAccountEntity, AdvertiserAdAccountEntity } from '@src/database/entities';
+import { AdAccountEntity, AdvertiserAdAccountEntity, PlatformCallEntity } from '@src/database/entities';
 import {
   ADAPTERS,
   adapterOf,
@@ -23,8 +23,10 @@ import {
   DeletionResult,
   LinkAdvertiserAccountBody,
   ListAdAccountsQuery,
+  ListPlatformCallsQuery,
   Paginated,
   Platform,
+  PlatformCall,
   SetAdAccountCredentialsBody,
   SetAdAccountStatusBody,
   UpdateAdAccountBody,
@@ -295,6 +297,51 @@ export class AdAccountService {
     }
     const [rows, total]: [AdAccountEntity[], number] = await builder.skip(skip).take(take).getManyAndCount();
     return toPage(rows.map(toAdAccount), total, query);
+  }
+
+  /**
+   * The calls made to its platform for one account, oldest first: the journal of
+   * `../../CADRAGE.md` § 14, which says what each synchronization sent and what it cost.
+   *
+   * @param actor - The caller
+   * @param organizationId - The Organization
+   * @param id - The account
+   * @param query - Page, and the instant to read from
+   * @returns A page of calls
+   * @throws Error with status 404 when the caller cannot see the account
+   */
+  public async calls(
+    actor: AuthContext,
+    organizationId: string,
+    id: string,
+    query: ListPlatformCallsQuery
+  ): Promise<Paginated<PlatformCall>> {
+    await this.access.assertOrganizationRole(actor, organizationId, 'viewer');
+    await this.findOrFail(this.dataSource.manager, organizationId, id, { deleted: true });
+    const [rows, total]: [PlatformCallEntity[], number] = await this.dataSource.manager.findAndCount(
+      PlatformCallEntity,
+      {
+        where: { adAccountId: id, ...(query.since ? { createdAt: MoreThanOrEqual(new Date(query.since)) } : {}) },
+        order: { createdAt: 'ASC' },
+        ...toSkipTake(query),
+      }
+    );
+    return toPage(
+      rows.map((row: PlatformCallEntity): PlatformCall => ({
+        id: row.id,
+        platform: row.platform,
+        method: row.method,
+        path: row.path,
+        statusCode: row.statusCode,
+        durationMs: row.durationMs,
+        requestId: row.requestId,
+        error: row.error,
+        operations: row.operations,
+        createdAt: row.createdAt.toISOString(),
+      })),
+      total,
+      query
+    );
   }
 
   /**
