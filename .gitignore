@@ -36,3 +36,6 @@ docs/*.pdf
 
 # Scripts de passage écrits à la main, gardés hors du dépôt.
 gitsh.sh
+
+# Les réglages personnels des scénarios : un jeton, des identifiants. Jamais dans le dépôt public.
+scenarios/config.local.mjs

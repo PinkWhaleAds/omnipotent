@@ -14,23 +14,33 @@ import { createInterface } from 'node:readline';
 import { Writable } from 'node:stream';
 import { deflateSync } from 'node:zlib';
 
-/** What the scenario needs. Empty: asked at launch. */
+/**
+ * What the scenario needs. Empty: asked at launch. **Your own values go in `config.local.mjs`**, beside
+ * this file, which git ignores — never here: this file is committed, and the repository is public.
+ */
 const CONFIG = {
   /** The API. */
   url: 'http://localhost:3002',
-  /** Your token, from the Swagger. Leave it EMPTY: it is asked without showing, and never committed. */
+  /** Your token, from the Swagger. Empty here, always: in `config.local.mjs`, or asked without showing. */
   token: '',
   /** The Organization to create the campaign in. Empty: yours are read from /me, and asked when several. */
   organizationId: '',
   /** The brand. Empty: the brands of the Organization are listed, and asked when there are several. */
   advertiserId: '',
-  /** The brand's real site: Google reviews the page every ad leads to. */
+  /** The page every ad leads to, which Google reviews. Empty: the brand's own site, else asked. */
   site: '',
   /** The keywords, matched as phrases; « gratuit » is added as a negative one. */
   keywords: ['devis gratuit', 'prise de rendez-vous', 'conseil personnalisé'],
   /** Whether to launch, then pause at once. `null`: asked once the preview is clean. */
   launch: null,
 };
+
+// Your own values, kept out of git: `export default { organizationId: '…', token: '…' }`.
+try {
+  Object.assign(CONFIG, (await import('./config.local.mjs')).default);
+} catch (error) {
+  if (error.code !== 'ERR_MODULE_NOT_FOUND') throw error;
+}
 
 /** The terminal, opened at the first question and shared by all of them. */
 let reader;
@@ -230,9 +240,6 @@ if (!organization) stop('Aucune Organization à prendre : omnipass ne t’en don
 CONFIG.organizationId = organization.id;
 say(`${organization.name}, rôle ${organization.role} (${organization.id})`);
 
-if (!CONFIG.site) CONFIG.site = await ask('\nLe vrai site de la marque (https://…) : ');
-if (!/^https?:\/\//.test(CONFIG.site)) stop('Il faut le site de la marque, en http(s).');
-
 title('La marque');
 const advertisers = (await call('GET', '/advertisers?limit=100')).items;
 let advertiser = CONFIG.advertiserId
@@ -244,8 +251,17 @@ if (!advertiser && !CONFIG.advertiserId && advertisers.length > 1) {
   advertisers.forEach((one, index) => say(`${index + 1}. ${one.name}`));
   advertiser = advertisers[Number(await ask('   Laquelle (son numéro) : ')) - 1];
 }
-if (!advertiser) stop('Aucune marque à prendre dans cette Organization.');
-say(`${advertiser.name} (${advertiser.id})`);
+if (!advertiser && CONFIG.advertiserId) stop('La marque du réglage n’est pas dans cette Organization.');
+if (!advertiser) {
+  say('Aucune marque dans cette Organization : le scénario en crée une.');
+  const name = await ask('   Son nom : ');
+  const site = CONFIG.site || (await ask('   Son vrai site, que Google examinera (https://…) : '));
+  advertiser = await call('POST', '/advertisers', { name, websiteUrl: site });
+}
+say(`${advertiser.name}${advertiser.websiteUrl ? `, ${advertiser.websiteUrl}` : ''} (${advertiser.id})`);
+// The page every ad leads to: the setting, else the brand's own site, else asked.
+CONFIG.site ||= advertiser.websiteUrl ?? (await ask('   Son vrai site, que Google examinera (https://…) : '));
+if (!/^https?:\/\//.test(CONFIG.site)) stop('Il faut le site de la marque, en http(s).');
 
 title('Le compte Google connecté, relié à la marque');
 const accounts = (await call('GET', '/ad-accounts?platform=google_ads&status=active&limit=100')).items;
@@ -382,11 +398,19 @@ await call('PUT', `/campaigns/${campaign.id}/status`, { status: 'paused' });
 say('En pause.');
 
 title('Ce que Google a reçu');
+let units = [];
 for (let attempt = 1; attempt <= 12; attempt += 1) {
   await wait(5_000);
   console.log(`   — après ${attempt * 5} s`);
-  const units = await platformStatus(campaign.id);
+  units = await platformStatus(campaign.id);
   if (units.length > 0 && units.every((unit) => unit.state !== 'pending')) break;
+}
+// Still waiting, never tried: no worker runs the jobs — the API only queues them.
+if (units.some((unit) => unit.state === 'pending' && unit.attempts === 0)) {
+  console.log(
+    '\n\x1b[33m⚠ La synchro n’a jamais été tentée : aucun worker ne traite les jobs. Dans backend/ :' +
+      '\n  APP_PORT=3012 pnpm start:worker\nElle part alors toute seule, dans la minute.\x1b[0m'
+  );
 }
 reader?.close();
 console.log(
