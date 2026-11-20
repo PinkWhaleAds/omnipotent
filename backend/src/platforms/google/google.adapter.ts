@@ -102,6 +102,16 @@ function latestOf(rows: GoogleAdsRow[]): GoogleAdsRow | null {
 }
 
 /**
+ * Where the latest of several links stands, as Google writes it.
+ *
+ * @param rows - Rows of links
+ * @returns Its status, `undefined` without any link or without a status
+ */
+function latestStatusOf(rows: GoogleAdsRow[]): GoogleClientLinkStatus | undefined {
+  return latestOf(rows)?.customerClientLink?.status;
+}
+
+/**
  * The refusal of a call that needs our inviter, the human admin of our MCC, before
  * `pnpm google:connect` has run: our credentials, never the client's.
  *
@@ -167,7 +177,7 @@ export class GoogleAdsAdapter implements PlatformAdapter {
    * @throws PlatformError: `inviter_missing` when an invitation must leave, until lot 2b
    */
   public async requestLink(reference: string): Promise<'pending' | 'active'> {
-    const status: GoogleClientLinkStatus | undefined = await this.latestStatusOf(reference);
+    const status: GoogleClientLinkStatus | undefined = await this.statusOfClient(reference);
     if (status === 'ACTIVE') return 'active';
     if (status === 'PENDING') return 'pending';
     throw inviterMissing(`invite the account ${formatCustomerId(reference)}`);
@@ -184,7 +194,7 @@ export class GoogleAdsAdapter implements PlatformAdapter {
     }
     const statuses = new Map<string, LinkStatus>();
     for (const [clientId, links] of byClient) {
-      const status: LinkStatus | undefined = LINK_STATUSES[latestOf(links)?.customerClientLink?.status ?? ''];
+      const status: LinkStatus | undefined = LINK_STATUSES[latestStatusOf(links) ?? ''];
       if (status) statuses.set(clientId, status);
     }
     return statuses;
@@ -198,7 +208,7 @@ export class GoogleAdsAdapter implements PlatformAdapter {
    * @throws PlatformError: `inviter_missing` when one is pending, until lot 2b
    */
   public async cancelLink(reference: string): Promise<void> {
-    if ((await this.latestStatusOf(reference)) !== 'PENDING') return;
+    if ((await this.statusOfClient(reference)) !== 'PENDING') return;
     throw inviterMissing(`withdraw the invitation of ${formatCustomerId(reference)}`);
   }
 
@@ -249,9 +259,8 @@ export class GoogleAdsAdapter implements PlatformAdapter {
    * @param clientId - Its customer id
    * @returns Google's status of it, `undefined` without any link
    */
-  private async latestStatusOf(clientId: string): Promise<GoogleClientLinkStatus | undefined> {
-    const rows: GoogleAdsRow[] = await this.client.search(null, this.client.managerId, GAQL.clientLinksOf(clientId));
-    return latestOf(rows)?.customerClientLink?.status;
+  private async statusOfClient(clientId: string): Promise<GoogleClientLinkStatus | undefined> {
+    return latestStatusOf(await this.client.search(null, this.client.managerId, GAQL.clientLinksOf(clientId)));
   }
 }
 

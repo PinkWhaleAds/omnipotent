@@ -132,7 +132,10 @@ describe('Unit::Platforms::Google::Auth', () => {
     beforeEach((): void => {
       now = NOW;
       loadKey = jest.fn().mockResolvedValue(JSON.stringify(KEY));
-      fetchFn = jest.fn().mockResolvedValue(tokenResponse({ access_token: 'ya29.first', expires_in: 3_600 }));
+      // A new response at each call: a body is read once only.
+      fetchFn = jest.fn(async (): Promise<Response> =>
+        tokenResponse({ access_token: 'ya29.first', expires_in: 3_600 })
+      );
     });
 
     it('should exchange a signed assertion for a token at the token endpoint', async (): Promise<void> => {
@@ -194,7 +197,9 @@ describe('Unit::Platforms::Google::Auth', () => {
     });
 
     it('should renew at once a token whose lifetime is shorter than the margin', async (): Promise<void> => {
-      fetchFn.mockResolvedValue(tokenResponse({ access_token: 'ya29.short', expires_in: 30 }));
+      fetchFn.mockImplementation(async (): Promise<Response> =>
+        tokenResponse({ access_token: 'ya29.short', expires_in: 30 })
+      );
       const provider: GoogleServiceAccountAuth = auth();
 
       await provider.accessToken();

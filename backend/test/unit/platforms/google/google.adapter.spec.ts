@@ -130,7 +130,8 @@ describe('Unit::Platforms::Google::Adapter', () => {
 
   describe('requestLink', () => {
     it('should send nothing for an account our MCC already manages, through our MCC and our token', async (): Promise<void> => {
-      links = [link(CLIENT, 'ACTIVE', '1')];
+      // A row Google answers without a link, before the link that matters.
+      links = [{}, link(CLIENT, 'ACTIVE', '1')];
 
       await expect(adapter.requestLink(CLIENT)).resolves.toBe('active');
 
@@ -152,6 +153,7 @@ describe('Unit::Platforms::Google::Adapter', () => {
 
     it.each([
       ['no link at all', []],
+      ['only a row without a link', [{}]],
       [
         'only an invitation it withdrew, the latest of its links',
         [link(CLIENT, 'ACTIVE', '1'), link(CLIENT, 'CANCELED', '2')],
@@ -183,6 +185,11 @@ describe('Unit::Platforms::Google::Adapter', () => {
         link('2222222222', 'REFUSED', '2'),
         link('3333333333', 'CANCELED', '3'),
         link('4444444444', 'INACTIVE'),
+        // A link Google numbered after one it did not number: the numbered one wins.
+        link('6666666666', 'INACTIVE'),
+        link('6666666666', 'ACTIVE', '3'),
+        // A link without a status says nothing.
+        { customerClientLink: { clientCustomer: 'customers/7777777777' } },
         link('5555555555', 'SOMETHING_NEW', '1'),
         { customerClientLink: { clientCustomer: 'not-a-customer', status: 'ACTIVE' } },
         { customerClientLink: { status: 'ACTIVE' } },
@@ -195,6 +202,7 @@ describe('Unit::Platforms::Google::Adapter', () => {
         '2222222222': 'refused',
         '3333333333': 'refused',
         '4444444444': 'ended',
+        '6666666666': 'active',
       });
       expect(searches()).toHaveLength(1);
       expect(searches()[0][1]).not.toContain('WHERE');
