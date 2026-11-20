@@ -80,6 +80,7 @@ Non secrets. Les secrets vivent sur AWS, dans Secrets Manager sous `omnipotent/d
 | Microsoft Advertising                             | Valeur                                                                                                   |
 | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | Compte gestionnaire (`cid`)                       | `255113635`                                                                                              |
+| Numéro du compte gestionnaire (10 caractères, donné le 2026-11-20) | `K120003KD1`                                                                          |
 | Application Entra                                 | Client ID dans le secret `microsoft-ads/app` ; « Any Entra ID Tenant + Personal Microsoft accounts » ; plateforme Web, retour `http://localhost:4102/microsoft/callback` |
 | Developer token                                   | de production, accordé le 2026-11-18 ; dans le secret `microsoft-ads/app`                                |
 | Utilisateur de service                            | compte personnel Microsoft dédié, Super Admin du compte gestionnaire, double authentification active     |
