@@ -399,7 +399,8 @@ export class GoogleUnitSync {
     const object: DesiredObject = slot.campaign;
     const now: number = this.now();
     const name: string = taggedName(`${desired.campaignName} — ${object.name}`, nameTag(desired.unitId, slot.key));
-    const budgetMicros = String(roundMicros(object.dailyBudgetMicros ?? 0, desired.currency));
+    // An object of the budget level always holds one: the desired state gives it today's, or its floor.
+    const budgetMicros = String(roundMicros(object.dailyBudgetMicros as number, desired.currency));
     // A node with no bid of its own bids its AdGroup's: the state carries each node's own amount.
     const bidMicros: number | null = object.bidMicros ?? adGroupBidOf(desired);
     const bidding: Pick<GoogleCampaign, 'manualCpc' | 'targetSpend'> = campaignBidding(
