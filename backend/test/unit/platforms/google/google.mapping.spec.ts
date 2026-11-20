@@ -502,6 +502,7 @@ describe('Unit::Platforms::Google::Mapping', () => {
             { topic: 'ALCOHOL', type: 'LIMITED' },
             { topic: 'GAMBLING', type: 'FULLY_LIMITED' },
             { topic: 'SOMETHING', type: 'DESCRIPTIVE' },
+            { topic: 'UNTYPED' },
           ],
         })
       ).toEqual({ status: 'limited', reasons: ['ALCOHOL', 'GAMBLING'] });
