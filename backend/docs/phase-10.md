@@ -130,7 +130,7 @@ plateforme `manager_link`, quatre méthodes de plus, facultatives, aux noms de m
 `reference` est le compte **tel que le client le lit** dans son interface : le customer id chez
 Google, le numéro de compte chez Microsoft, où il diffère de l'identifiant des appels.
 
-_Ajouté en écrivant le code, le 2026-11-19_ : une cinquième méthode, `referenceOf(saisie)`, pure et
+_Ajouté en écrivant le code, et **validé par Lorin**, le 2026-11-19_ : une cinquième méthode, `referenceOf(saisie)`, pure et
 sans appel, qui rend la référence sous sa forme canonique — `972-563-0707` devient `9725630707` — ou
 `null` si ce n'en est pas une. Sans elle, deux saisies du même compte passeraient pour deux comptes,
 et la règle du § 4.5 tomberait.
@@ -224,7 +224,7 @@ Un poste de développement sans les secrets Google reste donc utilisable pour to
 l'inverse d'omnipass, sans lequel l'application refuse de démarrer, et c'est voulu : sans omnipass,
 aucune requête n'aurait de sens.
 
-_Corrigé en écrivant le code, le 2026-11-19_ : ce paragraphe disait qu'une connexion Google
+_Corrigé en écrivant le code, et **validé par Lorin**, le 2026-11-19_ : ce paragraphe disait qu'une connexion Google
 répondrait alors `platform_not_connectable`. Ce n'est pas possible tel que le point 1 est tranché : la
 façon de se connecter est déclarée **par l'adapter**, donc sans adapter rien ne dit que Google est une
 plateforme `manager_link`. Un compte Google se **déclare** alors comme en phase 7, comme celui de
