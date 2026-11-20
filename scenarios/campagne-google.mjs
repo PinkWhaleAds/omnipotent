@@ -1,31 +1,72 @@
 #!/usr/bin/env node
 /**
  * Scenario: a Google Search campaign of 10 € in all, built through the local API step by step, its
- * preview read — and, with `--lancer`, launched then paused at once (`backend/docs/phase-10.md` § 1
- * and § 8.6). Every call and its outcome are printed, in French, for Lorin.
+ * preview read — then, if asked, launched and paused at once (`backend/docs/phase-10.md` § 1 and
+ * § 8.6). Every call and its outcome are printed, in French, for Lorin.
  *
  * Run from the repository root, the API running locally (`pnpm start:dev` in `backend/`):
  *
- *   read -rs OMNIPOTENT_TOKEN && export OMNIPOTENT_TOKEN     # the token, never in a chat
- *   export OMNIPOTENT_ORGANIZATION_ID=<uuid>
- *   export SCENARIO_SITE=https://…                           # the brand's real site: Google reviews it
- *   node scenarios/campagne-google.mjs                       # builds and previews, spends nothing
- *   node scenarios/campagne-google.mjs --lancer              # then launches, and pauses at once
+ *   node scenarios/campagne-google.mjs
  *
- * Optional: OMNIPOTENT_URL (default http://localhost:3002), OMNIPOTENT_ADVERTISER_ID when the
- * Organization has several brands, SCENARIO_MOTS_CLES (comma separated).
+ * What the scenario needs is set in CONFIG just below; whatever is left empty is asked at launch.
  */
+import { createInterface } from 'node:readline';
+import { Writable } from 'node:stream';
 import { deflateSync } from 'node:zlib';
 
-const API = process.env.OMNIPOTENT_URL ?? 'http://localhost:3002';
-const TOKEN = process.env.OMNIPOTENT_TOKEN;
-const ORGANIZATION = process.env.OMNIPOTENT_ORGANIZATION_ID;
-const SITE = process.env.SCENARIO_SITE;
-const LAUNCH = process.argv.includes('--lancer');
-const KEYWORDS = (process.env.SCENARIO_MOTS_CLES ?? 'devis gratuit,prise de rendez-vous,conseil personnalisé')
-  .split(',')
-  .map((keyword) => keyword.trim())
-  .filter(Boolean);
+/** What the scenario needs. Empty: asked at launch. */
+const CONFIG = {
+  /** The API. */
+  url: 'http://localhost:3002',
+  /** Your token, from the Swagger. Leave it EMPTY: it is asked without showing, and never committed. */
+  token: '',
+  /** The Organization to create the campaign in: the `x-organization-id` of the Swagger. */
+  organizationId: '',
+  /** The brand. Empty: the brands of the Organization are listed, and asked when there are several. */
+  advertiserId: '',
+  /** The brand's real site: Google reviews the page every ad leads to. */
+  site: '',
+  /** The keywords, matched as phrases; « gratuit » is added as a negative one. */
+  keywords: ['devis gratuit', 'prise de rendez-vous', 'conseil personnalisé'],
+  /** Whether to launch, then pause at once. `null`: asked once the preview is clean. */
+  launch: null,
+};
+
+/** The terminal, opened at the first question and shared by all of them. */
+let reader;
+
+/** The lines typed, in order: one read per question, none lost when several come at once. */
+let lines;
+
+/** Whether what is typed is hidden: a secret is being entered. */
+let muted = false;
+
+/**
+ * Ask a question in the terminal.
+ *
+ * @param {string} question - What is asked
+ * @param {{ hidden?: boolean }} [options] - `hidden` for a secret: what is typed is not shown
+ * @returns {Promise<string>} The answer, trimmed; empty when nothing more can be read
+ */
+async function ask(question, { hidden = false } = {}) {
+  if (!reader) {
+    // The terminal echoes through this, which keeps quiet while a secret is typed.
+    const output = new Writable({
+      write(chunk, encoding, done) {
+        if (!muted) process.stdout.write(chunk, encoding);
+        done();
+      },
+    });
+    reader = createInterface({ input: process.stdin, output, terminal: true });
+    lines = reader[Symbol.asyncIterator]();
+  }
+  process.stdout.write(question);
+  muted = hidden;
+  const { value = '' } = await lines.next();
+  muted = false;
+  if (hidden) process.stdout.write('\n');
+  return value.trim();
+}
 
 let step = 0;
 
@@ -68,14 +109,14 @@ function stop(reason) {
  * @returns {Promise<any>} The answer
  */
 async function call(method, path, body) {
-  const headers = { authorization: `Bearer ${TOKEN}`, 'x-organization-id': ORGANIZATION };
+  const headers = { authorization: `Bearer ${CONFIG.token}`, 'x-organization-id': CONFIG.organizationId };
   const init = { method, headers };
   if (body instanceof FormData) init.body = body;
   else if (body !== undefined) {
     headers['content-type'] = 'application/json';
     init.body = JSON.stringify(body);
   }
-  const response = await fetch(`${API}${path}`, init);
+  const response = await fetch(`${CONFIG.url}${path}`, init);
   const text = await response.text();
   const answer = text ? JSON.parse(text) : null;
   if (!response.ok) {
@@ -166,28 +207,32 @@ async function platformStatus(campaignId) {
   return status.units ?? [];
 }
 
-if (!TOKEN)
-  stop(
-    'OMNIPOTENT_TOKEN manque : copie ton jeton depuis le Swagger, puis `read -rs OMNIPOTENT_TOKEN && export OMNIPOTENT_TOKEN`.'
+if (!CONFIG.token) {
+  console.log(
+    'Ton jeton : dans le Swagger, « Authorize », exécute une route, et copie ce qui suit « Bearer » dans la boîte Curl.'
   );
-if (!ORGANIZATION) stop('OMNIPOTENT_ORGANIZATION_ID manque : l’Organization dans laquelle créer la campagne.');
-if (!SITE) stop('SCENARIO_SITE manque : le vrai site de la marque, que Google examinera (https://…).');
+  CONFIG.token = await ask('Jeton (il ne s’affiche pas) : ', { hidden: true });
+}
+if (!CONFIG.organizationId) CONFIG.organizationId = await ask('Organization (son id) : ');
+if (!CONFIG.site) CONFIG.site = await ask('Le vrai site de la marque (https://…) : ');
+if (!CONFIG.token || !CONFIG.organizationId || !/^https?:\/\//.test(CONFIG.site)) {
+  stop('Il faut un jeton, une Organization et un site en http(s).');
+}
 
-console.log(
-  `Scénario « campagne Google à 10 € » contre ${API}${LAUNCH ? ' — avec lancement puis pause' : ' — sans lancement'}`
-);
+console.log(`\nScénario « campagne Google à 10 € » contre ${CONFIG.url}`);
 
 title('La marque');
 const advertisers = (await call('GET', '/advertisers?limit=100')).items;
-const advertiser = process.env.OMNIPOTENT_ADVERTISER_ID
-  ? advertisers.find((one) => one.id === process.env.OMNIPOTENT_ADVERTISER_ID)
+let advertiser = CONFIG.advertiserId
+  ? advertisers.find((one) => one.id === CONFIG.advertiserId)
   : advertisers.length === 1
     ? advertisers[0]
     : undefined;
-if (!advertiser) {
-  for (const one of advertisers) say(`${one.id}  ${one.name}`);
-  stop('Choisis la marque : export OMNIPOTENT_ADVERTISER_ID=<son id>.');
+if (!advertiser && !CONFIG.advertiserId && advertisers.length > 1) {
+  advertisers.forEach((one, index) => say(`${index + 1}. ${one.name}`));
+  advertiser = advertisers[Number(await ask('   Laquelle (son numéro) : ')) - 1];
 }
+if (!advertiser) stop('Aucune marque à prendre dans cette Organization.');
 say(`${advertiser.name} (${advertiser.id})`);
 
 title('Le compte Google connecté, relié à la marque');
@@ -225,7 +270,7 @@ const lever = await call('POST', `/campaigns/${campaign.id}/levers`, {
   platformShares: [{ platform: 'google_ads', shareBasisPoints: 10_000 }],
   platformSettings: { google_ads: { searchPartners: false, aiMax: false } },
   extensions: {
-    sitelinks: [{ text: 'Nous contacter', finalUrl: SITE }],
+    sitelinks: [{ text: 'Nous contacter', finalUrl: CONFIG.site }],
     callouts: ['Réponse rapide', 'Conseil gratuit'],
     structuredSnippets: [],
   },
@@ -254,9 +299,9 @@ say(`${node.name} (${node.id})`);
 title('Les mots-clés');
 await call('POST', `/targeting-groups/${node.id}/keywords`, {
   mode: 'atomic',
-  keywords: [...KEYWORDS.map((text) => ({ text, matchType: 'phrase' })), { text: 'gratuit', negative: true }],
+  keywords: [...CONFIG.keywords.map((text) => ({ text, matchType: 'phrase' })), { text: 'gratuit', negative: true }],
 });
-say(`${KEYWORDS.map((keyword) => `« ${keyword} »`).join(', ')} en expression, et « gratuit » en négatif`);
+say(`${CONFIG.keywords.map((keyword) => `« ${keyword} »`).join(', ')} en expression, et « gratuit » en négatif`);
 
 title('Le logo, carré, dans la bibliothèque');
 const form = new FormData();
@@ -291,7 +336,7 @@ for (const creative of [withLogo, plain]) {
   const line = await call('POST', `/targeting-groups/${node.id}/lines`, {
     name: creative.name,
     creativeId: creative.id,
-    landingPageUrl: SITE,
+    landingPageUrl: CONFIG.site,
   });
   say(`${line.name} → ${line.landingPageUrl} (${line.id})`);
 }
@@ -309,9 +354,12 @@ for (const finding of preview.warnings) say(`avertissement ${finding.code} ${JSO
 if (!preview.launchable) stop('La preview bloque le lancement : corrige ce qu’elle dit, puis relance le scénario.');
 say('Rien ne bloque le lancement.');
 
-if (!LAUNCH) {
+const launch =
+  CONFIG.launch ??
+  /^o(ui)?$/i.test(await ask('\nLa lancer chez Google, puis la mettre en pause aussitôt ? (oui/non) : '));
+if (!launch) {
   console.log(`\nCampagne ${campaign.id} prête, en brouillon. Rien n’est parti chez Google.`);
-  console.log('Relance avec --lancer pour la lancer puis la mettre en pause aussitôt.');
+  reader?.close();
   process.exit(0);
 }
 
@@ -328,6 +376,7 @@ for (let attempt = 1; attempt <= 12; attempt += 1) {
   const units = await platformStatus(campaign.id);
   if (units.length > 0 && units.every((unit) => unit.state !== 'pending')) break;
 }
+reader?.close();
 console.log(
   `\nRegarde maintenant dans Google Ads la campagne dont le nom se termine par [op:…] : en pause, ` +
     `avec son budget, son pays et son rayon, ses mots-clés, ses deux annonces, ses extensions et son logo.`
