@@ -30,6 +30,7 @@ import { hasAdapter, PlatformProjection, projectionOf, rulesOf } from '@src/plat
 import { ProjectedObject, projectObjects } from '@src/platforms/projection';
 import {
   AuthContext,
+  BidStrategy,
   CampaignPlatformStatus,
   MessageParams,
   Platform,
@@ -544,6 +545,7 @@ export class SyncService {
       projection,
       campaign: branch,
       insertionOrderNumber: campaign.insertionOrderNumber,
+      containsPoliticalAdvertising: campaign.containsPoliticalAdvertising,
       currency: bought.currency,
       timezone: bought.timezone,
       fxRate: unit.fxRate,
@@ -582,6 +584,7 @@ export class SyncService {
       status: string;
       budgetCents: number | null;
       bidAmountCents?: number | null;
+      bidStrategy?: BidStrategy;
       capping?: unknown;
       targeting?: unknown;
       creativeId?: string | null;
@@ -596,6 +599,7 @@ export class SyncService {
     };
     // Only the level that holds a budget over there is asked for one: resolving a curve costs reads,
     // and a level whose object cannot carry a budget would throw the answer away.
+    const creative: DesiredCreative | null = this.creativeOf(tree, row.creativeId ?? null);
     const paced: { todayCents: number; averageCents: number } | null =
       level === projection.budgetLevel
         ? await this.curves.pacedDay(this.dataSource.manager, tree.campaign.organizationId, level, row.id, timezone)
@@ -612,10 +616,12 @@ export class SyncService {
       dailyBudgetCents: paced?.todayCents ?? null,
       averageDailyCents: paced?.averageCents ?? null,
       bidAmountCents: row.bidAmountCents ?? null,
+      bidStrategy: row.bidStrategy ?? null,
       capping: (row.capping ?? null) as DesiredNode['capping'],
       targeting: (row.targeting ?? null) as DesiredNode['targeting'],
-      creative: this.creativeOf(tree, row.creativeId ?? null),
-      landingPageUrl: row.landingPageUrl ?? null,
+      creative,
+      // A Line's own page overrides its creative's (L18): a platform receives the one that applies.
+      landingPageUrl: row.landingPageUrl ?? this.clickThroughUrlOf(tree, row.creativeId ?? null),
       trackers: (row.trackers ?? null) as DesiredNode['trackers'],
       keywords: [],
     };
@@ -645,6 +651,17 @@ export class SyncService {
       // Filled by the platform phases, which upload an asset once and keep its reference there.
       assets: {},
     };
+  }
+
+  /**
+   * Where a click on a creative goes, as the creative says it.
+   *
+   * @param tree - The campaign's tree
+   * @param creativeId - The creative, `null` above the Line
+   * @returns Its click-through URL, `null` when it has none or there is no creative
+   */
+  private clickThroughUrlOf(tree: CampaignTree, creativeId: string | null): string | null {
+    return creativeId === null ? null : (tree.creatives.get(creativeId)?.clickThroughUrl ?? null);
   }
 
   /**

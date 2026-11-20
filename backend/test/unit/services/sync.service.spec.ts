@@ -58,6 +58,9 @@ function hawkRules(overrides: Partial<PlatformRules> = {}): PlatformRules {
     requiresClickThroughUrl: false,
     requiresIabCategories: false,
     minDailyBudgetCents: 0,
+    bidStrategies: ['max_cpc', 'maximize_clicks', 'maximize_conversions', 'cpm'],
+    sharedTargeting: [],
+    maxActiveAds: null,
     ...overrides,
   };
 }
@@ -110,6 +113,7 @@ describe('Unit::Services::SyncService', () => {
         budgetCents: 100_000,
         capping: null,
         insertionOrderNumber: null,
+        containsPoliticalAdvertising: false,
         nextPacingAt: null,
         deletedAt: null,
         ...overrides.campaign,
@@ -140,6 +144,7 @@ describe('Unit::Services::SyncService', () => {
         lever: 'dooh',
         name: 'Grand Paris',
         status: 'active',
+        bidStrategy: 'fixed_cpm',
         budgetCents: null,
         bidAmountCents: null,
         platformShares: null,
@@ -408,6 +413,17 @@ describe('Unit::Services::SyncService', () => {
       expect(refs).toEqual({});
       expect(units()[0]).toMatchObject({ syncState: 'synced', attempts: 0, nextAttemptAt: null });
       expect(units()[0].syncedHash).toHaveLength(64);
+      // How it bids comes from the AdGroup, what the user declared from the campaign (D53).
+      expect(desired.containsPoliticalAdvertising).toBe(false);
+      expect(desired.objects.map((object): [string, string | null] => [object.key, object.bidStrategy])).toEqual([
+        [`ad_group:${AD_GROUP_ID}`, 'fixed_cpm'],
+        [`targeting_group:${NODE_ID}`, 'fixed_cpm'],
+        [`keyword:${KEYWORD_ID}`, null],
+        [`line:${LINE_ID}`, 'fixed_cpm'],
+      ]);
+      expect(desired.objects.find((object): boolean => object.level === 'line')?.landingPageUrl).toBe(
+        'https://example.test'
+      );
     });
 
     it('should apply a unit of a platform whose credentials are ours, with no secret of the account', async (): Promise<void> => {
@@ -611,6 +627,30 @@ describe('Unit::Services::SyncService', () => {
       // The preview refuses the launch over it; a campaign already live simply keeps what it had.
       const desired: DesiredUnit = (apply.mock.calls[0] as [unknown, DesiredUnit])[1];
       expect(desired.objects.find((object): boolean => object.level === 'line')?.creative).toBeNull();
+    });
+
+    it('should send a Line without a page of its own the page of its creative (L18)', async (): Promise<void> => {
+      seedTree({ line: { landingPageUrl: null } });
+      seedUnit();
+      (store.rows(CreativeEntity)[0] as { clickThroughUrl: string | null }).clickThroughUrl = 'https://herbea.test';
+
+      await service.syncCampaign(CAMPAIGN_ID);
+
+      const desired: DesiredUnit = (apply.mock.calls[0] as [unknown, DesiredUnit])[1];
+      expect(desired.objects.find((object): boolean => object.level === 'line')?.landingPageUrl).toBe(
+        'https://herbea.test'
+      );
+    });
+
+    it('should send a Line with no page and no creative nowhere to click', async (): Promise<void> => {
+      seedTree({ line: { landingPageUrl: null } });
+      seedUnit();
+      (store.rows(CreativeEntity)[0] as { deletedAt: Date | null }).deletedAt = new Date();
+
+      await service.syncCampaign(CAMPAIGN_ID);
+
+      const desired: DesiredUnit = (apply.mock.calls[0] as [unknown, DesiredUnit])[1];
+      expect(desired.objects.find((object): boolean => object.level === 'line')?.landingPageUrl).toBeNull();
     });
 
     it('should send a Line whose creative has no delivering version without one', async (): Promise<void> => {

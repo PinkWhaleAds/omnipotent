@@ -37,6 +37,7 @@ function node(level: DesiredNode['level'], id: string, overrides: Partial<Desire
     dailyBudgetCents: null,
     averageDailyCents: null,
     bidAmountCents: null,
+    bidStrategy: null,
     capping: null,
     targeting: null,
     creative: null,
@@ -101,6 +102,7 @@ function input(overrides: Partial<DesiredInput> = {}): DesiredInput {
     projection: SEARCH_SHAPE,
     campaign: branch(),
     insertionOrderNumber: null,
+    containsPoliticalAdvertising: false,
     currency: 'EUR',
     timezone: 'Europe/Paris',
     fxRate: 1,
@@ -185,6 +187,7 @@ describe('Unit::Platforms::DesiredState', () => {
         status: 'active',
         campaignId: 'c1',
         campaignName: 'Automne',
+        containsPoliticalAdvertising: false,
         currency: 'EUR',
         timezone: 'Europe/Paris',
       });
@@ -300,6 +303,34 @@ describe('Unit::Platforms::DesiredState', () => {
       });
     });
 
+    it('should give every object below the AdGroup the strategy it bids with, and none to a keyword', (): void => {
+      const { desired } = desiredUnit(
+        input({
+          campaign: branch({ adGroup: { bidStrategy: 'maximize_clicks' }, targetingGroup: { keywords: [kw('k1')] } }),
+        })
+      );
+
+      expect(objectOf(desired, 'ad_group:g1').bidStrategy).toBe('maximize_clicks');
+      expect(objectOf(desired, 'targeting_group:t1').bidStrategy).toBe('maximize_clicks');
+      expect(objectOf(desired, 'line:l1').bidStrategy).toBe('maximize_clicks');
+      expect(objectOf(desired, 'keyword:k1').bidStrategy).toBeNull();
+    });
+
+    it('should let a node below the AdGroup say its own strategy', (): void => {
+      const { desired } = desiredUnit(
+        input({ campaign: branch({ adGroup: { bidStrategy: 'max_cpc' }, targetingGroup: { bidStrategy: 'cpm' } }) })
+      );
+
+      expect(objectOf(desired, 'ad_group:g1').bidStrategy).toBe('max_cpc');
+      expect(objectOf(desired, 'line:l1').bidStrategy).toBe('cpm');
+    });
+
+    it('should carry what the user declared about political advertising', (): void => {
+      expect(desiredUnit(input({ containsPoliticalAdvertising: true })).desired.containsPoliticalAdvertising).toBe(
+        true
+      );
+    });
+
     it('should give the split object the budget of the node that caused it', (): void => {
       const { desired } = desiredUnit(
         input({
@@ -321,6 +352,9 @@ describe('Unit::Platforms::DesiredState', () => {
       expect(desiredUnit(input()).hash).toBe(reference);
       expect(desiredUnit(input({ campaign: branch({ line: { name: 'Autre' } }) })).hash).not.toBe(reference);
       expect(desiredUnit(input({ campaign: branch({ adGroup: { dailyBudgetCents: 1_001 } }) })).hash).not.toBe(
+        reference
+      );
+      expect(desiredUnit(input({ campaign: branch({ adGroup: { bidStrategy: 'max_cpc' } }) })).hash).not.toBe(
         reference
       );
       // The unit's own id is part of it: a platform tags its objects with it.

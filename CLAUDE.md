@@ -19,7 +19,7 @@ The reference projects it draws from:
 - **`~/PinkWhale/multi-search`** — **ours**, and therefore freely reusable. Its conventions were
   hardened phase after phase; this repository's socle is a transcription of its own. Its front and back
   are frozen (D30). It is also the **measure of the Search**: a Google or Microsoft campaign of
-  Omnipotent does everything a multi-search one does (Lorin, 2026-11-20). An older clone may sit at
+  Omnipotent does everything a multi-search one did on 2026-11-20, commit `0aac705` (D54). An older clone may sit at
   `~/OmniAd/multi-search`: it stopped on 2026-10-20, so never read it.
 - **`~/PinkWhale/omnipass`** — the identity and tenancy service, built in parallel (T1). It owns
   `User`, `Seat`, `Organization` and the memberships; **nothing here does**. Its repository is

@@ -376,7 +376,8 @@ même chemin pour Microsoft.
 
 ### 8.2 La mesure : ce que fait une campagne Search de multi-search
 
-multi-search a été relu le 2026-11-20 dans **`~/PinkWhale/multi-search`**, à sa phase 39c. L'étude
+multi-search a été relu le 2026-11-20 dans **`~/PinkWhale/multi-search`**, à sa phase 39c (commit
+`0aac705`) : c'est la cible de la parité, figée ce jour-là (D54). L'étude
 `plateformes/google-ads.md` avait été écrite depuis une copie arrêtée au 2026-10-20 : où les deux
 diffèrent, multi-search d'aujourd'hui l'emporte, et l'étude se corrige au fil du lot.
 
@@ -424,7 +425,10 @@ Omnipotent la **met en pause** (R5, § 8.5).
   `maximize_clicks` → `TARGET_SPEND`, puis `maximize_conversions` en 3d. `cpm` est refusé, le Search
   n'achetant pas au mille ;
 - **les plafonds**, en **erreur** de preview comme chez multi-search : trois annonces actives par ad
-  group, dix mots par mot-clé, cinq cents rayons par campagne ;
+  group (`maxActiveAds`). Les dix mots par mot-clé et les cinq cents rayons, eux, le modèle les refuse
+  déjà à la saisie (`MAX_KEYWORD_WORDS`, le schéma de `proximity`) ;
+- **le ciblage partagé** (`sharedTargeting`) : `country`, `proximity`, puis `zip_code` et `location`
+  en 3c — ce que Google ne pose que sur la campagne (§ 8.4, point 9) ;
 - **les réglages** que le couple accepte, avec leur valeur par défaut : `searchPartners: true`,
   `aiMax: false` (§ 8.4, point 4) ;
 - **l'intention de lieu** et **les extensions**, que le couple exprime (§ 8.4, points 5 et 6).
@@ -499,6 +503,22 @@ dont les fichiers sont cités.
    qui compte toutes ses annonces, faute de statut sur elles. La preview vérifie aussi, comme
    multi-search, qu'une créa RSA n'a pas deux titres ou deux descriptions identiques.
 
+9. **Le ciblage partagé.** Trouvé en écrivant le code, et absent de l'étude : une campagne Search de
+   Google pose ses lieux et ses rayons **sur la campagne**, jamais sur un ad group. Or notre ciblage
+   vit sur le TargetingGroup, qui devient un ad group : deux TargetingGroups d'un même AdGroup ciblant
+   deux villes ne peuvent pas tenir dans une seule campagne Google, et envoyer leur union diffuserait
+   plus large que chacun ne l'a demandé. Le registre nomme ces dimensions (`sharedTargeting`), et la
+   preview refuse en **erreur** (`preview_targeting_not_shared`) des TargetingGroups qui partagent une
+   campagne de la plateforme et les demandent différemment. Le remède est dit dans le message : donner
+   un budget propre à l'un, ce qui l'éclate en sa propre campagne, ou le déplacer dans un autre
+   AdGroup. multi-search n'a pas ce cas, n'ayant qu'un ad group par campagne. Les appareils, eux, se
+   règlent sur l'ad group chez Google, et ne sont pas concernés.
+
+10. **Un compte relié à notre MCC passe la preview.** Elle refusait tout compte sans secret propre
+    (`preview_account_credentials_missing`), ce qu'un compte Google n'a jamais : c'est notre
+    credential qui sert (§ 4.1). Elle ne le demande plus que sur une plateforme où chaque compte
+    apporte le sien, ce qu'elle lit dans l'adapter.
+
 Un champ de plus dans l'état voulu change l'empreinte de chaque unité : chacune repasse une fois à la
 première synchro. Aucune n'existe encore chez une plateforme, donc rien n'en bouge.
 
@@ -566,7 +586,8 @@ parité :
 5. l'`externalAdvertiserId` d'un compte Google est son customer id ;
 6. trois annonces au plus par ad group, en erreur et non en avertissement.
 
-**À valider** — ce que le modèle d'Omnipotent, plus large que celui de multi-search, oblige à choisir :
+**Validés le 2026-11-20 aussi**, à la lecture de cette version — ce que le modèle d'Omnipotent, plus
+large que celui de multi-search, oblige à choisir :
 
 7. **Les extensions et les réglages par plateforme vont sur le Lever** (§ 8.4, points 4 et 6), qui
    joue chez nous le rôle de la campagne de multi-search, puisqu'une campagne d'Omnipotent peut mêler
@@ -578,5 +599,12 @@ parité :
     campagne (point 3), sans balayage de toutes les campagnes.
 11. **La marque va sur la créa RSA**, et les images envoyées sont gardées par compte (point 7).
 12. **Les trois annonces se comptent sur les Lines actives** (point 8).
-13. **D30 dit multi-search gelé**, alors qu'il avance encore : sa phase 39c date du 2026-11-20. La
-    parité vise-t-elle multi-search tel qu'il est ce jour-là, ou le suit-elle tant qu'il avance ?
+13. **La parité vise multi-search tel qu'il est le 2026-11-20** (commit `0aac705`, sa phase 39c), et
+    non tant qu'il avance : D30 le disait gelé, il ne l'est pas, la cible l'est (D54). Ce qu'il gagne
+    ensuite va dans une phase à part.
+
+**À valider** — trouvé en écrivant le code de 3a :
+
+14. **Des TargetingGroups qui partagent une campagne Google doivent demander les mêmes lieux**, sinon
+    la preview refuse le lancement (§ 8.4, point 9). L'autre voie serait de les éclater d'office en
+    campagnes séparées, ce qui diviserait le budget de l'AdGroup sans que personne ne l'ait demandé.

@@ -567,7 +567,7 @@ Quatre pièces s'ajoutent à ça, et deux d'entre elles sont des pannes classiqu
 | D27 | Une seule table `budget_days`, clé `(level, nodeId, day)` |
 | D28 | Le pacing n'est pas un job : fonction pure calculée dans la synchro |
 | D29 | TikTok sur `social` **et** `search` quand TikTok Search Ads arrivera ; pas de levier `social_search` |
-| D30 | Front **et** back de multi-search gelés, aucun travail parallèle dessus |
+| D30 | Front **et** back de multi-search gelés, aucun travail parallèle dessus ; *amendée par D54* |
 | D31 | Accès Standard à l'API Google Ads demandé ; la preview affiche le nombre d'objets créés, avec un plafond configurable |
 | D32 | Statistiques en Postgres derrière un port de repository ; ClickHouse remis à plus tard |
 | D33 | Le lien TargetingGroup ↔ Creative s'appelle `Line` |
@@ -591,6 +591,7 @@ Quatre pièces s'ajoutent à ça, et deux d'entre elles sont des pannes classiqu
 | D51 | **Amazon DSP est retiré du levier `audio`** — sa bibliothèque d'assets n'enregistre pas d'audio (§ 6) |
 | D52 | Nom d'hôte de production **`omnipotent.pinkwhale.co`** et port local **3002** (§ 19) : le nom d'hôte porte le produit, parce que multi-search occupe la même zone, et `localhost:3000` appartient à multi-search et à omnipass. L'identifiant d'une API MCP Auth0 doit être **l'URL exacte** du `/mcp` servi — il en faut donc une par environnement. _Amendée le 2026-11-14_ : le domaine était `omnilor.com`, le groupe est passé à `pinkwhale.co` |
 | D53 | La **publicité politique est déclarée par l'utilisateur**, jamais déduite : la campagne porte un champ **obligatoire** à la création (règlement UE 2024/900, que chaque plateforme répercute). Déclarer « oui » est **refusé par la preview** avec un code stable, tant qu'aucune plateforme du périmètre ne l'accepte et que les déclarations de commanditaire ne sont pas modélisées |
+| D54 | La **parité Search** : une campagne Google ou Microsoft d'Omnipotent fait tout ce que fait une campagne de multi-search **tel qu'il est le 2026-11-20** (`~/PinkWhale/multi-search`, commit `0aac705`, sa phase 39c) — tranché par Lorin ce jour-là. Ce que multi-search gagne ensuite va dans une phase à part, sans rouvrir les phases 10 et 11. Amende D30 : multi-search n'est pas gelé, la cible de la parité l'est |
 | L1→L24 | Les leviers : voir `backend/docs/leviers.md`, validées le 2026-10-25 |
 | R1→R14 | Le reporting : voir `backend/docs/reporting.md`. **R9 (nos propres conversions) est reporté en V2** |
 | T1 | La tenancy vit dans un service séparé, `omnipass` |

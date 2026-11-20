@@ -16,6 +16,7 @@ import {
 import {
   hasAdapter,
   PlatformProjection,
+  PlatformRules,
   projectionOf,
   rulesOf,
   unsupportedDimensions,
@@ -38,6 +39,7 @@ import {
 import { httpError } from '@utils';
 import { AccessService } from './access.service';
 import { CampaignService } from './campaign.service';
+import { adapterOf, hasAdapterFor } from '@src/platforms/platform-adapter';
 import { countByObject, ProjectedObject, projectObjects } from '@src/platforms/projection';
 import { adGroupStructure, CampaignTree, leverStructure, readCampaignTree } from './campaign-tree.helpers';
 import { nextLocalMidnight, resolveCampaignTimezone } from './pacing.helpers';
@@ -341,6 +343,7 @@ export class PreviewService {
         });
         if (projection) this.checkCreatives(tree, lever, platform as Platform, errors, warnings);
         if (projection) this.checkTargeting(tree, lever, platform as Platform, effectiveCents, warnings);
+        if (projection) this.checkLimits(tree, lever, projection, platform as Platform, errors);
       }
     }
     return previews;
@@ -470,7 +473,8 @@ export class PreviewService {
         );
         continue;
       }
-      if (rules.requiresClickThroughUrl && creative.clickThroughUrl === null) {
+      // A Line's own page overrides its creative's (L18): either one gives the click somewhere to go.
+      if (rules.requiresClickThroughUrl && (line.landingPageUrl ?? creative.clickThroughUrl) === null) {
         errors.push(this.finding('preview_click_url_missing', { creative: creative.name }, 'line', line.id, platform));
       }
       if (rules.requiresIabCategories && creative.iabCategories.length === 0) {
@@ -522,9 +526,154 @@ export class PreviewService {
   }
 
   /**
+   * Refuse what a couple cannot hold, in the AdGroups that buy on it: a bid strategy it does not bid
+   * with, more active ads than one of its objects holds, and a targeting it can only set above the
+   * nodes that ask for it differently (`docs/phase-10.md` § 8.3).
+   *
+   * An AdGroup whose own distribution key leaves the platform out sends nothing there, so it is not
+   * asked.
+   *
+   * @param tree - The tree
+   * @param lever - The lever being projected
+   * @param projection - What the platform makes of our levels
+   * @param platform - The platform
+   * @param errors - Collected errors
+   * @returns Nothing
+   */
+  private checkLimits(
+    tree: CampaignTree,
+    lever: LeverEntity,
+    projection: PlatformProjection,
+    platform: Platform,
+    errors: PreviewFinding[]
+  ): void {
+    const rules: PlatformRules = rulesOf(platform, lever.lever);
+    for (const group of tree.adGroups.filter((node: AdGroupEntity): boolean => node.leverId === lever.id)) {
+      const shares: PlatformShare[] = group.platformShares?.length ? group.platformShares : lever.platformShares;
+      if (!shares.some((share: PlatformShare): boolean => share.platform === platform)) continue;
+      if (!rules.bidStrategies.includes(group.bidStrategy)) {
+        errors.push(
+          this.finding(
+            'preview_bid_strategy_unsupported',
+            { platform, strategy: group.bidStrategy },
+            'ad_group',
+            group.id,
+            platform
+          )
+        );
+      }
+      const branch: ProjectedObject[] = projectObjects(projection, adGroupStructure(tree, group));
+      this.checkActiveAds(tree, branch, rules, platform, errors);
+      this.checkSharedTargeting(tree, branch, rules, platform, errors);
+    }
+  }
+
+  /**
+   * Refuse more active ads under one object than the platform serves there.
+   *
+   * An ad is a Line, and it counts while its **own** status is active: a paused one is paused over
+   * there too, and the adapter pauses it before it enables another, so the limit is never crossed
+   * even for an instant (`docs/phase-10.md` § 8.4, point 8).
+   *
+   * @param tree - The tree
+   * @param branch - What one AdGroup becomes there
+   * @param rules - The couple's rules
+   * @param platform - The platform
+   * @param errors - Collected errors
+   * @returns Nothing
+   */
+  private checkActiveAds(
+    tree: CampaignTree,
+    branch: readonly ProjectedObject[],
+    rules: PlatformRules,
+    platform: Platform,
+    errors: PreviewFinding[]
+  ): void {
+    if (rules.maxActiveAds === null) return;
+    const active = new Map<string, number>();
+    for (const object of branch) {
+      if (object.level !== 'line' || object.split || object.parentKey === null) continue;
+      const line: LineEntity | undefined = tree.lines.find((node: LineEntity): boolean => node.id === object.nodeId);
+      if (line?.status !== 'active') continue;
+      active.set(object.parentKey, (active.get(object.parentKey) ?? 0) + 1);
+    }
+    for (const [key, count] of active) {
+      if (count <= rules.maxActiveAds) continue;
+      // Every key of the map is the parent of an object of this very branch, so the lookup is total.
+      const holder: ProjectedObject = branch.find(
+        (object: ProjectedObject): boolean => object.key === key
+      ) as ProjectedObject;
+      errors.push(
+        this.finding('preview_too_many_ads', { count, max: rules.maxActiveAds }, holder.level, holder.nodeId, platform)
+      );
+    }
+  }
+
+  /**
+   * Refuse a targeting the platform sets above the nodes that ask for it differently.
+   *
+   * Google Search sets its places and circles on the **campaign**, never on an ad group, and an
+   * AdGroup becomes one campaign there with one ad group per TargetingGroup. Two TargetingGroups of
+   * one AdGroup aiming at two different cities cannot both be honoured, and sending their union would
+   * deliver wider than either asked — the trap of § 8 of `../../CADRAGE.md`. A TargetingGroup with a
+   * budget of its own is split into its own campaign, so it asks alone.
+   *
+   * @param tree - The tree
+   * @param branch - What one AdGroup becomes there
+   * @param rules - The couple's rules
+   * @param platform - The platform
+   * @param errors - Collected errors
+   * @returns Nothing
+   */
+  private checkSharedTargeting(
+    tree: CampaignTree,
+    branch: readonly ProjectedObject[],
+    rules: PlatformRules,
+    platform: Platform,
+    errors: PreviewFinding[]
+  ): void {
+    if (rules.sharedTargeting.length === 0) return;
+    const byKey = new Map<string, ProjectedObject>(branch.map((object: ProjectedObject) => [object.key, object]));
+    const holderOf = (object: ProjectedObject): ProjectedObject => {
+      let holder: ProjectedObject = object;
+      while (holder.level !== rules.projection.budgetLevel && holder.parentKey !== null) {
+        holder = byKey.get(holder.parentKey) as ProjectedObject;
+      }
+      return holder;
+    };
+
+    const sharing = new Map<string, { holder: ProjectedObject; nodes: TargetingGroupEntity[] }>();
+    for (const object of branch) {
+      if (object.level !== 'targeting_group' || object.split || object.keywordId !== null) continue;
+      const node: TargetingGroupEntity = tree.targetingGroups.find(
+        (candidate: TargetingGroupEntity): boolean => candidate.id === object.nodeId
+      ) as TargetingGroupEntity;
+      const holder: ProjectedObject = holderOf(object);
+      const entry = sharing.get(holder.key) ?? { holder, nodes: [] };
+      entry.nodes.push(node);
+      sharing.set(holder.key, entry);
+    }
+    for (const { holder, nodes } of sharing.values()) {
+      for (const dimension of rules.sharedTargeting) {
+        const asked = new Set<string>(
+          nodes.map((node: TargetingGroupEntity): string =>
+            canonical((node.targeting as Record<string, unknown>)[dimension] ?? null)
+          )
+        );
+        if (asked.size > 1) {
+          errors.push(
+            this.finding('preview_targeting_not_shared', { dimension }, holder.level, holder.nodeId, platform)
+          );
+        }
+      }
+    }
+  }
+
+  /**
    * Refuse a platform the brand cannot buy on: no account, an access that ended, no credentials.
    *
-   * Three findings rather than one, because the three are fixed differently.
+   * Three findings rather than one, because the three are fixed differently. A platform whose
+   * credentials are ours asks no secret of the account.
    *
    * @param platform - The platform
    * @param currency - The currency of the campaign
@@ -553,7 +702,9 @@ export class PreviewService {
         )
       );
     }
-    if (account.secretName === null) {
+    // On a platform whose credentials are ours, no account carries a secret (`docs/phase-10.md` § 4.1).
+    const ours: boolean = hasAdapterFor(platform) && adapterOf(platform).connection === 'manager_link';
+    if (account.secretName === null && !ours) {
       errors.push(this.finding('preview_account_credentials_missing', { platform }, null, null, platform));
     }
   }
@@ -593,6 +744,29 @@ export class PreviewService {
   ): PreviewFinding {
     return { code, params, level, nodeId, platform };
   }
+}
+
+/**
+ * A value written so that two equal values read the same, whatever the order of their keys and of
+ * their lists: the targeting of two nodes is compared on it.
+ *
+ * @param value - Any JSON value
+ * @returns Its canonical text
+ *
+ * @example
+ * ```typescript
+ * canonical({ include: ['FR', 'BE'] }) === canonical({ include: ['BE', 'FR'] }); // true
+ * ```
+ */
+export function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).sort().join(',')}]`;
+  if (value !== null && typeof value === 'object') {
+    const entries: string[] = Object.keys(value as Record<string, unknown>)
+      .sort()
+      .map((key: string): string => `${JSON.stringify(key)}:${canonical((value as Record<string, unknown>)[key])}`);
+    return `{${entries.join(',')}}`;
+  }
+  return JSON.stringify(value);
 }
 
 /**

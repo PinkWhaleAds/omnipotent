@@ -17,6 +17,7 @@
 import { createHash } from 'node:crypto';
 
 import {
+  BidStrategy,
   Capping,
   CreativeFormat,
   CreativeSubtype,
@@ -82,10 +83,11 @@ export type DesiredCreative = {
  * @property dailyBudgetCents - What its object must receive today, paced; `null` when it holds none
  * @property averageDailyCents - The planned average, sent instead while the object is paused
  * @property bidAmountCents - Its bid, `null` when it inherits one
+ * @property bidStrategy - How it bids, `null` when it inherits: only the AdGroup carries one
  * @property capping - Its frequency caps, `null` when it inherits them
  * @property targeting - What it targets, `null` at a level that does not target
  * @property creative - The creative it delivers, `null` above the Line
- * @property landingPageUrl - Where a click goes
+ * @property landingPageUrl - Where a click goes: a Line's own page, else its creative's (L18)
  * @property trackers - Third-party trackers to attach
  * @property keywords - The keywords hanging from it
  * @property children - The nodes below it
@@ -101,6 +103,7 @@ export type DesiredNode = {
   dailyBudgetCents: number | null;
   averageDailyCents: number | null;
   bidAmountCents: number | null;
+  bidStrategy: BidStrategy | null;
   capping: Capping | null;
   targeting: Targeting | null;
   creative: DesiredCreative | null;
@@ -122,6 +125,8 @@ export type DesiredNode = {
  * @property endsOn - Last day
  * @property dailyBudgetMicros - Its budget today, in micros of the **account's** currency
  * @property bidMicros - Its bid, likewise
+ * @property bidStrategy - How it bids, inherited from the nearest node above that says it; `null`
+ *   above the AdGroup
  * @property capping - Its frequency caps
  * @property targeting - What it targets
  * @property creative - The creative it delivers
@@ -136,6 +141,7 @@ export type DesiredObject = ProjectedObject & {
   endsOn: string;
   dailyBudgetMicros: number | null;
   bidMicros: number | null;
+  bidStrategy: BidStrategy | null;
   capping: Capping | null;
   targeting: Targeting | null;
   creative: DesiredCreative | null;
@@ -156,6 +162,8 @@ export type DesiredObject = ProjectedObject & {
  * @property campaignId - Our campaign
  * @property campaignName - Its name, which platforms show above everything
  * @property insertionOrderNumber - The commercial reference some platforms refuse to deliver without
+ * @property containsPoliticalAdvertising - What the user declared (D53), which every platform of the
+ *   scope must be told
  * @property currency - The **account's** currency, which every amount here is in
  * @property timezone - The timezone the platform counts its days in
  * @property objects - Everything it must hold, parents first
@@ -169,6 +177,7 @@ export type DesiredUnit = {
   campaignId: string;
   campaignName: string;
   insertionOrderNumber: string | null;
+  containsPoliticalAdvertising: boolean;
   currency: string;
   timezone: string;
   objects: readonly DesiredObject[];
@@ -184,6 +193,7 @@ export type DesiredUnit = {
  * @property projection - What the platform makes of our levels
  * @property campaign - The branch to project: our campaign, down to the Lines of this unit's AdGroup
  * @property insertionOrderNumber - Its commercial reference
+ * @property containsPoliticalAdvertising - What the user declared about the campaign (D53)
  * @property currency - The account's currency
  * @property timezone - The account's timezone
  * @property fxRate - Units of the account currency for one of the campaign currency, frozen (D22)
@@ -202,6 +212,7 @@ export type DesiredInput = {
   projection: PlatformProjection;
   campaign: DesiredNode;
   insertionOrderNumber: string | null;
+  containsPoliticalAdvertising: boolean;
   currency: string;
   timezone: string;
   fxRate: number;
@@ -297,27 +308,37 @@ function delivers(node: DesiredNode, input: DesiredInput, floorMicros: number): 
  */
 export function desiredUnit(input: DesiredInput): { desired: DesiredUnit; hash: string } {
   const projected: ProjectedObject[] = projectObjects(input.projection, structureOf(input.campaign));
-  const nodes = new Map<string, { node: DesiredNode; paused: boolean }>();
+  const nodes = new Map<string, { node: DesiredNode; paused: boolean; bidStrategy: BidStrategy | null }>();
   const keywords = new Map<string, DesiredKeyword>();
   const floorMicros: number = Math.max(1, input.minDailyBudgetCents * MICROS_PER_CENT);
 
   /**
-   * Index the tree by node id, carrying down whether anything above is paused.
+   * Index the tree by node id, carrying down whether anything above is paused, and how it bids.
    *
    * @param node - The node
    * @param paused - Whether an ancestor is paused
+   * @param inherited - The strategy of the nearest ancestor that says one
    * @returns Nothing
    */
-  const index: (node: DesiredNode, paused: boolean) => void = (node: DesiredNode, paused: boolean): void => {
+  const index: (node: DesiredNode, paused: boolean, inherited: BidStrategy | null) => void = (
+    node: DesiredNode,
+    paused: boolean,
+    inherited: BidStrategy | null
+  ): void => {
     const own: boolean = paused || node.status === 'paused' || !delivers(node, input, floorMicros);
-    nodes.set(node.id, { node, paused: own });
+    const bidStrategy: BidStrategy | null = node.bidStrategy ?? inherited;
+    nodes.set(node.id, { node, paused: own, bidStrategy });
     for (const keyword of node.keywords) keywords.set(keyword.id, keyword);
-    for (const child of node.children) index(child, own);
+    for (const child of node.children) index(child, own, bidStrategy);
   };
-  index(input.campaign, !input.live);
+  index(input.campaign, !input.live, null);
   const objects: DesiredObject[] = projected.map((object: ProjectedObject): DesiredObject => {
     // Every projected object comes from a node of this very tree, so both lookups are total.
-    const { node, paused } = nodes.get(object.nodeId) as { node: DesiredNode; paused: boolean };
+    const { node, paused, bidStrategy } = nodes.get(object.nodeId) as {
+      node: DesiredNode;
+      paused: boolean;
+      bidStrategy: BidStrategy | null;
+    };
 
     // A keyword is not a node: it carries only itself, and the node it hangs from gives it its status.
     if (object.keywordId !== null) {
@@ -329,6 +350,7 @@ export function desiredUnit(input: DesiredInput): { desired: DesiredUnit; hash: 
         endsOn: node.endsOn,
         dailyBudgetMicros: null,
         bidMicros: null,
+        bidStrategy: null,
         capping: null,
         targeting: null,
         creative: null,
@@ -349,6 +371,7 @@ export function desiredUnit(input: DesiredInput): { desired: DesiredUnit; hash: 
       endsOn: node.endsOn,
       dailyBudgetMicros: holdsBudget ? (paused ? Math.max(floorMicros, averageMicros) : todayMicros) : null,
       bidMicros: node.bidAmountCents === null ? null : toMicros(node.bidAmountCents, input.fxRate),
+      bidStrategy,
       capping: node.capping,
       targeting: node.targeting,
       creative: node.creative,
@@ -367,6 +390,7 @@ export function desiredUnit(input: DesiredInput): { desired: DesiredUnit; hash: 
     campaignId: input.campaign.id,
     campaignName: input.campaign.name,
     insertionOrderNumber: input.insertionOrderNumber,
+    containsPoliticalAdvertising: input.containsPoliticalAdvertising,
     currency: input.currency,
     timezone: input.timezone,
     objects,

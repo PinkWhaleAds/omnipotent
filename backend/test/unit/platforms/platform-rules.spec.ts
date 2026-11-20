@@ -36,6 +36,9 @@ describe('Unit::Platforms::PlatformRules', () => {
       requiresClickThroughUrl: false,
       requiresIabCategories: false,
       minDailyBudgetCents: 0,
+      bidStrategies: ['max_cpc', 'maximize_clicks', 'maximize_conversions', 'cpm'],
+      sharedTargeting: [],
+      maxActiveAds: null,
       ...overrides,
     };
   }

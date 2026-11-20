@@ -11,9 +11,10 @@ import {
   LineEntity,
   TargetingGroupEntity,
 } from '@src/database/entities';
+import { ADAPTERS, PlatformAdapter } from '@src/platforms/platform-adapter';
 import { PLATFORM_RULES, PlatformRules } from '@src/platforms/platform-rules';
-import PreviewServicePlugin, { PreviewService } from '@src/services/preview.service';
-import { Campaign, Preview, PreviewFinding } from '@src/types';
+import PreviewServicePlugin, { canonical, PreviewService } from '@src/services/preview.service';
+import { Campaign, Platform, Preview, PreviewFinding } from '@src/types';
 import { AccessServiceMock, buildServiceApp, createAccessMock } from '@test/unit/mocks/access.mock';
 import { IDS, JANE, NOW } from '@test/unit/mocks/auth.fixtures';
 import { createDataSourceMock, DataSourceMock } from '@test/unit/mocks/data-source.mock';
@@ -50,6 +51,9 @@ function hawkRules(overrides: Partial<PlatformRules> = {}): PlatformRules {
     requiresClickThroughUrl: false,
     requiresIabCategories: false,
     minDailyBudgetCents: 0,
+    bidStrategies: ['fixed_cpm', 'from_deal'],
+    sharedTargeting: [],
+    maxActiveAds: null,
     ...overrides,
   };
 }
@@ -79,7 +83,16 @@ describe('Unit::Services::PreviewService', () => {
    * @param overrides - Rows to change, by entity
    * @returns Nothing
    */
-  function seedComplete(overrides: { campaign?: object; node?: object; line?: object; account?: object } = {}): void {
+  function seedComplete(
+    overrides: {
+      campaign?: object;
+      lever?: object;
+      adGroup?: object;
+      node?: object;
+      line?: object;
+      account?: object;
+    } = {}
+  ): void {
     store.seed(CampaignEntity, [
       {
         id: CAMPAIGN_ID,
@@ -106,6 +119,7 @@ describe('Unit::Services::PreviewService', () => {
         platformShares: [{ platform: 'hawk', shareBasisPoints: 10_000 }],
         budgetCents: null,
         deletedAt: null,
+        ...overrides.lever,
       },
     ]);
     store.seed(AdGroupEntity, [
@@ -117,9 +131,11 @@ describe('Unit::Services::PreviewService', () => {
         lever: 'dooh',
         name: 'Grand Paris',
         status: 'active',
+        bidStrategy: 'fixed_cpm',
         budgetCents: null,
         platformShares: null,
         deletedAt: null,
+        ...overrides.adGroup,
       },
     ]);
     store.seed(TargetingGroupEntity, [
@@ -523,6 +539,15 @@ describe('Unit::Services::PreviewService', () => {
       expect(codes(preview.errors)).toContain('preview_click_url_missing');
     });
 
+    it('should take the page of the Line as the click URL, over a creative that has none', async (): Promise<void> => {
+      registry.hawk = { dooh: hawkRules({ requiresClickThroughUrl: true }) };
+      seedComplete({ line: { landingPageUrl: 'https://herbea.test/automne' } });
+
+      const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+      expect(codes(preview.errors)).not.toContain('preview_click_url_missing');
+    });
+
     it('should refuse a creative with no IAB categories where the platform demands them', async (): Promise<void> => {
       registry.hawk = { dooh: hawkRules({ requiresIabCategories: true }) };
       seedComplete();
@@ -576,6 +601,186 @@ describe('Unit::Services::PreviewService', () => {
     });
   });
 
+  describe('what a couple cannot hold', () => {
+    /**
+     * One more TargetingGroup under the AdGroup.
+     *
+     * @param index - Which one, from 2
+     * @param overrides - What it declares
+     * @returns Its id
+     */
+    function seedNode(index: number, overrides: object = {}): string {
+      const id = `f4000000-0000-4000-8000-00000000000${index}`;
+      store.seed(TargetingGroupEntity, [
+        {
+          id,
+          organizationId: IDS.organization,
+          campaignId: CAMPAIGN_ID,
+          adGroupId: AD_GROUP_ID,
+          lever: 'dooh',
+          name: `Node ${index}`,
+          status: 'active',
+          targeting: {},
+          budgetCents: null,
+          deletedAt: null,
+          ...overrides,
+        },
+      ]);
+      return id;
+    }
+
+    /**
+     * Lines under one TargetingGroup, each with the creative of the seed.
+     *
+     * @param nodeId - The TargetingGroup
+     * @param statuses - The status of each, in order
+     * @returns Nothing
+     */
+    function seedLines(nodeId: string, statuses: string[]): void {
+      store.seed(
+        LineEntity,
+        statuses.map((status: string, index: number) => ({
+          id: `f5000000-0000-4000-8000-0000000001${nodeId.slice(-1)}${index}`,
+          organizationId: IDS.organization,
+          campaignId: CAMPAIGN_ID,
+          targetingGroupId: nodeId,
+          lever: 'dooh',
+          name: `Line ${index}`,
+          status,
+          creativeId: CREATIVE_ID,
+          budgetCents: null,
+          deletedAt: null,
+        }))
+      );
+    }
+
+    it('should refuse an AdGroup bidding with a strategy the platform does not take', async (): Promise<void> => {
+      seedComplete({ adGroup: { bidStrategy: 'target_cpcv' } });
+
+      const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+      expect(preview.errors).toEqual([
+        expect.objectContaining({
+          code: 'preview_bid_strategy_unsupported',
+          params: { platform: 'hawk', strategy: 'target_cpcv' },
+          level: 'ad_group',
+          nodeId: AD_GROUP_ID,
+          platform: 'hawk',
+        }),
+      ]);
+    });
+
+    it('should not ask an AdGroup whose own key leaves the platform out', async (): Promise<void> => {
+      seedComplete({
+        lever: { platformShares: [{ platform: 'hawk', shareBasisPoints: 10_000 }] },
+        adGroup: { bidStrategy: 'target_cpcv', platformShares: [{ platform: 'dv360', shareBasisPoints: 10_000 }] },
+      });
+
+      const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+      expect(codes(preview.errors)).not.toContain('preview_bid_strategy_unsupported');
+    });
+
+    it('should refuse more active ads under one object than the platform serves', async (): Promise<void> => {
+      registry.hawk = { dooh: hawkRules({ maxActiveAds: 3 }) };
+      seedComplete();
+      seedLines(NODE_ID, ['active', 'active', 'active']);
+
+      const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+      expect(preview.errors).toEqual([
+        expect.objectContaining({
+          code: 'preview_too_many_ads',
+          params: { count: 4, max: 3 },
+          level: 'targeting_group',
+          nodeId: NODE_ID,
+          platform: 'hawk',
+        }),
+      ]);
+    });
+
+    it('should not count a Line in pause, which is paused over there too', async (): Promise<void> => {
+      registry.hawk = { dooh: hawkRules({ maxActiveAds: 3 }) };
+      seedComplete();
+      seedLines(NODE_ID, ['active', 'active', 'paused']);
+
+      const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+      expect(codes(preview.errors)).not.toContain('preview_too_many_ads');
+    });
+
+    it('should count the ads of each object apart', async (): Promise<void> => {
+      registry.hawk = { dooh: hawkRules({ maxActiveAds: 3 }) };
+      seedComplete();
+      seedLines(NODE_ID, ['active', 'active']);
+      seedLines(seedNode(2), ['active', 'active', 'active']);
+
+      const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+      expect(codes(preview.errors)).not.toContain('preview_too_many_ads');
+    });
+
+    it('should refuse TargetingGroups of one object of the budget level asking for different places', async (): Promise<void> => {
+      registry.hawk = { dooh: hawkRules({ sharedTargeting: ['country'] }) };
+      seedComplete({ node: { targeting: { country: { include: ['FR'], exclude: [] } } } });
+      seedLines(seedNode(2, { targeting: { country: { include: ['BE'], exclude: [] } } }), ['active']);
+
+      const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+      expect(preview.errors).toEqual([
+        expect.objectContaining({
+          code: 'preview_targeting_not_shared',
+          params: { dimension: 'country' },
+          level: 'ad_group',
+          nodeId: AD_GROUP_ID,
+          platform: 'hawk',
+        }),
+      ]);
+    });
+
+    it('should refuse a place asked by one TargetingGroup and not by its sibling', async (): Promise<void> => {
+      registry.hawk = { dooh: hawkRules({ sharedTargeting: ['country'] }) };
+      seedComplete({ node: { targeting: { country: { include: ['FR'], exclude: [] } } } });
+      seedLines(seedNode(2), ['active']);
+
+      const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+      expect(codes(preview.errors)).toEqual(['preview_targeting_not_shared']);
+    });
+
+    it('should accept the same places written in another order', async (): Promise<void> => {
+      registry.hawk = { dooh: hawkRules({ sharedTargeting: ['country'] }) };
+      seedComplete({ node: { targeting: { country: { include: ['FR', 'BE'], exclude: [] } } } });
+      seedLines(seedNode(2, { targeting: { country: { exclude: [], include: ['BE', 'FR'] } } }), ['active']);
+
+      const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+      expect(preview.errors).toEqual([]);
+    });
+
+    it('should let a TargetingGroup split into its own object ask for its own places', async (): Promise<void> => {
+      registry.hawk = { dooh: hawkRules({ sharedTargeting: ['country'] }) };
+      seedComplete({ node: { targeting: { country: { include: ['FR'], exclude: [] } } } });
+      seedLines(seedNode(2, { budgetCents: 20_000, targeting: { country: { include: ['BE'], exclude: [] } } }), [
+        'active',
+      ]);
+
+      const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+      expect(preview.errors).toEqual([]);
+    });
+  });
+
+  describe('canonical', () => {
+    it('should read two equal values the same, whatever the order of their keys and lists', (): void => {
+      expect(canonical({ include: ['FR', 'BE'], exclude: [] })).toBe(canonical({ exclude: [], include: ['BE', 'FR'] }));
+      expect(canonical({ points: [{ latitude: 1, longitude: 2 }] })).not.toBe(
+        canonical({ points: [{ latitude: 2, longitude: 1 }] })
+      );
+      expect(canonical(null)).toBe('null');
+    });
+  });
+
   describe('the accounts', () => {
     it('should refuse a platform the brand has no account on', async (): Promise<void> => {
       seedComplete();
@@ -602,6 +807,36 @@ describe('Unit::Services::PreviewService', () => {
       expect(codes(preview.errors)).toEqual(
         expect.arrayContaining(['preview_account_unusable', 'preview_account_credentials_missing'])
       );
+    });
+
+    describe('on a platform with an adapter', () => {
+      /** The adapters, writable, so a spec registers one as the startup would. */
+      const adapters: Partial<Record<Platform, PlatformAdapter>> = ADAPTERS as Partial<
+        Record<Platform, PlatformAdapter>
+      >;
+
+      afterEach((): void => {
+        Reflect.deleteProperty(adapters, 'hawk');
+      });
+
+      it('should ask no secret of an account whose platform runs on our credentials', async (): Promise<void> => {
+        // A `manager_link` platform: our manager account manages theirs (`docs/phase-10.md` § 4.1).
+        adapters.hawk = { platform: 'hawk', connection: 'manager_link', apply: jest.fn() };
+        seedComplete({ account: { secretName: null } });
+
+        const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+        expect(preview.errors).toEqual([]);
+      });
+
+      it('should still ask one of an account that brings its own secret', async (): Promise<void> => {
+        adapters.hawk = { platform: 'hawk', connection: 'account_secret', apply: jest.fn() };
+        seedComplete({ account: { secretName: null } });
+
+        const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+        expect(codes(preview.errors)).toEqual(['preview_account_credentials_missing']);
+      });
     });
 
     it('should refuse a disconnected account as a missing one', async (): Promise<void> => {

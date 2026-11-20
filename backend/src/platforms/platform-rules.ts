@@ -1,4 +1,11 @@
-import { CreativeFormat, CreativeSubtype, PlatformObject, TargetingDimension, TreeLevel } from '@src/types';
+import {
+  BidStrategy,
+  CreativeFormat,
+  CreativeSubtype,
+  PlatformObject,
+  TargetingDimension,
+  TreeLevel,
+} from '@src/types';
 import { httpError } from '@utils';
 
 /**
@@ -25,6 +32,13 @@ import { httpError } from '@utils';
  *   currency. A platform refuses a budget below its minimum **even on a paused object**, so a paused
  *   unit is sent the larger of this and its planned average rather than its real zero
  *   (`docs/phase-9.md` § 3)
+ * @property bidStrategies - The strategies it can bid with, among those the lever permits: an AdGroup
+ *   asking for another one fails the preview there (`docs/phase-10.md` § 8.3)
+ * @property sharedTargeting - The dimensions it applies on the object of the **budget level** only, so
+ *   every node below that object must ask for the same: Google Search sets its places and circles on
+ *   the campaign, never on an ad group (`docs/phase-10.md` § 8.4, point 9)
+ * @property maxActiveAds - How many active ads one object may hold, `null` when the platform sets no
+ *   limit: Google serves three responsive search ads per ad group at most
  */
 export type PlatformRules = {
   label: string;
@@ -34,6 +48,9 @@ export type PlatformRules = {
   requiresClickThroughUrl: boolean;
   requiresIabCategories: boolean;
   minDailyBudgetCents: number;
+  bidStrategies: readonly BidStrategy[];
+  sharedTargeting: readonly TargetingDimension[];
+  maxActiveAds: number | null;
 };
 
 /**
