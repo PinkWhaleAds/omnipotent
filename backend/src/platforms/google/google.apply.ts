@@ -105,6 +105,9 @@ class Plan {
   /** Which refs key a creation answers, by its operation. */
   public readonly answers = new Map<GoogleMutateOperation, string>();
 
+  /** The keys of the ads whose content is sent, created or rewritten: Google reviews them again. */
+  public readonly submitted: string[] = [];
+
   /**
    * Add a creation whose resource name `refs` keeps.
    *
@@ -155,7 +158,7 @@ function groupBy<T>(
  * @param names - The names
  * @returns `'a', 'b'`
  */
-function quoted(names: readonly string[]): string {
+export function quoted(names: readonly string[]): string {
   return names.map((name: string): string => `'${name}'`).join(', ');
 }
 
@@ -224,7 +227,11 @@ export class GoogleUnitSync {
       });
     }
     await this.applyBrand(context, slots, state, kept);
-    return { refs: kept, appliedStatus: await this.appliedStatus(context, slots, kept) };
+    return {
+      refs: kept,
+      appliedStatus: await this.appliedStatus(context, slots, kept),
+      submitted: plan.submitted,
+    };
   }
 
   /**
@@ -810,10 +817,12 @@ export class GoogleUnitSync {
       );
       if (existing === undefined) {
         plan.create({ adGroupAdOperation: { create: { adGroup, status, ad } } }, line.key);
+        plan.submitted.push(line.key);
         continue;
       }
       refs[line.key] = existing.resourceName as string;
       if (!adMatches(existing.ad as GoogleAd, ad)) {
+        plan.submitted.push(line.key);
         plan.middle.push({
           adOperation: {
             update: { resourceName: existing.ad?.resourceName, ...ad },

@@ -8,7 +8,7 @@ import {
 } from '@src/platforms/google/google.adapter';
 import { GoogleAdsClient } from '@src/platforms/google/google.client';
 import { GOOGLE_ADS_API, GoogleAdsRow } from '@src/platforms/google/google.types';
-import { LinkStatus, PlatformError } from '@src/platforms/platform-adapter';
+import { AccountContext, LinkStatus, PlatformError } from '@src/platforms/platform-adapter';
 
 /** A real key, so that the token exchange signs for real. */
 const { privateKey } = generateKeyPairSync('rsa', {
@@ -448,8 +448,68 @@ describe('Unit::Platforms::Google::Adapter', () => {
           desired as never,
           {}
         )
-      ).resolves.toEqual({ refs: {}, appliedStatus: null });
+      ).resolves.toEqual({ refs: {}, appliedStatus: null, submitted: [] });
       expect(new GoogleAdsAdapter(client as unknown as GoogleAdsClient)).toBeInstanceOf(GoogleAdsAdapter);
+    });
+  });
+
+  describe('readReviews', () => {
+    /** The account whose ads are read. */
+    const ACCOUNT: AccountContext = {
+      platform: 'google_ads',
+      adAccountId: 'acc-1',
+      externalId: CLIENT,
+      scope: {},
+      credentials: null,
+    };
+
+    it('should read the verdicts on the account, a thousand ads per query', async (): Promise<void> => {
+      const ads: string[] = Array.from({ length: 1_001 }, (_: unknown, index: number): string => `ad-${index}`);
+      const client = {
+        search: jest
+          .fn()
+          .mockResolvedValueOnce([
+            { adGroupAd: { resourceName: 'ad-0', policySummary: { approvalStatus: 'APPROVED' } } },
+            { adGroupAd: { policySummary: { approvalStatus: 'DISAPPROVED' } } },
+            { campaign: {} },
+          ])
+          .mockResolvedValueOnce([
+            {
+              adGroupAd: {
+                resourceName: 'ad-1000',
+                policySummary: {
+                  approvalStatus: 'DISAPPROVED',
+                  policyTopicEntries: [{ topic: 'ALCOHOL', type: 'PROHIBITED' }],
+                },
+              },
+            },
+          ]),
+      };
+
+      const reviews = await new GoogleAdsAdapter(client as unknown as GoogleAdsClient).readReviews(ACCOUNT, ads);
+
+      expect(client.search).toHaveBeenCalledTimes(2);
+      const [first, second] = client.search.mock.calls as [string, string, string][];
+      expect(first.slice(0, 2)).toEqual(['acc-1', CLIENT]);
+      expect(first[2]).toContain('FROM ad_group_ad WHERE ad_group_ad.resource_name IN (');
+      expect(first[2]).toContain("'ad-999')");
+      expect(second[2]).toContain("IN ('ad-1000')");
+      // A row naming no ad tells nothing: only the ads Google answered for have a verdict.
+      expect(reviews).toEqual(
+        new Map([
+          ['ad-0', { status: 'approved', reasons: [] }],
+          ['ad-1000', { status: 'rejected', reasons: ['ALCOHOL'] }],
+        ])
+      );
+    });
+
+    it('should ask nothing for no ad', async (): Promise<void> => {
+      const client = { search: jest.fn() };
+
+      await expect(
+        new GoogleAdsAdapter(client as unknown as GoogleAdsClient).readReviews(ACCOUNT, [])
+      ).resolves.toEqual(new Map());
+      expect(client.search).not.toHaveBeenCalled();
     });
   });
 

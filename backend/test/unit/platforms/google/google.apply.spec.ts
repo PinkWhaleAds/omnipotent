@@ -434,6 +434,8 @@ describe('Unit::Platforms::Google::Apply', () => {
         'image:abcdef0123456789abcdef': `customers/${CID}/made/4-0`,
       });
       expect(result.appliedStatus).toBe('active');
+      // A new ad is one Google reviews.
+      expect(result.submitted).toEqual(['line:l1']);
     });
 
     it('should find a campaign an interrupted synchronization made, by the tag of its name', async (): Promise<void> => {
@@ -577,7 +579,7 @@ describe('Unit::Platforms::Google::Apply', () => {
     it('should answer no status for a unit that holds no campaign', async (): Promise<void> => {
       const result: ApplyResult = await sync.apply(context(), desired({ unit: { objects: [] } }), {});
 
-      expect(result).toEqual({ refs: {}, appliedStatus: null });
+      expect(result).toEqual({ refs: {}, appliedStatus: null, submitted: [] });
       expect(google.mutate).not.toHaveBeenCalled();
     });
 
@@ -657,7 +659,7 @@ describe('Unit::Platforms::Google::Apply', () => {
         campaignAsset: { resourceName: `${CAMPAIGN}~x`, campaign: CAMPAIGN, fieldType: 'CALLOUT' },
       });
 
-      await sync.apply(
+      const result: ApplyResult = await sync.apply(
         context(),
         desired({
           objects: {
@@ -781,6 +783,8 @@ describe('Unit::Platforms::Google::Apply', () => {
           }),
         })
       );
+      // The ad rewritten goes back to Google's review.
+      expect(result.submitted).toEqual(['line:l1']);
       expect(operations).toContainEqual({ campaignAssetOperation: { remove: `${CAMPAIGN}~c1` } });
       expect(operations).toContainEqual({ campaignAssetOperation: { remove: `${CAMPAIGN}~x` } });
       expect(operations).toContainEqual({ campaignCriterionOperation: { remove: `${CAMPAIGN}~be` } });

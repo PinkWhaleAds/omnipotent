@@ -63,6 +63,7 @@ import {
 import { dayAt, nextAppointment, nextLocalMidnight, resolveCampaignTimezone, startInstant } from './pacing.helpers';
 import { SecretStore } from './secret-store.service';
 import { StorageService } from './storage.service';
+import { reviewsAfterApply } from './review.service';
 import { markCampaignDirty } from './sync.helpers';
 import { resolvePlatformShares } from './tree.helpers';
 
@@ -187,6 +188,7 @@ export class SyncService {
             adAccountId: link.adAccountId,
             fxRate: 1,
             refs: {},
+            reviews: {},
             syncState: 'pending',
           });
         }
@@ -783,6 +785,7 @@ export class SyncService {
         { id: unit.id },
         {
           refs: result.refs,
+          reviews: reviewsAfterApply(unit.reviews, result),
           appliedStatus: result.appliedStatus,
           syncedHash: hash,
           syncState: applied ? 'synced' : 'pending',
@@ -965,11 +968,13 @@ export class SyncService {
         keywordId: object.keywordId,
         object: object.object,
         externalId: unit.refs[object.key] ?? null,
+        review: unit.reviews[object.key] ?? null,
       })),
       attempts: unit.attempts,
       nextAttemptAt: unit.nextAttemptAt?.toISOString() ?? null,
       lastAttemptAt: unit.lastAttemptAt?.toISOString() ?? null,
       lastSyncedAt: unit.lastSyncedAt?.toISOString() ?? null,
+      reviewsReadAt: unit.reviewsReadAt?.toISOString() ?? null,
       errorCode: unit.lastErrorCode,
       errorParams: unit.lastErrorParams,
       errorMessage: unit.lastError,

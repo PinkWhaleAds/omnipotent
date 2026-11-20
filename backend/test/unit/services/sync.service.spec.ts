@@ -297,6 +297,8 @@ describe('Unit::Services::SyncService', () => {
         nextAttemptAt: null,
         lastAttemptAt: null,
         lastSyncedAt: null,
+        reviews: {},
+        reviewsReadAt: null,
         ...overrides,
       } as PlatformUnitEntity,
     ]);
@@ -515,6 +517,31 @@ describe('Unit::Services::SyncService', () => {
       await service.syncCampaign(CAMPAIGN_ID);
 
       expect(apply).toHaveBeenCalledTimes(1);
+    });
+
+    it('should send the ads it wrote back to review, and keep or forget the others', async (): Promise<void> => {
+      seedTree();
+      seedUnit({
+        refs: { [`line:${LINE_ID}`]: 'AD-1', 'line:kept': 'AD-2', 'line:gone': 'AD-3' },
+        reviews: {
+          [`line:${LINE_ID}`]: { status: 'approved', reasons: [] },
+          'line:kept': { status: 'limited', reasons: ['ALCOHOL'] },
+          'line:gone': { status: 'rejected', reasons: ['GAMBLING'] },
+        },
+      });
+      apply.mockResolvedValueOnce({
+        refs: { [`line:${LINE_ID}`]: 'AD-1', 'line:kept': 'AD-2' },
+        appliedStatus: 'active',
+        submitted: [`line:${LINE_ID}`],
+      });
+
+      await service.syncCampaign(CAMPAIGN_ID);
+
+      // Rewritten, it is reviewed again; untouched, it keeps its verdict; no longer held, it has none.
+      expect(units()[0].reviews).toEqual({
+        [`line:${LINE_ID}`]: { status: 'pending', reasons: [] },
+        'line:kept': { status: 'limited', reasons: ['ALCOHOL'] },
+      });
     });
 
     it('should try a unit in error again, even with nothing changed', async (): Promise<void> => {
@@ -1303,6 +1330,7 @@ describe('Unit::Services::SyncService', () => {
           keywordId: null,
           object: 'campaign',
           externalId: 'HAWK-1',
+          review: null,
         },
         expect.objectContaining({ key: `targeting_group:${NODE_ID}`, externalId: null }),
         expect.objectContaining({ key: `keyword:${KEYWORD_ID}`, keywordId: KEYWORD_ID, externalId: null }),
@@ -1382,6 +1410,28 @@ describe('Unit::Services::SyncService', () => {
         lastSyncedAt: '2027-01-03T10:00:00.000Z',
         errorCode: null,
       });
+    });
+
+    it('should carry the verdict of each ad, and when the verdicts were read', async (): Promise<void> => {
+      seedTree();
+      seedUnit({
+        refs: { [`line:${LINE_ID}`]: 'AD-1' },
+        reviews: { [`line:${LINE_ID}`]: { status: 'rejected', reasons: ['ALCOHOL'] } },
+        reviewsReadAt: new Date('2027-01-03T10:10:00.000Z'),
+      });
+
+      const status: CampaignPlatformStatus = await service.platformStatus(JANE, IDS.organization, CAMPAIGN_ID);
+
+      expect(status.units[0].reviewsReadAt).toBe('2027-01-03T10:10:00.000Z');
+      expect(status.units[0].objects).toContainEqual(
+        expect.objectContaining({
+          key: `line:${LINE_ID}`,
+          externalId: 'AD-1',
+          review: { status: 'rejected', reasons: ['ALCOHOL'] },
+        })
+      );
+      // Only an ad is reviewed: the other objects carry no verdict.
+      expect(status.units[0].objects[0].review).toBeNull();
     });
 
     it('should carry the error of a unit, with its code and its values', async (): Promise<void> => {

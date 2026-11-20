@@ -8,7 +8,7 @@
  * name, and nothing in an adapter decides the structure — the projection does
  * (`platforms/projection.ts`).
  */
-import { AdAccountScope, MessageParams, Platform } from '@src/types';
+import { AdAccountScope, AdReview, MessageParams, Platform } from '@src/types';
 import { httpError } from '@utils';
 import { DesiredUnit } from './desired-state';
 
@@ -42,6 +42,12 @@ export type PlatformContext = {
   credentials: string | null;
   readAsset: (assetId: string) => Promise<Buffer>;
 };
+
+/**
+ * What reading an account needs, when nothing is pushed: its ids and its credentials, without a
+ * brand, a currency or files.
+ */
+export type AccountContext = Pick<PlatformContext, 'platform' | 'adAccountId' | 'externalId' | 'scope' | 'credentials'>;
 
 /**
  * How a platform reaches the account of a client (`docs/phase-10.md` § 4.1).
@@ -98,10 +104,13 @@ export type UnitRefs = Readonly<Record<string, string>>;
  * @property refs - The id of every object that exists now, by key
  * @property appliedStatus - The status the platform actually took, which is not always the one asked
  *   for: a platform that reviews before activating stays paused, and the unit remains `pending`
+ * @property submitted - The keys of the ads whose content was sent — created or rewritten —, which the
+ *   platform reviews again: their verdict goes back to `pending` (`docs/phase-10.md` § 8.8)
  */
 export type ApplyResult = {
   refs: Record<string, string>;
   appliedStatus: string | null;
+  submitted?: readonly string[];
 };
 
 /**
@@ -180,6 +189,20 @@ export interface PlatformAdapter {
    * @throws PlatformError
    */
   apply(context: PlatformContext, desired: DesiredUnit, refs: UnitRefs): Promise<ApplyResult>;
+
+  /**
+   * Read what the platform made of some ads of one account, without changing anything.
+   *
+   * As few calls as the platform allows — one for many ads — because the quota of a platform is the
+   * whole project's (D45). An ad the platform says nothing of is left out of the answer, and keeps the
+   * verdict it had (`docs/phase-10.md` § 8.8).
+   *
+   * @param account - The account
+   * @param ads - Their ids over there, as `refs` holds them
+   * @returns The verdict of each ad the platform answered for, by its id
+   * @throws PlatformError
+   */
+  readReviews?(account: AccountContext, ads: readonly string[]): Promise<Map<string, AdReview>>;
 }
 
 /**

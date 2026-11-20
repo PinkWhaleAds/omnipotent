@@ -3,7 +3,7 @@ import { Column, Entity, Index } from 'typeorm';
 import type { MessageParams } from '@src/types/error.types';
 import type { Lever } from '@src/types/lever.types';
 import type { Platform } from '@src/types/platform.types';
-import type { SyncState } from '@src/types/sync.types';
+import type { AdReview, SyncState } from '@src/types/sync.types';
 import { numericTransformer } from '../transformers';
 import { BaseEntity } from './base.entity';
 
@@ -119,4 +119,22 @@ export class PlatformUnitEntity extends BaseEntity {
   /** When it was last applied successfully. */
   @Column({ type: 'timestamptz', nullable: true })
   lastSyncedAt!: Date | null;
+
+  /**
+   * The platform's verdict on each of its ads, by the same key as {@link refs} (`line:<id>`).
+   *
+   * Kept beside the ids, as multi-search keeps its cards, with no history: a verdict replaces the one
+   * before. An ad sent again — created or rewritten — goes back to `pending`, which is what has the job
+   * `review.poll` read it again (`docs/phase-10.md` § 8.8).
+   */
+  @Column({ type: 'jsonb', default: () => "'{}'" })
+  reviews!: Record<string, AdReview>;
+
+  /**
+   * When the verdicts of its ads were last read, `null` before the first read: a verdict already given
+   * is read again once a day, so an ad rejected afterwards, or an appeal won in the platform's own
+   * interface, is seen.
+   */
+  @Column({ type: 'timestamptz', nullable: true })
+  reviewsReadAt!: Date | null;
 }

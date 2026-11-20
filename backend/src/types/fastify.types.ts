@@ -26,6 +26,7 @@ import type {
   TokenVerifier,
 } from '@services';
 import type { AuthContext, AuthMode } from './auth.types';
+import type { ReviewService } from '@src/services/review.service';
 import type { SyncScheduler, SyncService } from '@src/services/sync.service';
 import type { CallJournal } from '@src/services/platform-call.service';
 
@@ -97,6 +98,8 @@ declare module 'fastify' {
     syncService: SyncService;
     /** How a synchronization is asked for, without waiting for it. */
     syncScheduler: SyncScheduler;
+    /** What the platforms make of our ads, read every ten minutes. */
+    reviewService: ReviewService;
     /** One line per call to a platform: what a failed sync is debugged with. */
     platformCallJournal: CallJournal;
     assetService: AssetService;

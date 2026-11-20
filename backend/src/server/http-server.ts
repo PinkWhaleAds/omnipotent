@@ -35,6 +35,7 @@ import StorageServicePlugin from '@src/services/storage.service';
 import TargetingGroupServicePlugin from '@src/services/targeting-group.service';
 import PlatformAdaptersPlugin from '@src/platforms/registry';
 import PlatformCallJournalPlugin from '@src/services/platform-call.service';
+import ReviewServicePlugin from '@src/services/review.service';
 import SyncServicePlugin from '@src/services/sync.service';
 import TargetingServicePlugin from '@src/services/targeting.service';
 import TokenVerifierPlugin from '@src/services/token-verifier.service';
@@ -153,6 +154,7 @@ export class HttpServer extends Server {
     // The adapters of the platforms whose settings are there, built with what reads our credentials.
     await this.fastify.register(PlatformAdaptersPlugin);
     await this.fastify.register(SyncServicePlugin);
+    await this.fastify.register(ReviewServicePlugin);
     await this.fastify.register(PreviewServicePlugin);
 
     if (!isApi) {

@@ -311,6 +311,8 @@ Une créa qui diffuse doit pouvoir être modifiée **sans interrompre la diffusi
 
 C'est le point sur lequel on s'écarte de multi-search, qui mute la créa en place et détecte les changements par hash — suffisant en Search où la revue est rapide, insuffisant dès qu'une créa tourne sur plusieurs DSP qui la repassent chacune en validation.
 
+**Amendé pour Google par D56 (2026-11-20)** : une annonce Search modifiée y est réécrite sur place, comme chez multi-search, et la nouvelle version s'active à la main. La relève à l'approbation reste celle des DSP.
+
 ### Hors périmètre
 
 Le **rendu de l'ad markup** (ADM) et le DSP interne d'Azerion. MBP a deux services pour ça (`internal-dsp` et `internal-creative-api`) parce qu'Azerion est lui-même vendeur et serveur de publicité. Omnipotent ne diffuse jamais une publicité : il pilote des plateformes tierces, qui servent les annonces.
@@ -595,6 +597,7 @@ Quatre pièces s'ajoutent à ça, et deux d'entre elles sont des pannes classiqu
 | D53 | La **publicité politique est déclarée par l'utilisateur**, jamais déduite : la campagne porte un champ **obligatoire** à la création (règlement UE 2024/900, que chaque plateforme répercute). Déclarer « oui » est **refusé par la preview** avec un code stable, tant qu'aucune plateforme du périmètre ne l'accepte et que les déclarations de commanditaire ne sont pas modélisées |
 | D54 | La **parité Search** : une campagne Google ou Microsoft d'Omnipotent fait tout ce que fait une campagne de multi-search **tel qu'il est le 2026-11-20** (`~/PinkWhale/multi-search`, commit `0aac705`, sa phase 39c) — tranché par Lorin ce jour-là. Ce que multi-search gagne ensuite va dans une phase à part, sans rouvrir les phases 10 et 11. Amende D30 : multi-search n'est pas gelé, la cible de la parité l'est |
 | D55 | **Google : un TargetingGroup = une campagne Google** et son ad group, comme multi-search — Lorin, 2026-11-20. Google pose les lieux sur la campagne : deux TargetingGroups d'un même AdGroup ne pourraient pas viser deux villes dans une seule. Le budget de chaque TargetingGroup est le sien, ou **sa part de l'AdGroup** par division, sans rien à saisir. Amende § 7 pour Google ; Microsoft se décide au lot B de la phase 11 |
+| D56 | **Chez Google, une annonce modifiée est réécrite sur place**, comme multi-search, et une nouvelle version d'une créa s'active à la main — Lorin, 2026-11-20. Google ne fait tourner que trois annonces actives par ad group et n'examine peut-être pas une annonce en pause : la relève d'une version par une autre à son approbation (§ 9) reste promise aux DSP, où une revue dure, et s'écrira avec la première d'entre elles (`backend/docs/phase-10.md` § 8.8) |
 | L1→L24 | Les leviers : voir `backend/docs/leviers.md`, validées le 2026-10-25 |
 | R1→R14 | Le reporting : voir `backend/docs/reporting.md`. **R9 (nos propres conversions) est reporté en V2** |
 | T1 | La tenancy vit dans un service séparé, `omnipass` |

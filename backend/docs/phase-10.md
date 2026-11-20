@@ -583,8 +583,14 @@ Livré en pas successifs sur la branche `phase-10-lot-3` (PR n°7), chacun vert 
    modificateur d'enchère à zéro, quand les lieux et les rayons restent sur la campagne ;
 7. ✅ une Line choisit sa créa par l'API (`creativeId`) : la phase 6 avait la colonne et l'unicité,
    aucune route ne l'écrivait, et aucune campagne n'aurait pu passer la preview ;
-8. **à faire** : les preuves du § 8.6, par Lorin, avec le scénario `../../scenarios/campagne-google.mjs`
-   (`../../scenarios/README.md`).
+8. **en cours** : les preuves du § 8.6 (`../../scenarios/README.md`). Les points 1 à 3 sont faits le
+   2026-11-20 par Lorin avec `../../scenarios/campagne-google.mjs` : la campagne de test est chez
+   Google, en pause, ses éléments en cours d'examen ; sa revue point par point dans l'interface (point 4)
+   reste à confirmer. Les points 5 à 7, joués le même jour par
+   `../../scenarios/campagne-google-preuves.mjs`, ont trouvé deux défauts, corrigés (PR n°11) : une mise
+   à jour échouait en voulant retirer les lignes d'appareil que Google pose seul, et un changement de
+   ciblage ne remettait pas la campagne en attente de synchro. Ils sont à rejouer. Le point 8 attend
+   Lorin (`../../A-FAIRE.md` § 5).
 
 ### 8.6 Les preuves de 3a, sur le vrai compte
 
@@ -638,3 +644,67 @@ large que celui de multi-search, oblige à choisir :
 14. **Un TargetingGroup = une campagne Google** et son ad group, comme multi-search, son budget étant
     sa part de l'AdGroup quand il n'en a pas (D55). Écartés : le blocage par la preview de
     TargetingGroups aux lieux différents, et un budget obligatoire à saisir sur chacun.
+
+### 8.8 3b — les verdicts
+
+Écrit le 2026-11-20, avant la moindre ligne de code de 3b, multi-search relu à son commit `0aac705`
+(D54).
+
+**Ce que fait multi-search**, la mesure :
+
+- il lit le verdict des **annonces**, et d'elles seules : ni celui des extensions, du logo et du nom
+  d'entreprise, ni celui des mots-clés ;
+- son job `review.poll` passe **toutes les 10 minutes** et lit, en une requête par compte, les annonces
+  des unités dont un verdict est encore en attente — campagnes en pause comprises, archivées exclues.
+  Une unité dont tous les verdicts sont tombés n'est plus jamais relue ;
+- il connaît quatre verdicts : `pending`, `approved`, `limited`, `rejected`. Chez Google,
+  `REVIEW_IN_PROGRESS` et `UNDER_APPEAL` donnent `pending`, `APPROVED` donne `approved`,
+  `APPROVED_LIMITED` et `AREA_OF_INTEREST_ONLY` donnent `limited`, `DISAPPROVED` donne `rejected`, et
+  tout le reste `pending` ;
+- le motif est fait des sujets de règlement de Google (`TRADEMARKS_IN_AD_TEXT`…) : ceux qui interdisent
+  pour un refus, ceux qui limitent pour un verdict limité. Ils sont montrés tels quels, sans traduction ;
+- une annonce modifiée est réécrite sur place chez Google, et son verdict repart en attente ;
+- le verdict est gardé par annonce et par plateforme, sans historique. Il se lit dans le statut de
+  plateforme de la campagne, et dans la liste des annonces d'une créa (une route et un outil MCP) ;
+- une annonce refusée lève une tâche critique `ad_rejected`, envoyée par e-mail ; un verdict limité
+  n'en lève pas.
+
+**Ce que 3b livre** :
+
+- le verdict de chaque annonce chez chaque plateforme, gardé sur son unité à côté de son identifiant :
+  une colonne `reviews`, par clé d'objet comme `refs` (`line:<id>`), qui vaut
+  `{ status, reasons, reviewedAt }` ;
+- une méthode d'adapter en lecture seule, qui lit les verdicts de plusieurs unités d'un compte en une
+  requête, et sa version Google ;
+- le job `review.poll`, toutes les 10 minutes (`plan.md`) ;
+- le verdict visible dans `GET /campaigns/:id/platform-status`, sur chaque objet annonce, et dans une
+  route nouvelle, `GET /creatives/:id/lines`, avec son outil MCP `list-creative-lines` : les Lines d'une
+  créa, chacune avec son verdict par plateforme ;
+- une annonce envoyée — créée ou réécrite — qui repart en attente, pour que le job la relise.
+
+**Les points présentés à Lorin, validés le 2026-11-20** — le deuxième est D56 :
+
+1. **Les verdicts des annonces seulement**, comme multi-search. Ceux des extensions, du logo et des
+   mots-clés ne sont lus nulle part ; les lire serait une phase à part.
+2. **Chez Google, l'annonce est réécrite sur place**, comme multi-search, et une nouvelle version d'une
+   créa s'active toujours à la main. **Cela amende `../../CADRAGE.md` § 9** et `phase-6.md` § 4, qui
+   promettent qu'une nouvelle version prend le relais quand la plateforme l'approuve, l'ancienne
+   diffusant jusque-là. Chez Google, il faudrait envoyer la nouvelle version comme une seconde annonce
+   et mettre l'ancienne en pause une fois l'autre approuvée ; or Google ne fait tourner que trois
+   annonces actives par ad group, et n'examine peut-être pas une annonce en pause (§ 1). La relève à
+   l'approbation reste promise aux DSP, où une revue dure, et s'écrira avec la première d'entre elles.
+3. **Relire aussi, une fois par jour, les verdicts déjà tombés** — au-delà de la parité. multi-search
+   ne relit jamais une unité sans verdict en attente : une annonce refusée après coup, ou un recours
+   gagné dans l'interface de Google, ne lui parvient jamais. Le coût est d'une requête par compte et
+   par jour, pour les campagnes actives ou en pause.
+4. **Le motif est une liste de codes de Google**, montrés tels quels : `reasons:
+['TRADEMARKS_IN_AD_TEXT']` plutôt que la chaîne jointe de multi-search, pour qu'un front puisse les
+   traduire un jour. Un recours en cours est `pending`, motif `UNDER_APPEAL`.
+5. **La tâche `ad_rejected` et son e-mail vont à la phase 22** (e-mails et alertes), qui lira ces
+   verdicts : Omnipotent n'a encore ni tâches ni e-mails.
+6. **Un refus à l'envoi même** — Google refuse de créer une annonce pour une raison de règlement —
+   reste une erreur de synchro avec son code, comme chez multi-search, et non un verdict.
+
+**La preuve** (§ 8.1) : le verdict des annonces de la campagne de test en pause, lu par `review.poll`
+et visible dans son statut de plateforme. Si elles restent en attente plus d'un jour, Google
+n'examinant pas une annonce en pause, la question revient à Lorin (§ 1).

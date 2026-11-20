@@ -18,6 +18,34 @@ export const syncStateSchema = z.enum(['pending', 'synced', 'error']);
 export type SyncState = z.infer<typeof syncStateSchema>;
 
 /**
+ * What a platform made of an ad it reviewed (`docs/phase-10.md` § 8.8).
+ *
+ * - `pending` — not reviewed yet, under review again after a change, or under appeal;
+ * - `approved` — it may deliver everywhere;
+ * - `limited` — approved, but shown to fewer people: not a failure;
+ * - `rejected` — it delivers nowhere until it changes or an appeal succeeds.
+ */
+export const reviewStatusSchema = z.enum(['pending', 'approved', 'limited', 'rejected']);
+
+/** TypeScript type inferred from {@link reviewStatusSchema}. */
+export type ReviewStatus = z.infer<typeof reviewStatusSchema>;
+
+/**
+ * Zod schema of the verdict of one ad at one platform.
+ *
+ * @property status - The verdict
+ * @property reasons - Why it is limited or rejected, as the platform's own codes
+ *   (`TRADEMARKS_IN_AD_TEXT`), shown as they are; `UNDER_APPEAL` while an appeal runs; empty otherwise
+ */
+export const adReviewSchema = z.object({
+  status: reviewStatusSchema,
+  reasons: z.array(z.string()),
+});
+
+/** TypeScript type inferred from {@link adReviewSchema}. */
+export type AdReview = z.infer<typeof adReviewSchema>;
+
+/**
  * Zod schema of one object a platform holds for us.
  *
  * The `key` is how the engine and the adapter name it on both sides: `<level>:<nodeId>` for an object
@@ -30,6 +58,8 @@ export type SyncState = z.infer<typeof syncStateSchema>;
  * @property keywordId - The keyword it **is**, `null` for every other object
  * @property object - What it is in the platform's own words
  * @property externalId - Its id over there, `null` until it was created
+ * @property review - The platform's verdict on an ad, `null` for any other object and for an ad not
+ *   read yet
  */
 export const platformObjectRefSchema = z.object({
   key: z.string(),
@@ -38,6 +68,7 @@ export const platformObjectRefSchema = z.object({
   keywordId: z.uuid().nullable(),
   object: platformObjectSchema,
   externalId: z.string().nullable(),
+  review: adReviewSchema.nullable(),
 });
 
 /** TypeScript type inferred from {@link platformObjectRefSchema}. */
@@ -62,6 +93,7 @@ export type PlatformObjectRef = z.infer<typeof platformObjectRefSchema>;
  * @property nextAttemptAt - When a temporary failure will be tried again, `null` otherwise
  * @property lastAttemptAt - When it was last tried, whatever the outcome
  * @property lastSyncedAt - When it was last applied successfully
+ * @property reviewsReadAt - When the verdicts of its ads were last read, `null` before the first read
  * @property errorCode - Stable code of the last failure, `null` when the platform's own text had none
  * @property errorParams - The values of that message
  * @property errorMessage - The last failure, as it was worded
@@ -80,6 +112,7 @@ export const platformUnitSchema = z.object({
   nextAttemptAt: z.iso.datetime().nullable(),
   lastAttemptAt: z.iso.datetime().nullable(),
   lastSyncedAt: z.iso.datetime().nullable(),
+  reviewsReadAt: z.iso.datetime().nullable(),
   errorCode: messageCodeSchema.nullable(),
   errorParams: messageParamsSchema.nullable(),
   errorMessage: z.string().nullable(),

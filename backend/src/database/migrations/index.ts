@@ -22,6 +22,7 @@ import { LinkedAccounts1793218800000 } from './1793218800000-LinkedAccounts';
 import { AdGroupActivation1793304000000 } from './1793304000000-AdGroupActivation';
 import { CampaignStartTime1793305000000 } from './1793305000000-CampaignStartTime';
 import { SearchSettings1793306000000 } from './1793306000000-SearchSettings';
+import { AdReviews1793307000000 } from './1793307000000-AdReviews';
 
 export const MIGRATIONS: (new () => unknown)[] = [
   AdvertisersAndLabels1792936887388,
@@ -36,4 +37,5 @@ export const MIGRATIONS: (new () => unknown)[] = [
   AdGroupActivation1793304000000,
   CampaignStartTime1793305000000,
   SearchSettings1793306000000,
+  AdReviews1793307000000,
 ];

@@ -98,6 +98,22 @@ export const ACCOUNT_LINKS_JOB: JobDefinition = {
       fastify.adAccountService.checkLinks(),
 };
 
+/**
+ * Read what the platforms made of our ads, every ten minutes (`docs/phase-10.md` § 8.8).
+ *
+ * It does not walk the fleet either: it reads the units whose verdict is awaited, or was given more
+ * than a day ago, in one call per account.
+ */
+export const REVIEW_POLL_JOB: JobDefinition = {
+  name: 'review.poll',
+  policy: { policy: 'exclusive', retryLimit: 0, expireInSeconds: 540 },
+  cron: '*/10 * * * *',
+  createHandler:
+    (fastify: FastifyInstance): (() => Promise<void>) =>
+    (): Promise<void> =>
+      fastify.reviewService.poll(),
+};
+
 /** Job definitions, see {@link JobDefinition}. */
 export const JOB_DEFINITIONS: JobDefinition[] = [
   SYNC_CAMPAIGN_JOB as JobDefinition,
@@ -105,4 +121,5 @@ export const JOB_DEFINITIONS: JobDefinition[] = [
   PACING_REFRESH_JOB,
   CAMPAIGN_END_JOB,
   ACCOUNT_LINKS_JOB,
+  REVIEW_POLL_JOB,
 ];

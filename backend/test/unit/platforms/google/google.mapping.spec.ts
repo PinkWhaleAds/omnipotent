@@ -21,6 +21,7 @@ import {
   nameTag,
   networkSettings,
   refusal,
+  reviewOf,
   roundMicros,
   searchAd,
   startDateTime,
@@ -444,6 +445,73 @@ describe('Unit::Platforms::Google::Mapping', () => {
 
       expect(ids.next('campaigns')).toBe('customers/123/campaigns/-1');
       expect(ids.next('adGroups')).toBe('customers/123/adGroups/-2');
+    });
+  });
+
+  describe('reviewOf', () => {
+    it('should read an ad still under review, or never reviewed, as pending', (): void => {
+      expect(reviewOf(undefined)).toEqual({ status: 'pending', reasons: [] });
+      expect(reviewOf({ reviewStatus: 'REVIEW_IN_PROGRESS', approvalStatus: 'APPROVED' })).toEqual({
+        status: 'pending',
+        reasons: [],
+      });
+      expect(reviewOf({ reviewStatus: 'REVIEWED', approvalStatus: 'UNKNOWN' })).toEqual({
+        status: 'pending',
+        reasons: [],
+      });
+      expect(reviewOf({ reviewStatus: 'ELIGIBLE_MAY_SERVE' })).toEqual({ status: 'pending', reasons: [] });
+    });
+
+    it('should read an appeal as pending, and say so', (): void => {
+      expect(reviewOf({ reviewStatus: 'UNDER_APPEAL', approvalStatus: 'DISAPPROVED' })).toEqual({
+        status: 'pending',
+        reasons: ['UNDER_APPEAL'],
+      });
+    });
+
+    it('should read an approved ad, with no reason', (): void => {
+      expect(
+        reviewOf({
+          reviewStatus: 'REVIEWED',
+          approvalStatus: 'APPROVED',
+          policyTopicEntries: [{ topic: 'ANYTHING', type: 'LIMITED' }],
+        })
+      ).toEqual({ status: 'approved', reasons: [] });
+    });
+
+    it('should give the topics that forbid a rejected ad, each once', (): void => {
+      expect(
+        reviewOf({
+          reviewStatus: 'REVIEWED',
+          approvalStatus: 'DISAPPROVED',
+          policyTopicEntries: [
+            { topic: 'TRADEMARKS_IN_AD_TEXT', type: 'PROHIBITED' },
+            { topic: 'ALCOHOL', type: 'LIMITED' },
+            { topic: 'TRADEMARKS_IN_AD_TEXT', type: 'PROHIBITED' },
+            { type: 'PROHIBITED' },
+          ],
+        })
+      ).toEqual({ status: 'rejected', reasons: ['TRADEMARKS_IN_AD_TEXT'] });
+    });
+
+    it('should give the topics that limit a limited ad, and every topic when none is of that kind', (): void => {
+      expect(
+        reviewOf({
+          approvalStatus: 'APPROVED_LIMITED',
+          policyTopicEntries: [
+            { topic: 'ALCOHOL', type: 'LIMITED' },
+            { topic: 'GAMBLING', type: 'FULLY_LIMITED' },
+            { topic: 'SOMETHING', type: 'DESCRIPTIVE' },
+          ],
+        })
+      ).toEqual({ status: 'limited', reasons: ['ALCOHOL', 'GAMBLING'] });
+      expect(
+        reviewOf({
+          approvalStatus: 'AREA_OF_INTEREST_ONLY',
+          policyTopicEntries: [{ topic: 'LOCAL', type: 'DESCRIPTIVE' }],
+        })
+      ).toEqual({ status: 'limited', reasons: ['LOCAL'] });
+      expect(reviewOf({ approvalStatus: 'DISAPPROVED' })).toEqual({ status: 'rejected', reasons: [] });
     });
   });
 });

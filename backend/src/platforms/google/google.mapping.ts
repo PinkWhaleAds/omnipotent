@@ -10,7 +10,17 @@
  */
 import { DesiredAsset, DesiredObject, DesiredUnit, fingerprint } from '@src/platforms/desired-state';
 import { PlatformError } from '@src/platforms/platform-adapter';
-import { BidStrategy, Extensions, LocationIntent, MatchType, NodeStatus, SnippetHeader, Targeting } from '@src/types';
+import {
+  AdReview,
+  BidStrategy,
+  Extensions,
+  LocationIntent,
+  MatchType,
+  NodeStatus,
+  ReviewStatus,
+  SnippetHeader,
+  Targeting,
+} from '@src/types';
 import { geoTargetConstant } from './google-geo';
 import {
   GoogleAd,
@@ -18,9 +28,21 @@ import {
   GoogleCampaign,
   GoogleCampaignCriterion,
   GoogleNetworkSettings,
+  GooglePolicySummary,
   GoogleProximity,
   GoogleStatus,
 } from './google.types';
+
+/** Our verdict of an ad, from Google's approval status; any other status is still `pending`. */
+const APPROVAL_STATUSES: ReadonlyMap<string, ReviewStatus> = new Map<string, ReviewStatus>([
+  ['APPROVED', 'approved'],
+  ['APPROVED_LIMITED', 'limited'],
+  ['AREA_OF_INTEREST_ONLY', 'limited'],
+  ['DISAPPROVED', 'rejected'],
+]);
+
+/** The kinds of policy topic that limit an ad, where `PROHIBITED` forbids it. */
+const LIMITING_TOPIC_TYPES: ReadonlySet<string> = new Set(['LIMITED', 'FULLY_LIMITED', 'AREA_OF_INTEREST_ONLY']);
 
 /** The custom URL parameter that names our Line on each ad: what the reports attach to (phase 15). */
 export const MSKEY = 'mskey';
@@ -653,4 +675,37 @@ export class TempIds {
     this.last -= 1;
     return `customers/${this.customerId}/${collection}/${this.last}`;
   }
+}
+
+/**
+ * Our verdict of an ad, from what Google made of it — transcribed from multi-search
+ * (`reviewOf`, `docs/phase-10.md` § 8.8).
+ *
+ * An ad under review, or under appeal, is `pending` whatever its last verdict: Google is looking at it
+ * again. The reasons of a verdict are the policy topics behind it — those that forbid for a rejection,
+ * those that limit for a limited one, every topic when none is of that kind —, each once, in Google's
+ * order.
+ *
+ * @param summary - Its policy summary, as Google answers it
+ * @returns The verdict
+ *
+ * @example
+ * ```typescript
+ * reviewOf({ approvalStatus: 'DISAPPROVED', policyTopicEntries: [{ topic: 'ALCOHOL', type: 'PROHIBITED' }] });
+ * // { status: 'rejected', reasons: ['ALCOHOL'] }
+ * ```
+ */
+export function reviewOf(summary: GooglePolicySummary | undefined): AdReview {
+  if (summary?.reviewStatus === 'UNDER_APPEAL') return { status: 'pending', reasons: ['UNDER_APPEAL'] };
+  if (summary === undefined || summary.reviewStatus === 'REVIEW_IN_PROGRESS') return { status: 'pending', reasons: [] };
+  const status: ReviewStatus = APPROVAL_STATUSES.get(summary.approvalStatus ?? '') ?? 'pending';
+  if (status === 'pending' || status === 'approved') return { status, reasons: [] };
+  const entries: { topic?: string; type?: string }[] = summary.policyTopicEntries ?? [];
+  const telling: { topic?: string; type?: string }[] = entries.filter((entry: { type?: string }): boolean =>
+    status === 'rejected' ? entry.type === 'PROHIBITED' : LIMITING_TOPIC_TYPES.has(entry.type ?? '')
+  );
+  const topics: string[] = (telling.length > 0 ? telling : entries)
+    .map((entry: { topic?: string }): string => entry.topic ?? '')
+    .filter((topic: string): boolean => topic !== '');
+  return { status, reasons: [...new Set(topics)] };
 }

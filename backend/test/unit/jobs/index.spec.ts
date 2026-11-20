@@ -5,6 +5,7 @@ import {
   CAMPAIGN_END_JOB,
   JOB_DEFINITIONS,
   PACING_REFRESH_JOB,
+  REVIEW_POLL_JOB,
   SYNC_CAMPAIGN_JOB,
   SYNC_SWEEP_JOB,
 } from '@src/jobs';
@@ -16,6 +17,7 @@ const CAMPAIGN_ID = 'f1000000-0000-4000-8000-000000000001';
 describe('Unit::Jobs', () => {
   let sync: Record<string, jest.Mock>;
   let accounts: Record<string, jest.Mock>;
+  let reviews: Record<string, jest.Mock>;
   let fastify: FastifyInstance;
 
   beforeEach((): void => {
@@ -27,13 +29,21 @@ describe('Unit::Jobs', () => {
       endCampaigns: jest.fn().mockResolvedValue(undefined),
     };
     accounts = { checkLinks: jest.fn().mockResolvedValue(undefined) };
-    fastify = { syncService: sync, adAccountService: accounts } as unknown as FastifyInstance;
+    reviews = { poll: jest.fn().mockResolvedValue(undefined) };
+    fastify = { syncService: sync, adAccountService: accounts, reviewService: reviews } as unknown as FastifyInstance;
   });
 
   it('should declare every job exactly once, under a queue name a process can create', (): void => {
     const names: string[] = JOB_DEFINITIONS.map((job: JobDefinition): string => job.name);
 
-    expect(names).toEqual(['sync.campaign', 'sync.sweep', 'pacing.refresh', 'campaign.end', 'account.links']);
+    expect(names).toEqual([
+      'sync.campaign',
+      'sync.sweep',
+      'pacing.refresh',
+      'campaign.end',
+      'account.links',
+      'review.poll',
+    ]);
     expect(new Set(names).size).toBe(names.length);
     for (const name of names) expect(name).toMatch(/^[\w.\-/]+$/);
   });
@@ -95,6 +105,18 @@ describe('Unit::Jobs', () => {
       await (ACCOUNT_LINKS_JOB.createHandler(fastify) as () => Promise<void>)();
 
       expect(accounts.checkLinks).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('review.poll', () => {
+    it('should read the verdicts of the ads every ten minutes, one pass at a time', async (): Promise<void> => {
+      expect(REVIEW_POLL_JOB.cron).toBe('*/10 * * * *');
+      // Exclusive and ended before the next one is due: a pass never piles up behind another.
+      expect(REVIEW_POLL_JOB.policy).toMatchObject({ policy: 'exclusive', retryLimit: 0, expireInSeconds: 540 });
+
+      await (REVIEW_POLL_JOB.createHandler(fastify) as () => Promise<void>)();
+
+      expect(reviews.poll).toHaveBeenCalledTimes(1);
     });
   });
 });

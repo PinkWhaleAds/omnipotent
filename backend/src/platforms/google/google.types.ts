@@ -299,12 +299,23 @@ export type GoogleAd = {
   };
 };
 
+/**
+ * What Google made of an ad: where its review stands, its verdict, and the policy topics behind a
+ * verdict that limits or forbids it.
+ */
+export type GooglePolicySummary = {
+  reviewStatus?: string;
+  approvalStatus?: string;
+  policyTopicEntries?: { topic?: string; type?: string }[];
+};
+
 /** An ad in its ad group. */
 export type GoogleAdGroupAd = {
   resourceName?: string;
   adGroup?: string;
   status?: GoogleStatus;
   ad?: GoogleAd;
+  policySummary?: GooglePolicySummary;
 };
 
 /** What an asset of the account holds: one of these. */

@@ -1,7 +1,12 @@
+import { randomUUID } from 'node:crypto';
+
 import { DataSource, QueryFailedError, Repository } from 'typeorm';
 
-import { AdAccountEntity } from '@src/database/entities';
-import { connectIntegrationDatabase, truncateAll } from './database.utils';
+import { AdAccountEntity, CampaignEntity, PlatformUnitEntity } from '@src/database/entities';
+import { ADAPTERS, PlatformAdapter } from '@src/platforms/platform-adapter';
+import { ReviewService } from '@src/services/review.service';
+import { AdReview, Platform } from '@src/types';
+import { connectIntegrationDatabase, seedTree, SeededTree, truncateAll } from './database.utils';
 
 /**
  * What only a real PostgreSQL can prove about the schema of phase 10: an account linked to **our**
@@ -83,5 +88,101 @@ describe('Integration::Phase10', () => {
     await connect(ORGANIZATION, null);
 
     await expect(connect(OTHER_ORGANIZATION, null)).resolves.toMatchObject({ linkRef: null });
+  });
+
+  describe('the verdicts to read', () => {
+    /** The registry of adapters, writable, so the spec declares Google's as the application does. */
+    const adapters: Partial<Record<Platform, PlatformAdapter>> = ADAPTERS as Partial<Record<Platform, PlatformAdapter>>;
+    const NOW: Date = new Date('2027-01-03T10:00:00.000Z');
+    const APPROVED: AdReview = { status: 'approved', reasons: [] };
+    let tree: SeededTree;
+    let account: AdAccountEntity;
+    let readReviews: jest.Mock;
+
+    /**
+     * Insert a unit on Google, under an AdGroup of its own.
+     *
+     * @param ad - The id of its one ad
+     * @param overrides - What this case declares
+     * @returns The row
+     */
+    async function seedUnit(ad: string, overrides: Partial<PlatformUnitEntity> = {}): Promise<PlatformUnitEntity> {
+      const units: Repository<PlatformUnitEntity> = dataSource.getRepository(PlatformUnitEntity);
+      return units.save(
+        units.create({
+          organizationId: ORGANIZATION,
+          campaignId: tree.campaignId,
+          leverId: tree.leverId,
+          adGroupId: randomUUID(),
+          lever: 'search',
+          platform: 'google_ads',
+          adAccountId: account.id,
+          fxRate: 1,
+          refs: { [`line:${ad}`]: ad },
+          syncState: 'synced',
+          ...overrides,
+        })
+      );
+    }
+
+    beforeEach(async (): Promise<void> => {
+      tree = await seedTree(dataSource, ORGANIZATION);
+      await dataSource.getRepository(CampaignEntity).update({ id: tree.campaignId }, { status: 'paused' });
+      account = await connect(ORGANIZATION, '5550001111');
+      await dataSource
+        .getRepository(AdAccountEntity)
+        .update(
+          { id: account.id },
+          { status: 'active', statusReason: null, currency: 'EUR', timezone: 'Europe/Paris' }
+        );
+      readReviews = jest.fn(
+        async (_account: unknown, ads: string[]): Promise<Map<string, AdReview>> =>
+          new Map(ads.map((ad: string): [string, AdReview] => [ad, APPROVED]))
+      );
+      adapters.google_ads = {
+        platform: 'google_ads',
+        connection: 'manager_link',
+        apply: jest.fn(),
+        readReviews,
+      } as PlatformAdapter;
+    });
+
+    afterEach((): void => {
+      Reflect.deleteProperty(adapters, 'google_ads');
+    });
+
+    it('should read a verdict awaited, a unit never read, and one read a day ago — and only them', async (): Promise<void> => {
+      const hourAgo = new Date(NOW.getTime() - 3_600_000);
+      await seedUnit('awaited', {
+        reviews: { 'line:awaited': { status: 'pending', reasons: [] } },
+        reviewsReadAt: hourAgo,
+      });
+      await seedUnit('never', { reviewsReadAt: null });
+      await seedUnit('stale', {
+        reviews: { 'line:stale': APPROVED },
+        reviewsReadAt: new Date(NOW.getTime() - 25 * 3_600_000),
+      });
+      await seedUnit('fresh', { reviews: { 'line:fresh': APPROVED }, reviewsReadAt: hourAgo });
+
+      await new ReviewService(dataSource, { get: jest.fn() } as never, (): number => NOW.getTime()).poll();
+
+      expect(readReviews).toHaveBeenCalledTimes(1);
+      expect([...(readReviews.mock.calls[0][1] as string[])].sort()).toEqual(['awaited', 'never', 'stale']);
+      const stored: PlatformUnitEntity[] = await dataSource.getRepository(PlatformUnitEntity).find();
+      const awaited = stored.find((row: PlatformUnitEntity): boolean => row.refs['line:awaited'] !== undefined);
+      expect(awaited).toMatchObject({ reviews: { 'line:awaited': APPROVED }, reviewsReadAt: NOW });
+    });
+
+    it('should leave alone the ads of a campaign ended, and of an account no longer active', async (): Promise<void> => {
+      await seedUnit('never');
+      await dataSource.getRepository(CampaignEntity).update({ id: tree.campaignId }, { status: 'ended' });
+
+      await new ReviewService(dataSource, { get: jest.fn() } as never, (): number => NOW.getTime()).poll();
+      await dataSource.getRepository(CampaignEntity).update({ id: tree.campaignId }, { status: 'active' });
+      await dataSource.getRepository(AdAccountEntity).update({ id: account.id }, { status: 'invalid' });
+      await new ReviewService(dataSource, { get: jest.fn() } as never, (): number => NOW.getTime()).poll();
+
+      expect(readReviews).not.toHaveBeenCalled();
+    });
   });
 });

@@ -10,9 +10,10 @@
  * which Google refuses a service account. The campaigns arrive in lot 3.
  */
 import type { CallJournal } from '@src/services/platform-call.service';
-import type { AdAccountScope } from '@src/types';
+import type { AdAccountScope, AdReview } from '@src/types';
 import type { DesiredUnit } from '../desired-state';
 import {
+  AccountContext,
   ApplyResult,
   LinkedAccountInfo,
   LinkStatus,
@@ -24,8 +25,9 @@ import {
 } from '../platform-adapter';
 import { PlatformHttp } from '../platform-http';
 import { GoogleInviterAuth, GoogleServiceAccountAuth } from './google.auth';
-import { GoogleUnitSync } from './google.apply';
+import { GoogleUnitSync, quoted } from './google.apply';
 import { describeGoogleAdsError, GoogleAdsClient } from './google.client';
+import { reviewOf } from './google.mapping';
 import { GOOGLE_ADS_API, GoogleAdsRow, GoogleClientLinkStatus } from './google.types';
 
 /** The GAQL queries of the connection. */
@@ -37,11 +39,19 @@ const GAQL = {
   /** The links of our MCC to one client account: several over time (invited, withdrawn, invited again). */
   clientLinksOf: (clientId: string): string =>
     `${GAQL.clientLinks()} WHERE customer_client_link.client_customer = 'customers/${clientId}'`,
+  /** What Google made of some ads, named by their resource names (`docs/phase-10.md` § 8.8). */
+  reviews: (ads: string): string =>
+    'SELECT ad_group_ad.resource_name, ad_group_ad.policy_summary.review_status, ' +
+    'ad_group_ad.policy_summary.approval_status, ad_group_ad.policy_summary.policy_topic_entries ' +
+    `FROM ad_group_ad WHERE ad_group_ad.resource_name IN (${ads})`,
   /** What a client account says of itself, run on that account. */
   customer: (): string =>
     'SELECT customer.id, customer.descriptive_name, customer.currency_code, customer.time_zone, ' +
     'customer.manager FROM customer',
 } as const;
+
+/** How many ads one query of their verdicts names, as multi-search does. */
+const REVIEWS_PER_QUERY = 1000;
 
 /** Our statuses of a link, from Google's. */
 const LINK_STATUSES: Readonly<Record<string, LinkStatus>> = {
@@ -171,6 +181,30 @@ export class GoogleAdsAdapter implements PlatformAdapter {
     now: () => number = Date.now
   ) {
     this.units = new GoogleUnitSync(client, now);
+  }
+
+  /**
+   * Read what Google made of some ads of one account: one query per thousand ads, run on the account.
+   *
+   * @param account - The account
+   * @param ads - Their resource names, as `refs` holds them
+   * @returns The verdict of each ad Google answered for, by its resource name
+   * @throws PlatformError
+   */
+  public async readReviews(account: AccountContext, ads: readonly string[]): Promise<Map<string, AdReview>> {
+    const reviews = new Map<string, AdReview>();
+    for (let start = 0; start < ads.length; start += REVIEWS_PER_QUERY) {
+      const rows: GoogleAdsRow[] = await this.client.search(
+        account.adAccountId,
+        account.externalId,
+        GAQL.reviews(quoted(ads.slice(start, start + REVIEWS_PER_QUERY)))
+      );
+      for (const row of rows) {
+        const name: string | undefined = row.adGroupAd?.resourceName;
+        if (name !== undefined) reviews.set(name, reviewOf(row.adGroupAd?.policySummary));
+      }
+    }
+    return reviews;
   }
 
   /** @inheritdoc */
