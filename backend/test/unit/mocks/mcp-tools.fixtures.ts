@@ -7,6 +7,7 @@
  */
 export const EXPECTED_TOOLS: string[] = [
   'get-status',
+  'get-me',
   'list-labels',
   'get-label',
   'create-label',

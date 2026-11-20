@@ -20,7 +20,7 @@ const CONFIG = {
   url: 'http://localhost:3002',
   /** Your token, from the Swagger. Leave it EMPTY: it is asked without showing, and never committed. */
   token: '',
-  /** The Organization to create the campaign in: the `x-organization-id` of the Swagger. */
+  /** The Organization to create the campaign in. Empty: yours are read from /me, and asked when several. */
   organizationId: '',
   /** The brand. Empty: the brands of the Organization are listed, and asked when there are several. */
   advertiserId: '',
@@ -213,13 +213,25 @@ if (!CONFIG.token) {
   );
   CONFIG.token = await ask('Jeton (il ne s’affiche pas) : ', { hidden: true });
 }
-if (!CONFIG.organizationId) CONFIG.organizationId = await ask('Organization (son id) : ');
-if (!CONFIG.site) CONFIG.site = await ask('Le vrai site de la marque (https://…) : ');
-if (!CONFIG.token || !CONFIG.organizationId || !/^https?:\/\//.test(CONFIG.site)) {
-  stop('Il faut un jeton, une Organization et un site en http(s).');
-}
+if (!CONFIG.token) stop('Il faut un jeton.');
 
 console.log(`\nScénario « campagne Google à 10 € » contre ${CONFIG.url}`);
+
+title('Toi, et ton Organization');
+const me = await call('GET', '/me');
+say(`${me.user.name ?? me.user.email} — ${me.organizations.length} Organization(s)`);
+let organization = me.organizations.find((one) => one.id === CONFIG.organizationId);
+if (!organization && !CONFIG.organizationId && me.organizations.length === 1) [organization] = me.organizations;
+if (!organization && !CONFIG.organizationId && me.organizations.length > 1) {
+  me.organizations.forEach((one, index) => say(`${index + 1}. ${one.name} (rôle ${one.role})`));
+  organization = me.organizations[Number(await ask('   Laquelle (son numéro) : ')) - 1];
+}
+if (!organization) stop('Aucune Organization à prendre : omnipass ne t’en donne aucune, ou pas celle du réglage.');
+CONFIG.organizationId = organization.id;
+say(`${organization.name}, rôle ${organization.role} (${organization.id})`);
+
+if (!CONFIG.site) CONFIG.site = await ask('\nLe vrai site de la marque (https://…) : ');
+if (!/^https?:\/\//.test(CONFIG.site)) stop('Il faut le site de la marque, en http(s).');
 
 title('La marque');
 const advertisers = (await call('GET', '/advertisers?limit=100')).items;

@@ -21,6 +21,7 @@ import LabelController from './label/label.controller';
 import LeverController from './lever/lever.controller';
 import LineController from './line/line.controller';
 import ListController from './list/list.controller';
+import MeController from './me/me.controller';
 import TargetingGroupController from './targeting-group/targeting-group.controller';
 import TargetingController from './targeting/targeting.controller';
 import OAuthController from './oauth/oauth.controller';
@@ -57,6 +58,8 @@ async function registerControllers(fastify: FastifyInstance): Promise<void> {
   await registerProbeControllers(fastify);
   // The discovery document MCP clients read before signing in; the 401 of the MCP endpoint points at it.
   await fastify.register(OAuthController);
+  // Who the caller is, which gives the Organizations every other route is scoped to.
+  await fastify.register(MeController);
   // The organizing tools first, then what they organize: the order the API documentation reads best.
   await fastify.register(LabelController);
   await fastify.register(AdvertiserController);

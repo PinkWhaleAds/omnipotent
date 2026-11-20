@@ -113,6 +113,8 @@ const PROBE_ROUTES: RouteKey[] = [
 const API_ROUTES: RouteKey[] = [
   { method: 'GET', url: '/.well-known/oauth-protected-resource/mcp' },
   { method: 'GET', url: '/.well-known/oauth-protected-resource' },
+  // Who the caller is, as omnipass resolved it.
+  { method: 'GET', url: '/me' },
   // Phase 2: the reference CRUD, on both resources.
   ...crudRoutes('labels', { labels: false }),
   { method: 'GET', url: '/labels/:id/resources' },

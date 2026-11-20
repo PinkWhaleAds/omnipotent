@@ -22,6 +22,7 @@ import LineToolsController from './line/line.controller';
 import PreviewToolsController from './preview/preview.controller';
 import SyncToolsController from './sync/sync.controller';
 import ListToolsController from './list/list.controller';
+import MeToolsController from './me/me.controller';
 import StatusToolsController from './status/status.controller';
 import TargetingGroupToolsController from './targeting-group/targeting-group.controller';
 import TargetingToolsController from './targeting/targeting.controller';
@@ -38,6 +39,7 @@ import TargetingToolsController from './targeting/targeting.controller';
  */
 export function registerToolControllers(server: McpServer, fastify: FastifyInstance, context: McpContext): void {
   StatusToolsController(server, fastify);
+  MeToolsController(server, context);
   LabelToolsController(server, fastify, context);
   AdvertiserToolsController(server, fastify, context);
   // The campaign tree, from its root down to its leaf.

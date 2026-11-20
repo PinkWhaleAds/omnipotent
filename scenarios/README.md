@@ -26,8 +26,8 @@ lancée **puis mise en pause aussitôt**.
 node scenarios/campagne-google.mjs
 ```
 
-Ses réglages : l'API, l'Organization (l'`x-organization-id` du Swagger), la marque — vide, le
-script liste celles de l'Organization et demande laquelle —, le **vrai site** de la marque, que Google
+Ses réglages : l'API, l'Organization — vide, le script lit les tiennes sur `GET /me` et demande
+laquelle quand il y en a plusieurs —, la marque — vide, de même parmi celles de l'Organization —, le **vrai site** de la marque, que Google
 examine, les mots-clés, et s'il faut lancer — vide, la question est posée une fois la preview propre.
 
 Il relie la marque au compte Google connecté, crée la campagne (une semaine, départ demain à 9 h),

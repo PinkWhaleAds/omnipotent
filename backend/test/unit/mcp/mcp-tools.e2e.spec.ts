@@ -1619,6 +1619,7 @@ describe('Unit::Mcp::McpToolsE2E', () => {
     it('should cover every org-scoped tool of the phase with a call', (): void => {
       const covered: string[] = [
         'get-status',
+        'get-me',
         'get-targeting-dimensions',
         'get-creative-formats',
         ...TOOL_CASES.map((toolCase: ToolCase): string => toolCase.tool),
@@ -1629,6 +1630,13 @@ describe('Unit::Mcp::McpToolsE2E', () => {
   });
 
   describe('tools/call', () => {
+    it('should answer who the caller is, as omnipass resolved it, without naming an Organization', async (): Promise<void> => {
+      const result: ToolCallResult = await connection.client.callTool({ name: 'get-me', arguments: {} });
+
+      expect(result.isError).toBeFalsy();
+      expect(result.structuredContent).toEqual(JANE.tenancy);
+    });
+
     it('should reach the service and answer its payload twice: structured and as JSON text', async (): Promise<void> => {
       const result: ToolCallResult = await connection.client.callTool({ name: 'get-status', arguments: {} });
 
