@@ -572,9 +572,13 @@ Livré en pas successifs sur la branche `phase-10-lot-3` (PR n°7), chacun vert 
 3. ✅ l'heure de départ (point 3) ;
 4. ✅ les réglages par plateforme, les extensions et l'intention de lieu (points 4 à 6) ;
 5. ✅ la marque sur la créa RSA, et les fichiers d'une créa décrits dans l'état voulu (point 7) ;
-6. **à faire** : le couple `(google_ads, search)` du registre, le `mutate` du client, le mapping et
-   `apply` (§ 8.3 et § 8.5) — transcrits de `google.mapping.ts` et `google.adapter.ts` de multi-search,
-   adaptés à notre état voulu fait d'objets projetés ;
+6. ✅ le couple `(google_ads, search)` du registre, le `mutate` du client, le mapping
+   (`google.mapping.ts`) et `apply` (`google.apply.ts`), transcrits de multi-search et adaptés à notre
+   état voulu fait d'objets projetés (§ 8.3 et § 8.5). Trois choses trouvées en l'écrivant : un
+   TargetingGroup sans enchère propre enchérit celle de l'AdGroup, l'état ne portant que le montant
+   propre de chaque nœud ; une campagne Google qu'aucun objet ne représente plus — un éclatement
+   défait — est lue pour être mise en pause ; et les appareils s'ajustent sur l'ad group, par un
+   modificateur d'enchère à zéro, quand les lieux et les rayons restent sur la campagne ;
 7. **à faire** : les preuves du § 8.6, par Lorin.
 
 ### 8.6 Les preuves de 3a, sur le vrai compte
