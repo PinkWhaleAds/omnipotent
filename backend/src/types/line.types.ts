@@ -28,6 +28,7 @@ const landingPageUrlSchema = z.url({ protocol: /^https?$/ }).max(2048);
  * @property lever - The channel of its lever
  * @property name - Its name
  * @property status - Whether it delivers
+ * @property creativeId - The creative it delivers, `null` while none is chosen
  * @property landingPageUrl - Landing page of this Line, overriding the creative's (L18)
  * @property budget - What it carries and what it may spend, computed at read time
  * @property startsOn - First day of delivery, `null` to follow its parent's
@@ -46,6 +47,7 @@ export const lineSchema = z.object({
   lever: leverSchema,
   name: z.string(),
   status: nodeStatusSchema,
+  creativeId: z.uuid().nullable(),
   landingPageUrl: z.string().nullable(),
   budget: budgetBlockSchema,
   startsOn: z.iso.date().nullable(),
@@ -76,11 +78,14 @@ export type ListLinesQuery = z.infer<typeof listLinesQuerySchema>;
  * has none of its own (L25).
  *
  * @property name - Its name
+ * @property creativeId - The creative it delivers, of the campaign's brand; one creative delivers once
+ *   per TargetingGroup (`docs/phase-6.md` § 6)
  * @property landingPageUrl - Landing page of this Line, overriding the creative's
  * @property labelIds - Labels to post on it right away
  */
 export const createLineBodySchema = z.strictObject({
   name: lineNameSchema,
+  creativeId: z.uuid().nullable().optional(),
   landingPageUrl: landingPageUrlSchema.nullable().optional(),
   labelIds: z.array(z.uuid()).optional(),
   ...nodeWriteFieldsWithoutVolume,
@@ -92,6 +97,7 @@ export type CreateLineBody = z.infer<typeof createLineBodySchema>;
 /** Zod schema of the body changing a Line. A field left out is left alone. */
 export const updateLineBodySchema = z.strictObject({
   name: lineNameSchema.optional(),
+  creativeId: z.uuid().nullable().optional(),
   landingPageUrl: landingPageUrlSchema.nullable().optional(),
   ...nodeWriteFieldsWithoutVolume,
 });

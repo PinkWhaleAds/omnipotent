@@ -161,11 +161,15 @@ pour que le front puisse l'écrire dans son message.
 Chaque niveau porte ses deux codes, construits sur son nom : `campaign`, `lever`, `ad_group`,
 `targeting_group`, `line`.
 
-| Code                   | Statut | Quand                                                                    | `params` |
-| ---------------------- | ------ | ------------------------------------------------------------------------ | -------- |
-| `<niveau>_not_found`   | 404    | Absent, supprimé, ou d'une autre Organization                            | `{}`     |
-| `<niveau>_not_deleted` | 409    | `restore` sur un nœud vivant                                             | `{}`     |
-| `lever_already_exists` | 409    | La campagne porte déjà ce canal — à la création comme à une restauration | `lever`  |
+| Code                       | Statut | Quand                                                                            | `params` |
+| -------------------------- | ------ | -------------------------------------------------------------------------------- | -------- |
+| `<niveau>_not_found`       | 404    | Absent, supprimé, ou d'une autre Organization                                    | `{}`     |
+| `<niveau>_not_deleted`     | 409    | `restore` sur un nœud vivant                                                     | `{}`     |
+| `lever_already_exists`     | 409    | La campagne porte déjà ce canal — à la création comme à une restauration         | `lever`  |
+| `line_creative_duplicated` | 409    | Une autre Line du même TargetingGroup diffuse déjà cette créa (`phase-6.md` § 6) | `line`   |
+
+Une Line choisit sa créa par `creativeId`, à sa création ou ensuite : une créa d'une autre marque que
+la campagne, ou supprimée, répond `creative_not_found`.
 
 ### Ce que le modèle refuse d'exprimer
 
@@ -312,8 +316,7 @@ Le `format` et le `subtype` ne figurent pas dans le corps de mise à jour : les 
 la charge utile de toutes les versions, donc c'est une autre créa — l'envoyer est un
 `validation_failed`. Une version ne se modifie ni ne se supprime : il n'y a **aucune** route pour
 cela, et `(targetingGroup, creative)` unique côté Line empêche la même créa de diffuser deux fois sur
-un même ciblage (`line_creative_duplicated` est l'erreur de la phase de la preview, la base la
-refusant déjà).
+un même ciblage (`line_creative_duplicated`, à l'écriture de la Line).
 
 ## Les comptes plateformes
 

@@ -1,8 +1,8 @@
 import { FastifyInstance } from 'fastify';
 import fastifyPlugin from 'fastify-plugin';
-import { DataSource, EntityManager, ObjectLiteral } from 'typeorm';
+import { DataSource, EntityManager, IsNull, ObjectLiteral } from 'typeorm';
 
-import { LineEntity } from '@src/database/entities';
+import { CampaignEntity, CreativeEntity, LineEntity } from '@src/database/entities';
 import { Paginated } from '@src/types/api.types';
 import { AuthContext } from '@src/types/auth.types';
 import { BulkIdsBody, BulkResult, DeletionResult, SetLabelsBody } from '@src/types/crud.types';
@@ -16,7 +16,7 @@ import {
   ListLinesQuery,
   UpdateLineBody,
 } from '@src/types/line.types';
-import { toPage } from '@utils';
+import { httpError, toPage } from '@utils';
 import { AccessService } from './access.service';
 import { runBulk } from './crud.helpers';
 import { assertDistinctIds, LabelService } from './label.service';
@@ -43,6 +43,7 @@ export function toLine(entity: LineEntity, budget: Line['budget'], labels: Label
     lever: entity.lever,
     name: entity.name,
     status: entity.status,
+    creativeId: entity.creativeId ?? null,
     landingPageUrl: entity.landingPageUrl,
     budget,
     startsOn: entity.startsOn,
@@ -320,6 +321,16 @@ export class LineService {
   ): Promise<Line> {
     const parent: TreeNodeRow = await findNodeOrFail(manager, 'targeting_group', organizationId, targetingGroupId);
     const lever: Lever = parent.lever as Lever;
+    if (body.creativeId != null) {
+      await this.assertCreative(
+        manager,
+        organizationId,
+        parent.campaignId as string,
+        targetingGroupId,
+        null,
+        body.creativeId
+      );
+    }
 
     const columns: ObjectLiteral = await normalizeNodeWrite(
       manager,
@@ -340,6 +351,7 @@ export class LineService {
         targetingGroupId,
         lever,
         name: body.name,
+        creativeId: body.creativeId ?? null,
         landingPageUrl: body.landingPageUrl ?? null,
         ...columns,
       })
@@ -368,6 +380,16 @@ export class LineService {
   ): Promise<Line> {
     const current: TreeNodeRow = await findNodeOrFail(manager, LEVEL, organizationId, id);
     const lever: Lever = current.lever as Lever;
+    if (body.creativeId != null) {
+      await this.assertCreative(
+        manager,
+        organizationId,
+        current.campaignId as string,
+        current.targetingGroupId as string,
+        id,
+        body.creativeId
+      );
+    }
 
     const columns: ObjectLiteral = await normalizeNodeWrite(
       manager,
@@ -384,11 +406,53 @@ export class LineService {
     const saved: LineEntity = await manager.save(LineEntity, {
       ...(current as LineEntity),
       ...(body.name === undefined ? {} : { name: body.name }),
+      ...(body.creativeId === undefined ? {} : { creativeId: body.creativeId }),
       ...(body.landingPageUrl === undefined ? {} : { landingPageUrl: body.landingPageUrl }),
       ...columns,
     });
     const [updated]: Line[] = await this.toApi(manager, [saved]);
     return updated;
+  }
+
+  /**
+   * Refuse a creative the Line cannot deliver: one of another brand, or one another Line of the same
+   * TargetingGroup already delivers (`docs/phase-6.md` § 6).
+   *
+   * @param manager - The transaction
+   * @param organizationId - The Organization
+   * @param campaignId - The Line's campaign, whose brand the creative must be of
+   * @param targetingGroupId - Its TargetingGroup
+   * @param lineId - The Line, `null` while it is being created
+   * @param creativeId - The creative
+   * @returns A promise that resolves when it can deliver it
+   * @throws Error with status 404 coded `creative_not_found`, or 409 coded `line_creative_duplicated`
+   */
+  private async assertCreative(
+    manager: EntityManager,
+    organizationId: string,
+    campaignId: string,
+    targetingGroupId: string,
+    lineId: string | null,
+    creativeId: string
+  ): Promise<void> {
+    const campaign = (await manager.findOne(CampaignEntity, {
+      where: { id: campaignId },
+      select: { advertiserId: true },
+      withDeleted: true,
+    })) as CampaignEntity;
+    const creative: CreativeEntity | null = await manager.findOne(CreativeEntity, {
+      where: { id: creativeId, organizationId, advertiserId: campaign.advertiserId, deletedAt: IsNull() },
+    });
+    if (!creative) throw httpError(404, 'This creative does not exist', { code: 'creative_not_found' });
+    const taken: LineEntity | null = await manager.findOne(LineEntity, {
+      where: { targetingGroupId, creativeId, deletedAt: IsNull() },
+    });
+    if (taken && taken.id !== lineId) {
+      throw httpError(409, 'Another Line of this targeting group already delivers this creative', {
+        code: 'line_creative_duplicated',
+        params: { line: taken.name },
+      });
+    }
   }
 
   /**

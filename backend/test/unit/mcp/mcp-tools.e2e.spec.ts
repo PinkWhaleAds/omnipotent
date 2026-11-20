@@ -275,6 +275,7 @@ const TREE_LEVELS: TreeLevelCase[] = [
       lever: 'dac',
       name: 'Bannière 300x250',
       status: 'active',
+      creativeId: null,
       landingPageUrl: null,
       startsOn: null,
       endsOn: null,

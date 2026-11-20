@@ -1,6 +1,13 @@
 import { FastifyInstance } from 'fastify';
 
-import { AdGroupEntity, CampaignEntity, LeverEntity, LineEntity, TargetingGroupEntity } from '@src/database/entities';
+import {
+  AdGroupEntity,
+  CampaignEntity,
+  CreativeEntity,
+  LeverEntity,
+  LineEntity,
+  TargetingGroupEntity,
+} from '@src/database/entities';
 import LabelServicePlugin, { LabelService } from '@src/services/label.service';
 import LineServicePlugin, { LineService, toLine } from '@src/services/line.service';
 import { Paginated } from '@src/types/api.types';
@@ -55,6 +62,7 @@ function lineRow(overrides: Partial<LineEntity> = {}): LineEntity {
     lever: 'dac',
     name: 'Bannière 300x250',
     status: 'active',
+    creativeId: null,
     landingPageUrl: null,
     budgetCents: null,
     budgetVolume: null,
@@ -86,7 +94,14 @@ function seedAbove(
 ): void {
   db.manager.findOne.mockImplementation(async (entity: unknown): Promise<unknown> => {
     if (entity === CampaignEntity) {
-      return { id: CAMPAIGN_ID, budgetCents: 100_000, startsOn: '2026-11-05', endsOn: '2026-11-20', deletedAt: null };
+      return {
+        id: CAMPAIGN_ID,
+        advertiserId: IDS.advertiser,
+        budgetCents: 100_000,
+        startsOn: '2026-11-05',
+        endsOn: '2026-11-20',
+        deletedAt: null,
+      };
     }
     if (entity === LeverEntity) {
       return {
@@ -155,6 +170,7 @@ const BANNER: Line = {
   lever: 'dac',
   name: 'Bannière 300x250',
   status: 'active',
+  creativeId: null,
   landingPageUrl: null,
   budget: BUDGET,
   startsOn: null,
@@ -254,6 +270,79 @@ describe('Unit::Services::LineService', () => {
         statusCode: 404,
         errorCode: 'line_not_found',
       });
+    });
+  });
+
+  describe('the creative a Line delivers', () => {
+    const CREATIVE_ID = 'fe000000-0000-4000-8000-000000000001';
+
+    /**
+     * Answer the creative, and the Line of the same TargetingGroup that already delivers it.
+     *
+     * @param creative - What the creative read answers
+     * @param taken - The Line already delivering it, if any
+     * @returns Nothing
+     */
+    function withCreative(creative: object | null, taken: LineEntity | null = null): void {
+      const above = db.manager.findOne.getMockImplementation() as (
+        entity: unknown,
+        options: unknown
+      ) => Promise<unknown>;
+      db.manager.findOne.mockImplementation(
+        async (entity: unknown, options: { where?: { creativeId?: string } }): Promise<unknown> => {
+          if (entity === CreativeEntity) return creative;
+          if (entity === LineEntity && options?.where?.creativeId) return taken;
+          return above(entity, options);
+        }
+      );
+    }
+
+    it('should create a Line delivering a creative of the campaign brand', async (): Promise<void> => {
+      withCreative({ id: CREATIVE_ID });
+      db.manager.save.mockResolvedValue(lineRow({ creativeId: CREATIVE_ID }));
+
+      await expect(
+        service.create(JANE, IDS.organization, TARGETING_GROUP_ID, { name: 'Annonce', creativeId: CREATIVE_ID })
+      ).resolves.toMatchObject({ creativeId: CREATIVE_ID });
+      expect(db.manager.create).toHaveBeenCalledWith(LineEntity, expect.objectContaining({ creativeId: CREATIVE_ID }));
+      expect(db.manager.findOne).toHaveBeenCalledWith(CreativeEntity, {
+        where: expect.objectContaining({
+          id: CREATIVE_ID,
+          organizationId: IDS.organization,
+          advertiserId: IDS.advertiser,
+        }),
+      });
+    });
+
+    it('should not find a creative of another brand, or one deleted', async (): Promise<void> => {
+      withCreative(null);
+
+      await expect(
+        service.create(JANE, IDS.organization, TARGETING_GROUP_ID, { name: 'Annonce', creativeId: CREATIVE_ID })
+      ).rejects.toMatchObject({ statusCode: 404, errorCode: 'creative_not_found' });
+    });
+
+    it('should refuse a creative another Line of the TargetingGroup already delivers', async (): Promise<void> => {
+      withCreative({ id: CREATIVE_ID }, lineRow({ id: OTHER_LINE_ID, name: 'Annonce A' }));
+
+      await expect(service.update(JANE, IDS.organization, LINE_ID, { creativeId: CREATIVE_ID })).rejects.toMatchObject({
+        statusCode: 409,
+        errorCode: 'line_creative_duplicated',
+        errorParams: { line: 'Annonce A' },
+      });
+    });
+
+    it('should let a Line keep the creative it delivers, and give it back', async (): Promise<void> => {
+      withCreative({ id: CREATIVE_ID }, lineRow({ creativeId: CREATIVE_ID }));
+
+      await service.update(JANE, IDS.organization, LINE_ID, { creativeId: CREATIVE_ID });
+      expect(db.manager.save).toHaveBeenLastCalledWith(
+        LineEntity,
+        expect.objectContaining({ creativeId: CREATIVE_ID })
+      );
+
+      await service.update(JANE, IDS.organization, LINE_ID, { creativeId: null });
+      expect(db.manager.save).toHaveBeenLastCalledWith(LineEntity, expect.objectContaining({ creativeId: null }));
     });
   });
 
