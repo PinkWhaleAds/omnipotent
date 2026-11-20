@@ -55,7 +55,7 @@ const LINK_STATUSES: Readonly<Record<string, LinkStatus>> = {
 /**
  * A customer id without its dashes, when it is one.
  *
- * @param input - As typed: `972-563-0707`, `9725630707`
+ * @param input - As typed: `555-000-1111`, `5550001111`
  * @returns Ten digits, or `null`
  */
 export function normalizeCustomerId(input: string): string | null {
@@ -67,7 +67,7 @@ export function normalizeCustomerId(input: string): string | null {
  * A customer id as Google Ads shows it.
  *
  * @param customerId - Ten digits
- * @returns `972-563-0707`
+ * @returns `555-000-1111`
  */
 export function formatCustomerId(customerId: string): string {
   return `${customerId.slice(0, 3)}-${customerId.slice(3, 6)}-${customerId.slice(6)}`;
@@ -76,8 +76,8 @@ export function formatCustomerId(customerId: string): string {
 /**
  * The client account a link points at.
  *
- * @param resourceName - `customers/9725630707`
- * @returns `9725630707`, or `null`
+ * @param resourceName - `customers/5550001111`
+ * @returns `5550001111`, or `null`
  */
 function customerIdOfResource(resourceName: string | undefined): string | null {
   const match: RegExpExecArray | null = /^customers\/(\d+)$/.exec(resourceName ?? '');

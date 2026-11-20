@@ -29,7 +29,7 @@ const INVITER_JSON: string = JSON.stringify({ clientId: 'c-1', clientSecret: 's-
 
 /** Our manager account, and a client account under it. */
 const MCC = '7719345054';
-const CLIENT = '9725630707';
+const CLIENT = '5550001111';
 
 /**
  * A link of our MCC.
@@ -156,14 +156,14 @@ describe('Unit::Platforms::Google::Adapter', () => {
 
   describe('the customer ids', () => {
     it('should read a customer id with or without its dashes, and nothing else', (): void => {
-      expect(normalizeCustomerId('972-563-0707')).toBe(CLIENT);
-      expect(normalizeCustomerId(' 9725630707 ')).toBe(CLIENT);
-      expect(normalizeCustomerId('972-563')).toBeNull();
-      expect(normalizeCustomerId('97256307AB')).toBeNull();
+      expect(normalizeCustomerId('555-000-1111')).toBe(CLIENT);
+      expect(normalizeCustomerId(' 5550001111 ')).toBe(CLIENT);
+      expect(normalizeCustomerId('555-000')).toBeNull();
+      expect(normalizeCustomerId('55500011AB')).toBeNull();
     });
 
     it('should write one as Google Ads shows it', (): void => {
-      expect(formatCustomerId(CLIENT)).toBe('972-563-0707');
+      expect(formatCustomerId(CLIENT)).toBe('555-000-1111');
     });
   });
 
@@ -180,7 +180,7 @@ describe('Unit::Platforms::Google::Adapter', () => {
     it('should be a platform whose accounts link to our manager account', (): void => {
       expect(adapter.platform).toBe('google_ads');
       expect(adapter.connection).toBe('manager_link');
-      expect(adapter.referenceOf('972-563-0707')).toBe(CLIENT);
+      expect(adapter.referenceOf('555-000-1111')).toBe(CLIENT);
     });
   });
 
@@ -416,7 +416,7 @@ describe('Unit::Platforms::Google::Adapter', () => {
       ];
 
       await expect(adapter.readLinkedAccount(CLIENT)).resolves.toMatchObject({
-        name: 'Google Ads 972-563-0707',
+        name: 'Google Ads 555-000-1111',
         manager: true,
       });
     });

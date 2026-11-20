@@ -21,7 +21,7 @@ const SECRET_NAME = `omnipotent/ad-account/${ACCOUNT_ID}`;
 const OTHER_ORGANIZATION = 'c0000000-0000-4000-8000-0000000000ff';
 
 /** A Google customer id, as a linked account keeps it. */
-const REFERENCE = '9725630707';
+const REFERENCE = '5550001111';
 
 /** One day, in milliseconds. */
 const DAY_IN_MS = 86_400_000;
@@ -534,7 +534,7 @@ describe('Unit::Services::AdAccountService', () => {
       it('should invite the account and keep it waiting, with nothing read yet', async (): Promise<void> => {
         const connected: AdAccount = await service.connect(JANE, IDS.organization, {
           platform: 'google_ads',
-          externalId: '972-563-0707',
+          externalId: '555-000-1111',
         });
 
         expect(adapter.requestLink).toHaveBeenCalledWith(REFERENCE, {});
@@ -642,7 +642,7 @@ describe('Unit::Services::AdAccountService', () => {
 
       it('should refuse a reference that is not one', async (): Promise<void> => {
         await expect(
-          service.connect(JANE, IDS.organization, { platform: 'google_ads', externalId: '972-563' })
+          service.connect(JANE, IDS.organization, { platform: 'google_ads', externalId: '555-000' })
         ).rejects.toMatchObject({
           statusCode: 400,
           errorCode: 'ad_account_reference_invalid',

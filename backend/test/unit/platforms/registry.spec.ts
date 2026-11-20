@@ -72,7 +72,7 @@ describe('Unit::Platforms::Registry', () => {
     );
 
     // The key read is not one, so the exchange stops there, on our own credentials.
-    await expect(registry.google_ads?.readLinkedAccount?.('9725630707')).rejects.toMatchObject({
+    await expect(registry.google_ads?.readLinkedAccount?.('5550001111')).rejects.toMatchObject({
       options: { ownCredentials: true, code: 'service_account_key' },
     });
     expect(secrets.get).toHaveBeenCalledWith('google-ads/service-account');

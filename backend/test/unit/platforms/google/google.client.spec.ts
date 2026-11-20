@@ -60,7 +60,7 @@ describe('Unit::Platforms::Google::Client', () => {
             {
               errorCode: { managerLinkError: 'ALREADY_MANAGED_IN_HIERARCHY' },
               message: 'The client is already managed in the hierarchy.',
-              trigger: { stringValue: '9725630707' },
+              trigger: { stringValue: '5550001111' },
             },
             { errorCode: { managerLinkError: 'ALREADY_MANAGED_BY_THIS_MANAGER' } },
             { message: 'Without a code.' },
@@ -70,7 +70,7 @@ describe('Unit::Platforms::Google::Client', () => {
 
       expect(described).toEqual({
         message:
-          'The client is already managed in the hierarchy. ("9725630707") [managerLinkError.ALREADY_MANAGED_IN_HIERARCHY]; ' +
+          'The client is already managed in the hierarchy. ("5550001111") [managerLinkError.ALREADY_MANAGED_IN_HIERARCHY]; ' +
           'Google Ads error [managerLinkError.ALREADY_MANAGED_BY_THIS_MANAGER]; Without a code.',
         code: 'ALREADY_MANAGED_IN_HIERARCHY',
         codes: ['ALREADY_MANAGED_IN_HIERARCHY', 'ALREADY_MANAGED_BY_THIS_MANAGER'],
@@ -211,26 +211,26 @@ describe('Unit::Platforms::Google::Client', () => {
     });
 
     it('should invite a client account as our inviter, never as our service account', async (): Promise<void> => {
-      await client.createClientLink('9725630707');
+      await client.createClientLink('5550001111');
 
       expect(inviterHttp.request).toHaveBeenCalledWith(null, {
         method: 'POST',
         path: '/customers/7719345054/customerClientLinks:mutate',
-        body: { operation: { create: { clientCustomer: 'customers/9725630707', status: 'PENDING' } } },
+        body: { operation: { create: { clientCustomer: 'customers/5550001111', status: 'PENDING' } } },
         headers: { 'login-customer-id': '7719345054' },
       });
       expect(http.request).not.toHaveBeenCalled();
     });
 
     it('should withdraw an invitation as our inviter', async (): Promise<void> => {
-      await client.cancelClientLink('customers/7719345054/customerClientLinks/9725630707~42');
+      await client.cancelClientLink('customers/7719345054/customerClientLinks/5550001111~42');
 
       expect(inviterHttp.request).toHaveBeenCalledWith(
         null,
         expect.objectContaining({
           body: {
             operation: {
-              update: { resourceName: 'customers/7719345054/customerClientLinks/9725630707~42', status: 'CANCELED' },
+              update: { resourceName: 'customers/7719345054/customerClientLinks/5550001111~42', status: 'CANCELED' },
               updateMask: 'status',
             },
           },
@@ -241,7 +241,7 @@ describe('Unit::Platforms::Google::Client', () => {
     it("should drop the inviter's token once refused, and mark a second refusal as ours", async (): Promise<void> => {
       inviterHttp.request.mockRejectedValue(refused(401));
 
-      await expect(client.createClientLink('9725630707')).rejects.toMatchObject({
+      await expect(client.createClientLink('5550001111')).rejects.toMatchObject({
         options: { ownCredentials: true, retryable: false },
       });
       expect(onInviterUnauthenticated).toHaveBeenCalledTimes(1);
@@ -254,12 +254,12 @@ describe('Unit::Platforms::Google::Client', () => {
         .mockResolvedValueOnce({ results: [{ customer: { id: '1' } }], nextPageToken: 'p2' })
         .mockResolvedValueOnce({ nextPageToken: '' });
 
-      await expect(client.search('acc-1', '9725630707', 'SELECT customer.id FROM customer')).resolves.toEqual([
+      await expect(client.search('acc-1', '5550001111', 'SELECT customer.id FROM customer')).resolves.toEqual([
         { customer: { id: '1' } },
       ]);
       expect(http.request).toHaveBeenNthCalledWith(1, 'acc-1', {
         method: 'POST',
-        path: '/customers/9725630707/googleAds:search',
+        path: '/customers/5550001111/googleAds:search',
         body: { query: 'SELECT customer.id FROM customer' },
         operations: 1,
         headers: { 'login-customer-id': '7719345054' },

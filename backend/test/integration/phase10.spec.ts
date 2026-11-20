@@ -54,27 +54,27 @@ describe('Integration::Phase10', () => {
   });
 
   it('should keep an account waiting for its client with no name, currency or timezone', async (): Promise<void> => {
-    await expect(connect(ORGANIZATION, '9725630707')).resolves.toMatchObject({
+    await expect(connect(ORGANIZATION, '5550001111')).resolves.toMatchObject({
       name: null,
       currency: null,
       timezone: null,
-      linkRef: '9725630707',
+      linkRef: '5550001111',
     });
   });
 
   it('should refuse a linked account to a second Organization', async (): Promise<void> => {
-    await connect(ORGANIZATION, '9725630707');
+    await connect(ORGANIZATION, '5550001111');
 
     // The index that phase 7 did not need: there, another Organization could connect the same
     // account, since each brought its own key.
-    await expect(connect(OTHER_ORGANIZATION, '9725630707')).rejects.toBeInstanceOf(QueryFailedError);
+    await expect(connect(OTHER_ORGANIZATION, '5550001111')).rejects.toBeInstanceOf(QueryFailedError);
   });
 
   it('should free a linked account once disconnected', async (): Promise<void> => {
-    const account: AdAccountEntity = await connect(ORGANIZATION, '9725630707');
+    const account: AdAccountEntity = await connect(ORGANIZATION, '5550001111');
     await dataSource.getRepository(AdAccountEntity).update({ id: account.id }, { deletedAt: new Date() });
 
-    await expect(connect(OTHER_ORGANIZATION, '9725630707')).resolves.toMatchObject({
+    await expect(connect(OTHER_ORGANIZATION, '5550001111')).resolves.toMatchObject({
       organizationId: OTHER_ORGANIZATION,
     });
   });

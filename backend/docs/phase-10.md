@@ -131,7 +131,7 @@ plateforme `manager_link`, quatre méthodes de plus, facultatives, aux noms de m
 Google, le numéro de compte chez Microsoft, où il diffère de l'identifiant des appels.
 
 _Ajouté en écrivant le code, et **validé par Lorin**, le 2026-11-19_ : une cinquième méthode, `referenceOf(saisie)`, pure et
-sans appel, qui rend la référence sous sa forme canonique — `972-563-0707` devient `9725630707` — ou
+sans appel, qui rend la référence sous sa forme canonique — `555-000-1111` devient `5550001111` — ou
 `null` si ce n'en est pas une. Sans elle, deux saisies du même compte passeraient pour deux comptes,
 et la règle du § 4.5 tomberait.
 
