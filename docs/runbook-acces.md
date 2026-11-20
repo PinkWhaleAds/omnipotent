@@ -837,50 +837,8 @@ commande, les mêmes gestes.
 
 ## D. La première campagne Google, à 10 € — les preuves du lot 3a
 
-Aux règles de `backend/docs/phase-10.md` § 1 : **10 € au total**, lancée **puis mise en pause
-aussitôt**. Tout se fait dans le Swagger local, `http://localhost:3002/documentation`, connecté comme
-pour la connexion du compte (bouton _Authorize_). Garde les identifiants que chaque réponse donne :
-l'étape suivante en a besoin.
-
-### D1. La marque et son compte Google — _2 minutes_
-
-1. `GET /advertisers` : l'id de la marque. `GET /ad-accounts` : l'id du compte Google connecté.
-2. `POST /advertisers/{id}/ad-accounts`, avec `adAccountId` (le compte) et `externalAdvertiserId` =
-   le customer id du compte, ses dix chiffres sans tirets.
-
-### D2. La campagne, à 10 € — _10 minutes_
-
-1. `POST /advertisers/{id}/campaigns` : `currency` `EUR`, `startsOn` demain, `endsOn` une semaine plus
-   tard, `budgetCents` **1000**, `containsPoliticalAdvertising` `false`, et une `startTime` si tu
-   veux la prouver (`"09:00"`).
-2. `POST /campaigns/{id}/levers` : `lever` `search`, `platformShares`
-   `[{ "platform": "google_ads", "shareBasisPoints": 10000 }]`, `extensions` avec un lien annexe et
-   une accroche, et `platformSettings` `{ "google_ads": { "searchPartners": false } }`.
-3. `POST /levers/{id}/ad-groups` : un nom, `bidStrategy` `max_cpc`, `bidAmountCents` `50`,
-   `locationIntent` `presence`.
-4. `POST /ad-groups/{id}/targeting-groups` : un nom ; puis `PUT /targeting-groups/{id}/targeting`
-   avec un pays (`FR`) et un rayon autour d'un point.
-5. `POST /targeting-groups/{id}/keywords` : trois ou quatre mots-clés.
-6. Les créas : `POST /advertisers/{id}/assets` pour un logo carré (PNG), puis deux fois
-   `POST /advertisers/{id}/creatives`, `format` `search_text`, `subtype` `rsa`, avec trois titres, deux
-   descriptions, `businessName`, et pour l'une le logo en rôle `logo`.
-7. `POST /targeting-groups/{id}/lines`, deux fois : un nom, `creativeId`, `landingPageUrl`.
-
-### D3. La preview, le lancement, la pause — _2 minutes_
-
-1. `GET /campaigns/{id}/preview` : aucune erreur, et ce que Google recevra.
-2. `POST /campaigns/{id}/launch`, **puis aussitôt** `PUT /campaigns/{id}/status` avec `paused`.
-3. `GET /campaigns/{id}/platform-status` : l'unité Google, synchronisée.
-
-### D4. Ce que tu regardes ensuite
-
-1. Dans l'interface de Google Ads : la campagne en pause, son nom terminé par `[op:…]`, son budget, son
-   pays et son rayon, ses mots-clés, ses deux annonces, ses extensions et son logo.
-2. Une modification (le nom d'un mot-clé, par exemple) : seul ce changement part. Puis rien du tout :
-   aucun appel.
-3. Un AdGroup ajouté : en pause, absent de Google ; puis `PUT /ad-groups/{id}/status` avec `active`,
-   et il apparaît.
-4. Ce que tu vois, tu me le racontes dans le chat : c'est ce qui clôt 3a.
+Elle ne se clique plus : le scénario `scenarios/campagne-google.mjs` la crée appel après appel et
+raconte chaque étape. Son mode d'emploi est `scenarios/README.md`.
 
 ## Ce que tu me donnes dans le chat, en une fois
 

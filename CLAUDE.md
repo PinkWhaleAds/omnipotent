@@ -39,6 +39,7 @@ Documentation in French, **code and JSDoc in English**.
 backend/        the API, the MCP server and the job workers (see backend/CLAUDE.md)
 infra/          the AWS infrastructure in Terraform (see infra/README.md)
 docs/           the framing documents (cadrage-*.md) and the handovers (handover-*.md)
+scenarios/      scripts that play a whole journey against the local API, printing each step
 ```
 
 A pnpm monorepo without a `frontend/`: Omnipotent has no front end of its own yet (CADRAGE §21), and
