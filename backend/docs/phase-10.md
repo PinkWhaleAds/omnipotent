@@ -233,6 +233,25 @@ présent, sans que son client ait rien accordé : le moteur l'interdit — une u
 le compte n'a pas de `linkRef` s'arrête sur `sync_account_not_linked`, définitivement. Le code
 `platform_not_connectable` n'existe donc pas.
 
+**Le lot 2 se livre en deux temps** (_décidé le 2026-11-20_) :
+
+- **2a — lire.** Le jeton du compte de service, le client HTTP commun (`src/platforms/platform-http.ts`),
+  le client Google Ads, la lecture des liens de notre MCC et celle d'un compte. Cela suffit à connecter
+  un compte **que notre MCC gère déjà** — c'est le cas du premier compte que Lorin a donné. Tant que la
+  2b n'est pas là, un compte qu'il faudrait **inviter** répond `platform_credentials_failed` : l'adapter
+  dit que seul un admin humain du MCC peut inviter, et qu'il faut d'abord lancer `pnpm google:connect`
+  (code de la plateforme `inviter_missing`) ;
+- **2b — inviter.** Le jeton de l'inviteur, l'envoi et le retrait d'une invitation, et la commande de
+  consentement.
+
+Deux écarts avec multi-search, sans effet sur ce qu'on obtient : le client HTTP est écrit sur le
+`fetch` de Node, pas sur `axios`, qu'Omnipotent n'a pas — une dépendance de moins ; et l'adapter lit
+l'état du lien **avant** d'inviter (point 10 du § 7), là où multi-search invite et lit la réponse.
+
+Le **MCC se configure** par `GOOGLE_ADS_MANAGER_ID` (`backend/.env.example`) : sans lui, pas d'adapter.
+En production, cette variable et le conteneur du secret `google-ads/service-account` restent à
+déclarer dans `infra/`, avant le premier déploiement qui parle à Google.
+
 ### Les codes d'erreur du lot
 
 | Code                           | Statut | Quand                                                                                | `params`                |

@@ -188,6 +188,8 @@ export interface PlatformAdapter {
  *   the account is left alone whatever `invalidCredentials` says (`docs/phase-10.md` § 4.2)
  * @property requestId - The id the platform gives for its own support
  * @property code - Its machine-readable error code, when it gives one
+ * @property codes - Every error code of the response, in order, when the platform lists several
+ *   (Google Ads): the one that matters is not always the first
  * @property messageCode - Our stable code, when **we** worded the message rather than the platform
  * @property messageParams - The values of that message, for its translation
  */
@@ -202,6 +204,7 @@ export class PlatformError extends Error {
    * @param options.ownCredentials - Whether the credentials that failed are ours
    * @param options.requestId - Request id of the platform
    * @param options.code - Error code of the platform
+   * @param options.codes - Every error code of the response, in order
    * @param options.messageCode - Our stable code, when we worded the message
    * @param options.messageParams - Values of that message
    */
@@ -215,6 +218,7 @@ export class PlatformError extends Error {
       ownCredentials?: boolean;
       requestId: string | null;
       code?: string | null;
+      codes?: readonly string[];
       messageCode?: string | null;
       messageParams?: MessageParams | null;
     }

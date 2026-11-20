@@ -114,5 +114,9 @@
     "prefix": "SECRETS_PREFIX",
     "accessKeyId": "SECRETS_ACCESS_KEY_ID",
     "secretAccessKey": "SECRETS_SECRET_ACCESS_KEY"
+  },
+  "GoogleAds": {
+    "managerId": "GOOGLE_ADS_MANAGER_ID",
+    "serviceAccountSecret": "GOOGLE_ADS_SERVICE_ACCOUNT_SECRET"
   }
 }

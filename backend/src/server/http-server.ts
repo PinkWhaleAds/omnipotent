@@ -33,6 +33,7 @@ import SecretStorePlugin from '@src/services/secret-store.service';
 import StatusServicePlugin from '@src/services/status.service';
 import StorageServicePlugin from '@src/services/storage.service';
 import TargetingGroupServicePlugin from '@src/services/targeting-group.service';
+import PlatformAdaptersPlugin from '@src/platforms/registry';
 import PlatformCallJournalPlugin from '@src/services/platform-call.service';
 import SyncServicePlugin from '@src/services/sync.service';
 import TargetingServicePlugin from '@src/services/targeting.service';
@@ -149,6 +150,8 @@ export class HttpServer extends Server {
     // preview and the lifecycle read everything above and ask the engine for a campaign's units, so
     // they come last.
     await this.fastify.register(PlatformCallJournalPlugin);
+    // The adapters of the platforms whose settings are there, built with what reads our credentials.
+    await this.fastify.register(PlatformAdaptersPlugin);
     await this.fastify.register(SyncServicePlugin);
     await this.fastify.register(PreviewServicePlugin);
 

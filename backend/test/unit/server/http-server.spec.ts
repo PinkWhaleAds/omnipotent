@@ -18,6 +18,7 @@ import AccessLogPlugin from '@src/plugins/access-log.plugin';
 import AuthPlugin from '@src/plugins/auth.plugin';
 import DatabasePlugin from '@src/plugins/database.plugin';
 import McpPlugin from '@src/plugins/mcp.plugin';
+import PlatformAdaptersPlugin from '@src/platforms/registry';
 import RateLimitPlugin from '@src/plugins/rate-limit.plugin';
 import SwaggerPlugin from '@src/plugins/swagger.plugin';
 import ValidationPlugin from '@src/plugins/validation.plugin';
@@ -25,8 +26,10 @@ import { HttpServer } from '@src/server/http-server';
 import AccessServicePlugin from '@src/services/access.service';
 import HealthServicePlugin from '@src/services/health.service';
 import JobQueuePlugin from '@src/services/job-queue.service';
+import PlatformCallJournalPlugin from '@src/services/platform-call.service';
 import SecretStorePlugin from '@src/services/secret-store.service';
 import StorageServicePlugin from '@src/services/storage.service';
+import SyncServicePlugin from '@src/services/sync.service';
 import TokenVerifierPlugin from '@src/services/token-verifier.service';
 import { callPrivateMethod, callPrivateMethodAsync, setPrivateProperty } from '@test/utils';
 
@@ -115,6 +118,11 @@ describe('Unit::HttpServer', () => {
       expect(plugins).toContain(AccessLogPlugin);
       expect(plugins.indexOf(RateLimitPlugin)).toBeLessThan(plugins.indexOf(SwaggerPlugin));
       expect(plugins.indexOf(RateLimitPlugin)).toBeLessThan(plugins.indexOf(AuthPlugin));
+      // The adapters read our credentials from the store and record into the journal, and the engine
+      // asks them for their platform: between the two (`docs/phase-10.md` § 5).
+      expect(plugins.indexOf(SecretStorePlugin)).toBeLessThan(plugins.indexOf(PlatformAdaptersPlugin));
+      expect(plugins.indexOf(PlatformCallJournalPlugin)).toBeLessThan(plugins.indexOf(PlatformAdaptersPlugin));
+      expect(plugins.indexOf(PlatformAdaptersPlugin)).toBeLessThan(plugins.indexOf(SyncServicePlugin));
       expect(plugins[plugins.length - 1]).toBe(Controllers);
     });
 

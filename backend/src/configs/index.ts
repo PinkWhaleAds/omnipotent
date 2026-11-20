@@ -3,7 +3,7 @@
  *
  * Barrel file that re-exports all application configuration modules.
  * Provides centralized access to the access provider, platform accounts, application, authentication, database,
- * documentation, HTTP server, logger, MCP server, omnipass, preview, queue, secret store, storage
+ * documentation, Google Ads, HTTP server, logger, MCP server, omnipass, preview, queue, secret store, storage
  * and synchronization configurations.
  */
 export * from './access.config';
@@ -12,6 +12,7 @@ export * from './app.config';
 export * from './auth.config';
 export * from './database.config';
 export * from './docs.config';
+export * from './google-ads.config';
 export * from './http-server.config';
 export * from './logger.config';
 export * from './mcp-server.config';
