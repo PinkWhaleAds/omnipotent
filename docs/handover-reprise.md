@@ -247,6 +247,11 @@ vient après. L'ordre :
    ses points numérotés (§ 7) et la règle du super-admin (§ 4.5). Ce qui suit est l'état d'avant :
    écrire `backend/docs/phase-10.md`, le contrat, comme chaque phase — avec les déductions
    ci-dessous, numérotées, présentées **simplement** à Lorin (§ 2).
+3–4. ✅ **Google, fait le 2026-11-20 : le lot 2 de `phase-10.md`** (PR n°4 et 5). Un vrai compte
+   client, que notre MCC gère déjà, est connecté depuis le Swagger local, son nom, sa devise et son
+   fuseau lus chez Google ; le consentement de l'inviteur est donné (`pnpm google:connect`, runbook
+   B8). Reste à prouver l'invitation sur un compte que notre MCC ne gère pas encore. Microsoft est le
+   suivant, sur le même modèle.
 2. ✅ **Fait le 2026-11-19 : le lot 1 de `phase-10.md`**, sur `main` depuis `a815263` et vert sur
    GitHub (PR n°3). Ce qui suit est l'état d'avant.
    **Combler les trous du moteur**, qui valent pour toutes les plateformes. La lecture du 2026-11-18
