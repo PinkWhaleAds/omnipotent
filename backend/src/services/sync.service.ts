@@ -7,6 +7,7 @@ import {
   AdAccountEntity,
   AdGroupEntity,
   AdvertiserAdAccountEntity,
+  AssetEntity,
   CampaignEntity,
   CreativeEntity,
   CreativeVersionEntity,
@@ -25,10 +26,18 @@ import {
   PlatformContext,
   PlatformError,
 } from '@src/platforms/platform-adapter';
-import { DesiredCreative, DesiredKeyword, DesiredNode, desiredUnit, DesiredUnit } from '@src/platforms/desired-state';
+import {
+  DesiredAsset,
+  DesiredCreative,
+  DesiredKeyword,
+  DesiredNode,
+  desiredUnit,
+  DesiredUnit,
+} from '@src/platforms/desired-state';
 import { hasAdapter, PlatformProjection, PlatformRules, projectionOf, rulesOf } from '@src/platforms/platform-rules';
 import { ProjectedObject, projectObjects } from '@src/platforms/projection';
 import {
+  AssetRole,
   AuthContext,
   BidStrategy,
   CampaignPlatformStatus,
@@ -53,6 +62,7 @@ import {
 } from './campaign-tree.helpers';
 import { dayAt, nextAppointment, nextLocalMidnight, resolveCampaignTimezone, startInstant } from './pacing.helpers';
 import { SecretStore } from './secret-store.service';
+import { StorageService } from './storage.service';
 import { markCampaignDirty } from './sync.helpers';
 import { resolvePlatformShares } from './tree.helpers';
 
@@ -107,6 +117,7 @@ export class SyncService {
    * @param curves - Where the paced budget of a day comes from
    * @param secrets - Where the credentials of an account are read, at the last moment
    * @param scheduler - How a synchronization is asked for
+   * @param storage - Where the files of the creatives are read, when a platform needs their bytes
    * @param config - Backoff, batch size and pacing jitter
    * @param now - Current time in epoch milliseconds, injectable so a test owns the clock
    * @param random - Source of the pacing jitter, injectable for the same reason
@@ -117,6 +128,7 @@ export class SyncService {
     private readonly curves: BudgetCurveService,
     private readonly secrets: SecretStore,
     private readonly scheduler: SyncScheduler,
+    private readonly storage: StorageService,
     private readonly config: SyncConfig = syncConfig,
     private readonly now: () => number = Date.now,
     private readonly random: () => number = Math.random
@@ -461,6 +473,7 @@ export class SyncService {
         timezone: bought.timezone,
         scope: account.scope,
         credentials: secretName === null ? null : await this.secrets.get(secretName),
+        readAsset: (assetId: string): Promise<Buffer> => this.readAsset(tree, assetId),
       };
       const result: ApplyResult = await adapter.apply(context, desired, unit.refs);
       await this.recordSuccess(unit, desired, hash, result);
@@ -660,9 +673,39 @@ export class SyncService {
       format: creative.format,
       subtype: creative.subtype,
       payload: version.payload as Readonly<Record<string, unknown>>,
-      // Filled by the platform phases, which upload an asset once and keep its reference there.
-      assets: {},
+      // Sorted, because the fingerprint is taken of the whole state.
+      assets: (tree.versionAssets.get(version.id) ?? [])
+        .map(({ role, asset }: { role: AssetRole; asset: AssetEntity }): DesiredAsset => ({
+          role,
+          id: asset.id,
+          fingerprint: asset.fingerprint,
+          fileName: asset.fileName,
+          mimeType: asset.mimeType,
+          width: asset.width,
+          height: asset.height,
+        }))
+        .sort((left: DesiredAsset, right: DesiredAsset): number =>
+          `${left.role}:${left.id}`.localeCompare(`${right.role}:${right.id}`)
+        ),
     };
+  }
+
+  /**
+   * The bytes of one file the campaign's creatives show, for an adapter about to send it.
+   *
+   * @param tree - The campaign's tree
+   * @param assetId - The asset
+   * @returns Its content
+   * @throws Error with status 404 coded `asset_not_found` for an asset no creative of the campaign shows
+   */
+  private async readAsset(tree: CampaignTree, assetId: string): Promise<Buffer> {
+    for (const links of tree.versionAssets.values()) {
+      const found: { asset: AssetEntity } | undefined = links.find(
+        (link: { asset: AssetEntity }): boolean => link.asset.id === assetId
+      );
+      if (found) return this.storage.get(found.asset.storageKey);
+    }
+    throw httpError(404, 'No creative of this campaign shows this asset', { code: 'asset_not_found' });
   }
 
   /**
@@ -996,7 +1039,14 @@ async function syncServicePlugin(fastify: FastifyInstance): Promise<void> {
   fastify.decorate('syncScheduler', scheduler);
   fastify.decorate(
     'syncService',
-    new SyncService(fastify.db, fastify.accessService, fastify.budgetCurveService, fastify.secretStore, scheduler)
+    new SyncService(
+      fastify.db,
+      fastify.accessService,
+      fastify.budgetCurveService,
+      fastify.secretStore,
+      scheduler,
+      fastify.storageService
+    )
   );
 }
 
@@ -1008,5 +1058,6 @@ export default fastifyPlugin(syncServicePlugin, {
     'BudgetCurveServicePlugin',
     'SecretStorePlugin',
     'JobQueuePlugin',
+    'StorageServicePlugin',
   ],
 });

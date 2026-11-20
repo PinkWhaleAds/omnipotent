@@ -36,6 +36,7 @@ export const SEARCH_AD_LIMITS = {
   descriptionLength: 90,
   maxDisplayPaths: 2,
   pathLength: 15,
+  businessNameLength: 25,
 } as const;
 
 /** How long a title, a body and a call to action of a native creative may be. */
@@ -82,9 +83,12 @@ export const CREATIVE_FORMATS: Readonly<Partial<Record<CoupleKey, CreativeFormat
         .array(z.string().trim().min(1).max(SEARCH_AD_LIMITS.pathLength))
         .max(SEARCH_AD_LIMITS.maxDisplayPaths)
         .default([]),
+      // The brand, as multi-search carries it: shown beside the ad where the platform allows it
+      // (`docs/phase-10.md` § 8.4, point 7).
+      businessName: z.string().trim().min(1).max(SEARCH_AD_LIMITS.businessNameLength).optional(),
     }),
     requiredRoles: [],
-    optionalRoles: [],
+    optionalRoles: ['logo', 'image'],
   },
   'display:image': {
     label: 'Display image',

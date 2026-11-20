@@ -14,9 +14,11 @@ import { EntityManager, In, IsNull } from 'typeorm';
 import {
   AdAccountEntity,
   AdGroupEntity,
+  AssetEntity,
   AdvertiserAdAccountEntity,
   CampaignEntity,
   CreativeEntity,
+  CreativeVersionAssetEntity,
   CreativeVersionEntity,
   KeywordEntity,
   LeverEntity,
@@ -24,6 +26,7 @@ import {
   TargetingGroupEntity,
 } from '@src/database/entities';
 import { ProjectionNode } from '@src/platforms/projection';
+import type { AssetRole } from '@src/types';
 
 /**
  * The whole tree of a campaign, read once.
@@ -35,6 +38,7 @@ import { ProjectionNode } from '@src/platforms/projection';
  * @property lines - Its Lines
  * @property creatives - The creatives its Lines deliver, by id
  * @property versions - The **delivering** version of each of those creatives, by creative id
+ * @property versionAssets - The assets of those versions, each with its role, by version id
  * @property keywords - Its positive keywords, by TargetingGroup
  * @property negativeKeywords - Its negative keywords, by TargetingGroup
  * @property linksByPlatform - Which account the brand buys on, per platform, in this currency
@@ -48,6 +52,7 @@ export type CampaignTree = {
   lines: LineEntity[];
   creatives: Map<string, CreativeEntity>;
   versions: Map<string, CreativeVersionEntity>;
+  versionAssets: Map<string, { role: AssetRole; asset: AssetEntity }[]>;
   keywords: Map<string, KeywordEntity[]>;
   negativeKeywords: Map<string, KeywordEntity[]>;
   linksByPlatform: Map<string, AdvertiserAdAccountEntity>;
@@ -114,6 +119,24 @@ export async function readCampaignTree(manager: EntityManager, campaign: Campaig
     ? await manager.find(CreativeVersionEntity, { where: { organizationId, id: In(versionIds) } })
     : [];
 
+  // What a platform shows beside the texts: a logo, an image. Read in two queries, never one per asset.
+  const attached: CreativeVersionAssetEntity[] = versionIds.length
+    ? await manager.find(CreativeVersionAssetEntity, { where: { versionId: In(versionIds) } })
+    : [];
+  const assetIds: string[] = [...new Set(attached.map((link: CreativeVersionAssetEntity): string => link.assetId))];
+  const assets = new Map<string, AssetEntity>(
+    (assetIds.length ? await manager.find(AssetEntity, { where: { organizationId, id: In(assetIds) } }) : []).map(
+      (asset: AssetEntity): [string, AssetEntity] => [asset.id, asset]
+    )
+  );
+
+  const versionAssets = new Map<string, { role: AssetRole; asset: AssetEntity }[]>();
+  for (const link of attached) {
+    const asset: AssetEntity | undefined = assets.get(link.assetId);
+    if (!asset) continue;
+    versionAssets.set(link.versionId, [...(versionAssets.get(link.versionId) ?? []), { role: link.role, asset }]);
+  }
+
   const keywords: KeywordEntity[] = targetingGroups.length
     ? await manager.find(KeywordEntity, {
         where: {
@@ -151,6 +174,7 @@ export async function readCampaignTree(manager: EntityManager, campaign: Campaig
           byId.get(creative.activeVersionId as string) as CreativeVersionEntity,
         ])
     ),
+    versionAssets,
     keywords: groupBy(
       keywords.filter((keyword: KeywordEntity): boolean => !keyword.negative),
       (keyword: KeywordEntity): string => keyword.targetingGroupId

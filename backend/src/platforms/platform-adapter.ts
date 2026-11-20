@@ -28,6 +28,8 @@ import { DesiredUnit } from './desired-state';
  * @property timezone - The timezone the platform counts its days in
  * @property scope - What the platform demands above the account (a partner id, a profile)
  * @property credentials - The account's secret, `null` on a `manager_link` platform
+ * @property readAsset - The bytes of one asset of the desired state, read at the moment it is sent:
+ *   a file never travels in the state itself
  */
 export type PlatformContext = {
   platform: Platform;
@@ -38,6 +40,7 @@ export type PlatformContext = {
   timezone: string;
   scope: Readonly<Record<string, string | number>>;
   credentials: string | null;
+  readAsset: (assetId: string) => Promise<Buffer>;
 };
 
 /**

@@ -17,6 +17,7 @@
 import { createHash } from 'node:crypto';
 
 import {
+  AssetRole,
   BidStrategy,
   Capping,
   CreativeFormat,
@@ -53,6 +54,31 @@ export type DesiredKeyword = {
 };
 
 /**
+ * One file a creative shows — a logo, an image —, described but never carried: its bytes are read
+ * through the context, at the moment an adapter sends it (`PlatformContext.readAsset`).
+ *
+ * Its **fingerprint** is the content's own (SHA-256), so a new file is a new fingerprint and one call,
+ * and an adapter finds a file it already sent by it.
+ *
+ * @property role - What it is for in the creative
+ * @property id - Our asset
+ * @property fingerprint - SHA-256 of its content
+ * @property fileName - Its name, as uploaded
+ * @property mimeType - Its type
+ * @property width - Its width in pixels, `null` when it has none
+ * @property height - Its height in pixels, `null` when it has none
+ */
+export type DesiredAsset = {
+  role: AssetRole;
+  id: string;
+  fingerprint: string;
+  fileName: string;
+  mimeType: string;
+  width: number | null;
+  height: number | null;
+};
+
+/**
  * The creative a Line delivers, reduced to what a platform needs.
  *
  * It names the **version**, never the creative: a version is immutable (phase 6), so a new version is
@@ -62,14 +88,14 @@ export type DesiredKeyword = {
  * @property format - The inventory it aims at
  * @property subtype - How it reaches the platform
  * @property payload - Its texts and settings, as the couple's schema validated them
- * @property assets - The platform's own reference for each asset role, once uploaded
+ * @property assets - The files it shows, by role then id
  */
 export type DesiredCreative = {
   versionId: string;
   format: CreativeFormat;
   subtype: CreativeSubtype;
   payload: Readonly<Record<string, unknown>>;
-  assets: Readonly<Record<string, string>>;
+  assets: readonly DesiredAsset[];
 };
 
 /**

@@ -491,10 +491,14 @@ dont les fichiers sont cités.
 
 7. **La marque, sur la créa RSA** : un nom d'entreprise (25 caractères), un logo et une image, comme
    chez multi-search. Le couple `search_text:rsa` gagne le champ `businessName` et deux rôles
-   facultatifs, `logo` et `image`. Une image est **envoyée une fois par compte** à la plateforme, et
-   la référence qu'elle rend est gardée, comme chez multi-search (`platform_asset_refs`) : c'est elle
-   que remplit `DesiredCreative.assets`, vide aujourd'hui. Une image que la plateforme refuse est
-   gardée sous une référence vide, pour n'être jamais renvoyée, et la campagne part sans elle. Chaque
+   facultatifs, `logo` et `image`. L'état voulu **décrit** chaque fichier — son rôle, son empreinte
+   SHA-256, son type, sa taille — sans jamais le porter ; l'adapter en lit les octets au moment de
+   l'envoyer (`PlatformContext.readAsset`). Il le retrouve d'abord chez la plateforme par un tag tiré
+   de son empreinte, comme multi-search chez Google, et garde son identifiant dans `refs`. C'est un
+   écart avec la première version de ce point, qui prévoyait une table des envois par compte : la
+   recherche par tag rend l'envoi unique par compte chez Google sans table ni migration, et le moteur
+   reste le même pour toutes les plateformes. Une image que la plateforme refuse est gardée dans
+   `refs` sous une référence vide, pour n'être jamais renvoyée, et la campagne part sans elle. Chaque
    campagne Google prend la marque de la première Line, par date de création, dont la créa en porte
    une.
 

@@ -175,6 +175,7 @@ describe('Unit::Services::CampaignTreeHelpers', () => {
       expect(tree.levers).toEqual([]);
       expect(tree.creatives.size).toBe(0);
       expect(tree.versions.size).toBe(0);
+      expect(tree.versionAssets.size).toBe(0);
       expect(tree.keywords.size).toBe(0);
       expect(tree.accountsById.size).toBe(0);
     });

@@ -4,8 +4,10 @@ import {
   AdAccountEntity,
   AdGroupEntity,
   AdvertiserAdAccountEntity,
+  AssetEntity,
   CampaignEntity,
   CreativeEntity,
+  CreativeVersionAssetEntity,
   CreativeVersionEntity,
   ExternalIdHistoryEntity,
   KeywordEntity,
@@ -14,7 +16,13 @@ import {
   PlatformUnitEntity,
   TargetingGroupEntity,
 } from '@src/database/entities';
-import { ADAPTERS, ApplyResult, PlatformAdapter, PlatformError } from '@src/platforms/platform-adapter';
+import {
+  ADAPTERS,
+  ApplyResult,
+  PlatformAdapter,
+  PlatformContext,
+  PlatformError,
+} from '@src/platforms/platform-adapter';
 import { DesiredUnit } from '@src/platforms/desired-state';
 import { PLATFORM_RULES, PlatformRules } from '@src/platforms/platform-rules';
 import SyncServicePlugin, { JobQueueSyncScheduler, SyncService } from '@src/services/sync.service';
@@ -81,6 +89,7 @@ describe('Unit::Services::SyncService', () => {
   let curves: { pacedDay: jest.Mock };
   let secrets: { get: jest.Mock };
   let scheduler: { request: jest.Mock };
+  let storage: { get: jest.Mock };
   let apply: jest.Mock;
   let service: SyncService;
 
@@ -314,12 +323,14 @@ describe('Unit::Services::SyncService', () => {
     curves = { pacedDay: jest.fn().mockResolvedValue({ todayCents: 1_000, averageCents: 1_400 }) };
     secrets = { get: jest.fn().mockResolvedValue('sk-hawk') };
     scheduler = { request: jest.fn().mockResolvedValue(undefined) };
+    storage = { get: jest.fn().mockResolvedValue(Buffer.from('logo')) };
     service = new SyncService(
       store.dataSource as never,
       access as never,
       curves as never,
       secrets as never,
       scheduler as never,
+      storage as never,
       { maxBackoffMinutes: 60, sweepBatchSize: 500, pacingJitterMinutes: 30 },
       (): number => NOW.getTime(),
       (): number => 0.5
@@ -715,6 +726,64 @@ describe('Unit::Services::SyncService', () => {
 
       const desired: DesiredUnit = (apply.mock.calls[0] as [unknown, DesiredUnit])[1];
       expect(desired.objects.find((object): boolean => object.level === 'line')?.landingPageUrl).toBeNull();
+    });
+
+    it('should describe the files a creative shows, and read their bytes only when the adapter asks', async (): Promise<void> => {
+      seedTree();
+      seedUnit();
+      const asset = (id: string, fingerprint: string) => ({
+        id,
+        organizationId: IDS.organization,
+        fileName: `${fingerprint}.png`,
+        mimeType: 'image/png',
+        width: 512,
+        height: 512,
+        fingerprint,
+        storageKey: `assets/${id}`,
+      });
+      store.seed(AssetEntity, [
+        asset('fa000000-0000-4000-8000-000000000002', 'b2'),
+        asset('fa000000-0000-4000-8000-000000000001', 'a1'),
+      ]);
+      store.seed(CreativeVersionAssetEntity, [
+        { versionId: VERSION_ID, role: 'logo', assetId: 'fa000000-0000-4000-8000-000000000002' },
+        { versionId: VERSION_ID, role: 'image', assetId: 'fa000000-0000-4000-8000-000000000001' },
+        // A link to a file gone from the library sends nothing.
+        { versionId: VERSION_ID, role: 'image', assetId: 'fa000000-0000-4000-8000-000000000009' },
+      ]);
+      const read: Promise<Buffer>[] = [];
+      apply.mockImplementation(async (context: PlatformContext, desired: DesiredUnit): Promise<ApplyResult> => {
+        read.push(context.readAsset('fa000000-0000-4000-8000-000000000002'));
+        read.push(context.readAsset('fa000000-0000-4000-8000-000000000009'));
+        return { refs: {}, appliedStatus: desired.status };
+      });
+
+      await service.syncCampaign(CAMPAIGN_ID);
+
+      const desired: DesiredUnit = (apply.mock.calls[0] as [unknown, DesiredUnit])[1];
+      expect(desired.objects.find((object): boolean => object.level === 'line')?.creative?.assets).toEqual([
+        {
+          role: 'image',
+          id: 'fa000000-0000-4000-8000-000000000001',
+          fingerprint: 'a1',
+          fileName: 'a1.png',
+          mimeType: 'image/png',
+          width: 512,
+          height: 512,
+        },
+        {
+          role: 'logo',
+          id: 'fa000000-0000-4000-8000-000000000002',
+          fingerprint: 'b2',
+          fileName: 'b2.png',
+          mimeType: 'image/png',
+          width: 512,
+          height: 512,
+        },
+      ]);
+      await expect(read[0]).resolves.toEqual(Buffer.from('logo'));
+      expect(storage.get).toHaveBeenCalledWith('assets/fa000000-0000-4000-8000-000000000002');
+      await expect(read[1]).rejects.toMatchObject({ statusCode: 404, errorCode: 'asset_not_found' });
     });
 
     it('should send a Line whose creative has no delivering version without one', async (): Promise<void> => {
@@ -1392,6 +1461,7 @@ describe('Unit::Services::SyncService', () => {
         access: createAccessMock(),
         curves: { pacedDay: jest.fn() },
         secrets: { get: jest.fn() },
+        storage: { get: jest.fn() },
         jobQueue,
       });
 
