@@ -572,6 +572,22 @@ describe('Unit::Services::PreviewService', () => {
       ]);
     });
 
+    it('should look for no repeated text in a creative whose couple does not ask for it', async (): Promise<void> => {
+      seedComplete();
+      store.seed(CreativeVersionEntity, [
+        {
+          id: 'fd000000-0000-4000-8000-000000000001',
+          organizationId: IDS.organization,
+          creativeId: CREATIVE_ID,
+          payload: { altText: 'Lit' },
+        },
+      ]);
+
+      const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+      expect(preview.errors).toEqual([]);
+    });
+
     it('should take the page of the Line as the click URL, over a creative that has none', async (): Promise<void> => {
       registry.hawk = { dooh: hawkRules({ requiresClickThroughUrl: true }) };
       seedComplete({ line: { landingPageUrl: 'https://herbea.test/automne' } });
