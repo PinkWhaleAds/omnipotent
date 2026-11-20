@@ -47,6 +47,15 @@ export type PlatformFailure = {
 };
 
 /**
+ * A response with a success status, as a platform's reading of it receives it.
+ *
+ * @property statusCode - HTTP status
+ * @property data - Response body, parsed when it is JSON
+ * @property requestId - Request id read in the response headers
+ */
+export type PlatformSuccess = { statusCode: number; data: unknown; requestId: string | null };
+
+/**
  * What a failed call means, as the platform says it.
  *
  * @property message - Readable message, recorded in the journal
@@ -78,6 +87,9 @@ export type PlatformErrorDescription = {
  * @property authorization - Value of the `Authorization` header. A failure to get it is thrown as is,
  *   without a journal line, since no call went out
  * @property describeError - The platform's reading of its own error bodies
+ * @property checkResponse - The reading of a successful response, for a platform that reports
+ *   failures inside one — Microsoft's partial errors: a description makes the call fail like an error
+ *   status
  * @property fetchFn - What sends the request; a fake one in the tests
  */
 export type PlatformHttpOptions = {
@@ -88,6 +100,7 @@ export type PlatformHttpOptions = {
   journal: CallJournal;
   authorization: () => Promise<string>;
   describeError: (failure: PlatformFailure) => PlatformErrorDescription;
+  checkResponse?: (response: PlatformSuccess) => PlatformErrorDescription | null;
   fetchFn?: typeof fetch;
 };
 
@@ -150,6 +163,9 @@ export class PlatformHttp {
     if (!response.ok) {
       throw this.fail(adAccountId, request, started, { statusCode: response.status, data, requestId, error: null });
     }
+    const partial: PlatformErrorDescription | null =
+      this.options.checkResponse?.({ statusCode: response.status, data, requestId }) ?? null;
+    if (partial) throw this.failWith(adAccountId, request, started, response.status, partial);
     this.record(adAccountId, request, started, response.status, requestId, null);
     return data as T;
   }
@@ -169,10 +185,29 @@ export class PlatformHttp {
     started: number,
     failure: PlatformFailure
   ): PlatformError {
-    const described: PlatformErrorDescription = this.options.describeError(failure);
-    this.record(adAccountId, request, started, failure.statusCode, described.requestId, described.message);
+    return this.failWith(adAccountId, request, started, failure.statusCode, this.options.describeError(failure));
+  }
+
+  /**
+   * Record a failed call, as described, and build its error.
+   *
+   * @param adAccountId - Our account, for the journal
+   * @param request - The request
+   * @param started - When it left
+   * @param statusCode - Its status, `null` without response
+   * @param described - What the platform says of it
+   * @returns The error to throw
+   */
+  private failWith(
+    adAccountId: string | null,
+    request: PlatformRequest,
+    started: number,
+    statusCode: number | null,
+    described: PlatformErrorDescription
+  ): PlatformError {
+    this.record(adAccountId, request, started, statusCode, described.requestId, described.message);
     return new PlatformError(this.options.platform, described.message, {
-      statusCode: failure.statusCode,
+      statusCode,
       retryable: described.retryable,
       invalidCredentials: described.invalidCredentials,
       ownCredentials: described.ownCredentials ?? false,

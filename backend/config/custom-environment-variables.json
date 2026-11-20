@@ -119,5 +119,11 @@
     "managerId": "GOOGLE_ADS_MANAGER_ID",
     "serviceAccountSecret": "GOOGLE_ADS_SERVICE_ACCOUNT_SECRET",
     "inviterSecret": "GOOGLE_ADS_INVITER_SECRET"
+  },
+  "MicrosoftAds": {
+    "customerId": "MICROSOFT_ADS_CUSTOMER_ID",
+    "appSecret": "MICROSOFT_ADS_APP_SECRET",
+    "oauthSecret": "MICROSOFT_ADS_OAUTH_SECRET",
+    "redirectUri": "MICROSOFT_ADS_REDIRECT_URI"
   }
 }

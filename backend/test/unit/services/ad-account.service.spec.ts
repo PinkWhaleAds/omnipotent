@@ -537,7 +537,7 @@ describe('Unit::Services::AdAccountService', () => {
           externalId: '972-563-0707',
         });
 
-        expect(adapter.requestLink).toHaveBeenCalledWith(REFERENCE);
+        expect(adapter.requestLink).toHaveBeenCalledWith(REFERENCE, {});
         expect(adapter.readLinkedAccount).not.toHaveBeenCalled();
         expect(connected).toMatchObject({
           externalId: REFERENCE,
@@ -862,7 +862,7 @@ describe('Unit::Services::AdAccountService', () => {
           reason: 'link_requested',
         });
 
-        expect(adapter.requestLink).toHaveBeenCalledWith(REFERENCE);
+        expect(adapter.requestLink).toHaveBeenCalledWith(REFERENCE, {});
         expect(moved).toMatchObject({ status: 'pending', statusReason: 'link_requested' });
         expect(db.manager.update).toHaveBeenCalledWith(
           AdAccountEntity,
@@ -1084,6 +1084,19 @@ describe('Unit::Services::AdAccountService', () => {
           AdAccountEntity,
           { id: ACCOUNT_ID },
           { status: 'invalid', statusReason: 'manager_account' }
+        );
+      });
+
+      it('should say an invitation the platform gave up itself expired', async (): Promise<void> => {
+        follow([linkedRow()], { [REFERENCE]: 'expired' });
+
+        await service.checkLinks();
+
+        expect(adapter.cancelLink).not.toHaveBeenCalled();
+        expect(db.manager.update).toHaveBeenCalledWith(
+          AdAccountEntity,
+          { id: ACCOUNT_ID },
+          { status: 'invalid', statusReason: 'link_expired' }
         );
       });
 

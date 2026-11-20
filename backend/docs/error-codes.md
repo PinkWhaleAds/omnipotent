@@ -363,6 +363,22 @@ notre manque, jamais celui de l'appelant.
 Le **motif de statut** `manager_account` s'ajoute aux autres : un compte qui se révèle, à
 l'acceptation, être lui-même un compte gestionnaire passe `invalid` avec lui.
 
+#### Les refus de Microsoft Advertising
+
+Phase 11 (`docs/phase-11.md` § 2). La référence d'un compte Microsoft est son **numéro de compte** —
+huit lettres et chiffres, lus dans Outils → Tous les comptes —, et l'inviter demande en plus le numéro
+du client qui le possède, dans `scope.customerNumber`. Ces refus sont les nôtres : ils arrivent avec
+leur code, en `400`.
+
+| Code                                  | Quand                                                                                                              | `params`               |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------- |
+| `ad_account_customer_number_required` | Inviter un compte sans le numéro du client qui le possède                                                          | `platform`             |
+| `ad_account_prepaid`                  | Le compte est prépayé, ce qu'aucun compte gestionnaire ne gère : son client passe d'abord en facturation mensuelle | `platform`             |
+| `ad_account_link_not_active`          | Lire un compte que notre compte gestionnaire ne gère pas : ni à notre propre client, ni sous un lien actif         | `platform`             |
+| `ad_account_not_expert`               | Le compte est en mode Smart : son client le passe en mode Expert                                                   | `platform`, `mode`     |
+| `ad_account_inactive`                 | Le compte est inactif ou suspendu                                                                                  | `platform`, `status`   |
+| `ad_account_timezone_unknown`         | Son fuseau n'est pas dans notre table, ou il n'a pas de devise : rien n'est deviné                                 | `platform`, `timezone` |
+
 ## La preview et le cycle de vie
 
 `src/services/preview.service.ts` (phase 8, `docs/phase-8.md` § 3 et § 4).

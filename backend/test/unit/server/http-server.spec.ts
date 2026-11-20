@@ -118,8 +118,10 @@ describe('Unit::HttpServer', () => {
       expect(plugins).toContain(AccessLogPlugin);
       expect(plugins.indexOf(RateLimitPlugin)).toBeLessThan(plugins.indexOf(SwaggerPlugin));
       expect(plugins.indexOf(RateLimitPlugin)).toBeLessThan(plugins.indexOf(AuthPlugin));
-      // The adapters read our credentials from the store and record into the journal, and the engine
-      // asks them for their platform: between the two (`docs/phase-10.md` § 5).
+      // The adapters read our credentials from the store, renew Microsoft's under a lock of the
+      // database, and record into the journal; the engine asks them for their platform: between the
+      // two (`docs/phase-10.md` § 5, `docs/phase-11.md` § 2).
+      expect(plugins.indexOf(DatabasePlugin)).toBeLessThan(plugins.indexOf(PlatformAdaptersPlugin));
       expect(plugins.indexOf(SecretStorePlugin)).toBeLessThan(plugins.indexOf(PlatformAdaptersPlugin));
       expect(plugins.indexOf(PlatformCallJournalPlugin)).toBeLessThan(plugins.indexOf(PlatformAdaptersPlugin));
       expect(plugins.indexOf(PlatformAdaptersPlugin)).toBeLessThan(plugins.indexOf(SyncServicePlugin));

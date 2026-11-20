@@ -175,8 +175,11 @@ pnpm secrets:seed set <nom>
 | `google-ads/inviter`         | le client OAuth de l'inviteur Google                         | si on le recrée                             |
 | `omnipass/client-secret`     | le secret du compte machine omnipass                         | quand omnipass le fait tourner              |
 
-Les **consentements** Google et Microsoft, quand leurs commandes existeront, s'écriront sur la machine
-et `pnpm secrets:seed` les enverra sur AWS : c'est la valeur la plus récente qui gagne, des deux côtés.
+Les **consentements** Google et Microsoft s'écrivent sur la machine, par `pnpm google:connect` et
+`pnpm microsoft:connect`, et `pnpm secrets:seed` les envoie sur AWS : c'est la valeur la plus récente
+qui gagne, des deux côtés. Le jeton Microsoft (`microsoft-ads/oauth`) **change à chaque
+renouvellement** : l'API réécrit le nouveau dans le magasin local, et le prochain `pnpm secrets:seed`
+l'envoie à son tour.
 
 ## 6. Claude Code
 

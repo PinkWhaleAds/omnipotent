@@ -807,6 +807,34 @@ On tranchera au premier appel réel — c'est de toute façon à la phase 11.
 
 ---
 
+### C5. Le consentement de l'utilisateur de service — _5 minutes ; la commande existe depuis le 2026-11-20_
+
+C'est le consentement annoncé en C3. Il se donne **une fois**, puis l'API renouvelle le jeton toute
+seule et le réécrit dans le magasin (`backend/docs/phase-11.md` § 2).
+
+**Les gestes**, depuis `backend/`, la base et le magasin local démarrés (`pnpm setup:dev` le fait) :
+
+1. `pnpm microsoft:connect`. La commande lit l'application Entra dans le secret `microsoft-ads/app`,
+   donc elle ne te demande rien, et elle affiche une longue adresse qui commence par
+   `https://login.microsoftonline.com/` ;
+2. ouvre cette adresse (Ctrl + clic dans le terminal de VS Code) et connecte-toi avec **l'utilisateur
+   de service**, le compte outlook.com dédié de C3 — **pas** `admin@pinkwhale.co`. Microsoft propose de
+   choisir le compte : prends celui-là, et passe la double authentification ;
+3. accepte les autorisations demandées par l'application. Le navigateur arrive sur une page
+   `localhost:4102` qui dit « Omnipotent can now manage Microsoft Advertising », et la commande
+   s'arrête d'elle-même en affichant **l'adresse du compte qui a consenti** : vérifie que c'est bien
+   l'utilisateur de service ;
+4. `pnpm secrets:seed` : le jeton est écrit sur le poste, et c'est la synchronisation qui l'envoie sur
+   AWS, la valeur la plus récente gagnant.
+
+**Ce qui ne passe jamais par le chat** : ni le client secret, ni les jetons. **Si le navigateur ne
+trouve pas la page `localhost:4102`** — le poste est sous WSL —, dis-le-moi avant de recommencer : la
+commande attend dix minutes, puis abandonne sans rien écrire.
+
+À refaire **seulement** si Microsoft refuse un jour le jeton (`invalid_grant`, après un changement du
+mot de passe de l'utilisateur de service, ou quatre-vingt-dix jours sans aucun appel) : la même
+commande, les mêmes gestes.
+
 ## Ce que tu me donnes dans le chat, en une fois
 
 Rien de secret là-dedans, et chaque ligne peut arriver seule : rien n'attend le lot complet.

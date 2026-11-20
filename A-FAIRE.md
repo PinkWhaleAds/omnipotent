@@ -86,7 +86,7 @@ Non secrets. Les secrets vivent sur AWS, dans Secrets Manager sous `omnipotent/d
 | Utilisateur de service                            | compte personnel Microsoft dédié, Super Admin du compte gestionnaire, double authentification active     |
 
 - [ ] Relever la **date d'expiration du client secret Entra** (Azure → l'application → Certificates & secrets, colonne « Expires ») et la noter ici : ce jour-là, la connexion Microsoft s'arrête. Le renouveler un mois avant.
-- [ ] Donner les **deux consentements**, une fois leurs commandes écrites : l'humain admin du MCC pour l'inviteur Google, l'utilisateur de service pour Microsoft. **Google : fait le 2026-11-20**, avec `pnpm google:connect` et `admin@pinkwhale.co` (runbook B8) ; le jeton est sur le poste et sur AWS, et il délivre bien un jeton d'accès Google Ads. **Microsoft : reste à faire**, quand sa commande existera.
+- [x] Donner les **deux consentements** : l'humain admin du MCC pour l'inviteur Google, l'utilisateur de service pour Microsoft. **Google : fait le 2026-11-20**, avec `pnpm google:connect` et `admin@pinkwhale.co` (runbook B8) ; le jeton est sur le poste et sur AWS, et il délivre bien un jeton d'accès Google Ads. **Microsoft : fait le 2026-11-20**, avec `pnpm microsoft:connect` et l'utilisateur de service (runbook C5) ; le jeton est sur le poste et sur AWS, et le premier compte Microsoft s'est connecté avec lui (`backend/docs/phase-11.md` § 6).
 - [ ] Décider s'il faut un **MCC de test** Google et le **bac à sable** Microsoft avant les preuves de clôture, qui sinon écrivent sur de vrais comptes.
 
 ## 3. omnipass — le service de tenancy

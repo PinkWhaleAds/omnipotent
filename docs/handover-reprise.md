@@ -274,8 +274,10 @@ vient après. L'ordre :
    journal d'appels (`platform-http.ts` de multi-search), la lecture de `customer_client` depuis le
    MCC, l'invitation par l'inviteur, le suivi des statuts, et la commande de consentement
    (`src/scripts/google-connect.ts` de multi-search).
-4. **La connexion Microsoft**, sur le même modèle, avec sa commande de consentement
-   (`microsoft-connect.ts`) sur le port **4102**.
+4. ✅ **Microsoft, fait le 2026-11-20 : le lot A de `backend/docs/phase-11.md`**. Le consentement de
+   l'utilisateur de service est donné (`pnpm microsoft:connect`, runbook C5), et un compte que possède
+   notre propre client Microsoft est connecté actif sans invitation (point 9 de son § 5). Reste, comme
+   chez Google, à prouver l'invitation sur un compte qui n'est pas le nôtre.
 5. **Puis les campagnes** : le reste des phases 10 et 11 — mapping, adapter, projection, éclatement,
    idempotence — et les huit preuves de chaque phase, qui la **closent**.
 
@@ -307,11 +309,11 @@ plateforme ; l'adapter se couvre contre des faux.
 
 `A-FAIRE.md` est la liste complète ; le runbook la détaille écran par écran.
 
-| Partie du runbook            | État au 2026-11-18                                                          |
+| Partie du runbook            | État au 2026-11-20                                                          |
 | ---------------------------- | --------------------------------------------------------------------------- |
 | **A. omnipass et Auth0**     | ✅ **close**, sauf l'API MCP d'Auth0, qui attend qu'on serve un `/mcp`      |
-| **B. Google Ads**            | ✅ B1 → B6 et le client OAuth ; reste **B7** (Keyword Planner, phase 17), **B8** (le consentement, après notre code), **B9** (les limites du compte), la revue Standard |
-| **C. Microsoft Advertising** | ✅ C1 → C3 ; reste le **consentement**, après notre code, et la date d'expiration du client secret Entra à relever |
+| **B. Google Ads**            | ✅ B1 → B6, le client OAuth et **B8** (le consentement) le 2026-11-20 ; reste **B7** (Keyword Planner, phase 17), **B9** (les limites du compte), la revue Standard |
+| **C. Microsoft Advertising** | ✅ C1 → C3, et le **consentement** (C5) le 2026-11-20 ; reste la date d'expiration du client secret Entra à relever |
 
 **Rien ne bloque plus l'écriture du code.**
 

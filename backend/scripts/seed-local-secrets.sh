@@ -22,7 +22,8 @@
 #   pnpm secrets:seed                 sync everything
 #   pnpm secrets:seed set <name>      ask for one secret again and replace it on both sides
 #                                     (<name>: omnipass/client-secret, google-ads/service-account,
-#                                     google-ads/inviter, microsoft-ads/app, github/npm-token)
+#                                     google-ads/inviter, microsoft-ads/app, github/npm-token;
+#                                     microsoft-ads/oauth is given by pnpm microsoft:connect)
 #
 # Environment: AWS_SEED_PROFILE (default omnilor). For the tests of this script only,
 # SEED_REMOTE_ENDPOINT makes another local store stand in for AWS, and SEED_NPMRC another file for
@@ -126,6 +127,7 @@ fields = {
     "google-ads/service-account": ("type", "client_email", "private_key"),
     "google-ads/inviter": ("clientId", "clientSecret"),
     "microsoft-ads/app": ("clientId", "clientSecret", "developerToken"),
+    "microsoft-ads/oauth": ("refreshToken", "refreshedAt"),
 }.get(name)
 if fields is None:
     sys.exit(0 if text.strip() else 1)
@@ -195,6 +197,13 @@ ask_microsoft() {
   )
 }
 
+# The tokens of the Microsoft service user are never typed: a consent gives them, and the API
+# rewrites them at each renewal (docs/phase-11.md § 2). So nothing is asked, only the way told.
+ask_microsoft_oauth() {
+  echo "  The tokens of the Microsoft service user come from a consent: run pnpm microsoft:connect."
+  return 1
+}
+
 ask_npm_token() {
   local value=""
   echo "  A GitHub token (classic) of the PinkWhaleAds account, scope read:packages (runbook A1a)."
@@ -212,6 +221,7 @@ asker_of() {
     google-ads/service-account) echo ask_service_account ;;
     google-ads/inviter) echo ask_inviter ;;
     microsoft-ads/app) echo ask_microsoft ;;
+    microsoft-ads/oauth) echo ask_microsoft_oauth ;;
     "$NPM_TOKEN_NAME") echo ask_npm_token ;;
     *) return 1 ;;
   esac
@@ -370,7 +380,7 @@ fi
 
 [[ -z "${1:-}" ]] || fail "Unknown command \"$1\". Usage: pnpm secrets:seed [set <name>]"
 
-for name in "$OMNIPASS_NAME" google-ads/service-account google-ads/inviter microsoft-ads/app; do
+for name in "$OMNIPASS_NAME" google-ads/service-account google-ads/inviter microsoft-ads/app microsoft-ads/oauth; do
   sync_secret "$name"
 done
 sync_npm_token

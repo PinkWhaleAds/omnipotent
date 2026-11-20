@@ -771,7 +771,7 @@ export class AdAccountService {
     }
     await this.assertNotHeld(organizationId, platform, reference);
 
-    const link: 'pending' | 'active' = await this.callPlatform(() => adapter.requestLink(reference));
+    const link: 'pending' | 'active' = await this.callPlatform(() => adapter.requestLink(reference, body.scope ?? {}));
     let fields: AcceptedFields = {
       externalId: reference,
       name: null,
@@ -833,7 +833,7 @@ export class AdAccountService {
       });
     }
     const reference: string = account.linkRef as string;
-    const link: 'pending' | 'active' = await this.callPlatform(() => adapter.requestLink(reference));
+    const link: 'pending' | 'active' = await this.callPlatform(() => adapter.requestLink(reference, account.scope));
     const fields: Partial<AdAccountEntity> =
       link === 'active'
         ? await this.acceptedFields(adapter, reference, account.currency)
@@ -916,6 +916,11 @@ export class AdAccountService {
     }
     if (status === 'refused' || status === 'ended') {
       await this.moveTo(account, { status: 'invalid', statusReason: 'link_declined' });
+      return;
+    }
+    if (status === 'expired') {
+      // The platform gave the invitation up itself (Microsoft, after thirty days): nothing to withdraw.
+      await this.moveTo(account, { status: 'invalid', statusReason: 'link_expired' });
       return;
     }
     const requestedAt: number = (account.linkRequestedAt ?? account.createdAt).getTime();

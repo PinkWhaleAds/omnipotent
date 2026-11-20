@@ -8,7 +8,7 @@
  * name, and nothing in an adapter decides the structure — the projection does
  * (`platforms/projection.ts`).
  */
-import { MessageParams, Platform } from '@src/types';
+import { AdAccountScope, MessageParams, Platform } from '@src/types';
 import { httpError } from '@utils';
 import { DesiredUnit } from './desired-state';
 
@@ -57,9 +57,10 @@ export type PlatformConnection = 'manager_link' | 'account_secret';
  * - `pending` — invited, no answer yet;
  * - `active` — accepted: the account can be managed;
  * - `refused` — the client refused, or the invitation was withdrawn;
+ * - `expired` — the platform gave the invitation up, unanswered (Microsoft, after thirty days);
  * - `ended` — accepted, then ended.
  */
-export type LinkStatus = 'pending' | 'active' | 'refused' | 'ended';
+export type LinkStatus = 'pending' | 'active' | 'refused' | 'expired' | 'ended';
 
 /**
  * A client account, read through our manager account once linked.
@@ -129,10 +130,12 @@ export interface PlatformAdapter {
    * else an invitation the client accepts in the platform's interface.
    *
    * @param reference - The account as the client gave it
+   * @param scope - What the account's platform requires above it: Microsoft's customer number of the
+   *   client (`docs/phase-11.md` § 2)
    * @returns `active` when our manager account already manages it, `pending` once invited
    * @throws PlatformError
    */
-  requestLink?(reference: string): Promise<'pending' | 'active'>;
+  requestLink?(reference: string, scope: AdAccountScope): Promise<'pending' | 'active'>;
 
   /**
    * Where **every** link of our manager account stands, in one read.

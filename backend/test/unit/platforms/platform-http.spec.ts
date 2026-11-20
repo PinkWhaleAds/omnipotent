@@ -132,6 +132,37 @@ describe('Unit::Platforms::PlatformHttp', () => {
     expect(journal.record).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 403, error: 'Refused' }));
   });
 
+  it('should let the platform read a successful answer, and pass it when it finds nothing', async (): Promise<void> => {
+    fetchFn.mockResolvedValue(
+      new Response('{"PartialErrors":[null]}', { status: 200, headers: { 'request-id': 'r-3' } })
+    );
+    const checkResponse: jest.Mock = jest.fn().mockReturnValue(null);
+
+    await expect(client({ checkResponse }).request(null, { method: 'POST', path: '/links' })).resolves.toEqual({
+      PartialErrors: [null],
+    });
+    expect(checkResponse).toHaveBeenCalledWith({ statusCode: 200, data: { PartialErrors: [null] }, requestId: 'r-3' });
+    expect(journal.record).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 200, error: null }));
+  });
+
+  it('should fail a successful answer that carries failures, as the platform reads them', async (): Promise<void> => {
+    fetchFn.mockResolvedValue(new Response('{"PartialErrors":[{"Code":1410}]}', { status: 200 }));
+    const checkResponse: jest.Mock = jest
+      .fn()
+      .mockReturnValue({ ...DESCRIBED, message: 'Already linked', code: '1410' });
+
+    const error: PlatformError = (await client({ checkResponse })
+      .request('acc-1', { method: 'POST', path: '/links' })
+      .catch((thrown: unknown): unknown => thrown)) as PlatformError;
+
+    expect(error).toBeInstanceOf(PlatformError);
+    expect(error.message).toBe('Already linked');
+    expect(error.options).toMatchObject({ statusCode: 200, code: '1410', requestId: 'r-body', ownCredentials: false });
+    expect(describeError).not.toHaveBeenCalled();
+    expect(journal.record).toHaveBeenCalledTimes(1);
+    expect(journal.record).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 200, error: 'Already linked' }));
+  });
+
   it('should say no response came back when the network failed', async (): Promise<void> => {
     const broken = new TypeError('fetch failed');
     fetchFn.mockRejectedValue(broken);

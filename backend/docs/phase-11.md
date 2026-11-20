@@ -48,7 +48,17 @@ vraie API (`~/OmniAd/multi-search/backend/src/platforms/microsoft/`) :
 - **des comptes qu'il ne laisse pas gérer** : un compte en mode **Smart** (le client passe en mode
   Expert), un compte **inactif** ou **suspendu**, un compte **prépayé** ; chacun est un refus nommé ;
 - **une invitation qui expire d'elle-même** : Microsoft la décline après trente jours (`LinkExpired`).
-  Le job y lit `link_expired`, pas un refus du client.
+  Le job y lit `link_expired`, pas un refus du client ;
+- **des réponses qui réussissent à moitié** : Microsoft écrit élément par élément, et une réponse `200`
+  peut porter des échecs (`PartialErrors`). Le client HTTP commun les lit comme une erreur, pour
+  qu'aucun ne passe en silence ; une invitation que Microsoft dit déjà envoyée (`1410`) se lit
+  `pending` ;
+- **des comptes qui sont déjà les nôtres** : un compte que possède **notre propre** client Microsoft
+  n'a pas de lien à demander. Il est actif tout de suite, et se lit par son identifiant (point 9 du
+  § 5).
+
+Les refus que nous formulons ont chacun leur code, dans `error-codes.md` (« Les refus de Microsoft
+Advertising »).
 
 ## 3. Les credentials
 
@@ -65,22 +75,26 @@ sable (C4) ni environnement à choisir : la **production** seule.
 consentement Microsoft, un serveur local sur le port **4102** — celui de l'adresse de retour déclarée
 dans l'application Entra le 2026-11-18 (C2) —, et le jeton rangé sans jamais être affiché. Lorin s'y
 connecte avec **l'utilisateur de service** dédié, pas avec `admin@pinkwhale.co`, qui entre chez
-Microsoft par un compte Google.
+Microsoft par un compte Google. **Le consentement est donné le 2026-11-20** (`../../docs/runbook-acces.md`
+C5) ; le jeton est sur le poste et sur AWS.
 
 **En production**, l'API doit pouvoir **écrire** `microsoft-ads/oauth`, et ce secret seul : c'est à
 déclarer dans `infra/` avec ses conteneurs, avant le premier déploiement qui parle à Microsoft.
 
 ## 4. Ce que le code ajoute au moteur
 
-Deux retouches au lot 1 de la phase 10, petites :
+Des retouches au lot 1 de la phase 10, petites :
 
 - `requestLink(reference, scope)` : le `scope` du compte en plus, pour le numéro du client. Google
   l'ignore ;
-- un statut de lien de plus, `expired`, que le job traduit en `link_expired`.
+- un statut de lien de plus, `expired`, que le job traduit en `link_expired` ;
+- `PlatformHttp` accepte une lecture des réponses réussies (`checkResponse`), pour les erreurs
+  partielles ;
+- le registre reçoit le verrou partagé, pris sur la base de l'application.
 
 ## 5. Les points présentés à Lorin
 
-**Les huit points sont validés par Lorin le 2026-11-20.**
+**Tous les points sont validés par Lorin le 2026-11-20.**
 
 1. **Le numéro du client passe par le `scope`** du compte, sans nouveau champ (§ 2).
 2. **L'API réécrit le jeton Microsoft à chaque renouvellement**, sous un verrou partagé ; en production
@@ -93,14 +107,23 @@ Deux retouches au lot 1 de la phase 10, petites :
 8. **Déconnecter retire l'invitation en attente**, comme chez Google. multi-search ne le fait que pour
    un lien d'agence ; pour un compte, c'est le même appel, non encore éprouvé : un échec n'empêche pas
    la déconnexion, et Microsoft déclinerait de toute façon l'invitation au bout de trente jours.
+9. **Un compte que possède notre propre client Microsoft est actif tout de suite**, sans
+   invitation : il n'y a rien à lier. Comme pour un compte que notre compte gestionnaire gère déjà
+   (`phase-10.md` § 4), seul un super-admin, ou l'Organization qui l'a tenu en dernier, le connecte
+   ainsi. multi-search ne prévoit pas ce cas, qu'il refuse faute de lien accepté. Validé après le
+   constat du § 6.
 
-Le numéro de notre compte gestionnaire est `K120003KD1` (`A-FAIRE.md` § 2). Le compte à connecter
-porte, d'après Lorin, le même identifiant que le gestionnaire : il appartiendrait donc à **notre
-propre** client Microsoft, cas que multi-search ne prévoit pas — il exige un lien accepté. Avant de
-trancher, on le **constate** : une fois le consentement donné, la liste en lecture seule des comptes
-que voit notre utilisateur de service dira à qui chacun appartient. Si c'est le nôtre, un neuvième point
-viendra : un compte de notre propre client est actif tout de suite, sans invitation.
+## 6. Ce que le lot A a constaté
 
-Et la question d'origine : **quel compte Microsoft Advertising connecter en premier**, avec son numéro de compte
-et le numéro de son client — et notre compte gestionnaire le gère-t-il déjà, comme le premier compte
-Google ?
+Le 2026-11-20, une fois le consentement donné, une lecture seule de notre utilisateur de service a dit :
+
+- notre client Microsoft (`K120003KD1`, `A-FAIRE.md` § 2) **possède directement** deux comptes
+  publicitaires, en euros, au fuseau `BrusselsCopenhagenMadridParis` : le nôtre, en suspens financier
+  (`Hold`), et celui du premier client — le même que le premier compte Google ;
+- notre compte gestionnaire n'a **aucun lien** vers un compte client. L'invitation reste donc à
+  éprouver sur un compte qui n'est pas le nôtre, comme chez Google.
+
+**La première preuve, le même jour** : `POST /ad-accounts` avec `{ "platform": "microsoft",
+"externalId": "<numéro du compte>" }`, par un super-admin, répond `201`. Le compte est `active` sans
+invitation, son nom, sa devise (`EUR`) et son fuseau (`Europe/Paris`) sont lus chez Microsoft, et
+`externalId` prend son identifiant numérique. C'est ce qui clôt le lot A (§ 1), avec la CI verte.

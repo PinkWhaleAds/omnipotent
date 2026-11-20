@@ -1,16 +1,14 @@
 import { createHash } from 'node:crypto';
-import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http';
-import type { AddressInfo } from 'node:net';
 
+import { pkcePair } from '@src/platforms/consent';
 import {
   connectGoogleAds,
-  ConsentServer,
   GoogleConnectOptions,
   googleAuthorizationUrl,
-  pkcePair,
   storedClient,
 } from '@src/platforms/google/google-connect';
 import { GOOGLE_ADS_API } from '@src/platforms/google/google.types';
+import { consentListening, FakeConsentServer, Page } from '@test/unit/mocks/consent-server.mock';
 
 /** Random bytes the specs can predict. */
 const random = (size: number): Buffer => Buffer.alloc(size, 1);
@@ -20,68 +18,6 @@ const STATE: string = Buffer.alloc(16, 1).toString('hex');
 
 /** The OAuth client stored with the inviter's secret since 2026-11-18. */
 const CLIENT_JSON: string = JSON.stringify({ clientId: 'c-1', clientSecret: 's-1' });
-
-/** What the browser receives from the consent server. */
-type Page = { status: number; text: string };
-
-/**
- * A consent server that listens nowhere: the specs hand it the browser's requests.
- */
-class FakeServer implements ConsentServer {
-  /** What `node:http` would call on each request. */
-  public listener: RequestListener | null = null;
-
-  /** What the command does on a failure of the server. */
-  public onError: ((error: Error) => void) | null = null;
-
-  /** Whether the command closed it. */
-  public closed = false;
-
-  /**
-   * @param port - What `address()` answers: a port, a pipe name, or nothing
-   */
-  constructor(private readonly port: number | string | null = 5555) {}
-
-  /** @inheritdoc */
-  public listen(_port: number, _host: string, ready: () => void): void {
-    ready();
-  }
-
-  /** @inheritdoc */
-  public on(_event: 'error', listener: (error: Error) => void): void {
-    this.onError = listener;
-  }
-
-  /** @inheritdoc */
-  public address(): AddressInfo | string | null {
-    if (this.port === null || typeof this.port === 'string') return this.port;
-    return { port: this.port, address: '127.0.0.1', family: 'IPv4' };
-  }
-
-  /** @inheritdoc */
-  public close(): void {
-    this.closed = true;
-  }
-
-  /**
-   * Send a request of the browser.
-   *
-   * @param url - Its path and query, `undefined` for a request that carries none
-   * @returns What the page will say, once written
-   */
-  public hit(url: string | undefined): Promise<Page> {
-    return new Promise<Page>((resolve): void => {
-      let status = 0;
-      const response = {
-        writeHead: (code: number): void => {
-          status = code;
-        },
-        end: (text: string): void => resolve({ status, text }),
-      };
-      (this.listener as RequestListener)({ url } as IncomingMessage, response as unknown as ServerResponse);
-    });
-  }
-}
 
 /**
  * A response of the token endpoint.
@@ -95,7 +31,7 @@ function tokenResponse(body: unknown, status = 200): Response {
 }
 
 describe('Unit::Platforms::Google::Connect', () => {
-  let server: FakeServer;
+  let server: FakeConsentServer;
   let secrets: { get: jest.Mock; put: jest.Mock };
   let fetchFn: jest.Mock;
   let printed: string[];
@@ -113,10 +49,7 @@ describe('Unit::Platforms::Google::Connect', () => {
       secretName: 'google-ads/inviter',
       print: (line: string): void => void printed.push(line),
       ask,
-      createServer: (listener: RequestListener): ConsentServer => {
-        server.listener = listener;
-        return server;
-      },
+      createServer: server.factory(),
       fetchFn: fetchFn as unknown as typeof fetch,
       random,
       ...overrides,
@@ -124,18 +57,16 @@ describe('Unit::Platforms::Google::Connect', () => {
   }
 
   /**
-   * Wait until the command listens: it reads the secret store first, so its server starts later.
+   * Wait until the command listens.
    *
    * @returns A promise that resolves once the consent page is printed
    */
-  async function listening(): Promise<void> {
-    while (server.listener === null || printed.length < 2) {
-      await new Promise<void>((resolve): void => void setImmediate(resolve));
-    }
+  function listening(): Promise<void> {
+    return consentListening(server, printed);
   }
 
   beforeEach((): void => {
-    server = new FakeServer();
+    server = new FakeConsentServer();
     secrets = { get: jest.fn().mockResolvedValue(CLIENT_JSON), put: jest.fn().mockResolvedValue(undefined) };
     fetchFn = jest.fn(async (): Promise<Response> =>
       tokenResponse({ refresh_token: 'r-new', scope: GOOGLE_ADS_API.scope })
@@ -353,7 +284,7 @@ describe('Unit::Platforms::Google::Connect', () => {
       ['no address', null],
       ['a pipe for an address', '/tmp/pipe'],
     ])('should stop when the server has %s', async (_label: string, port: string | null): Promise<void> => {
-      server = new FakeServer(port);
+      server = new FakeConsentServer(port);
 
       await expect(connectGoogleAds(options())).rejects.toThrow('The consent server has no port');
     });

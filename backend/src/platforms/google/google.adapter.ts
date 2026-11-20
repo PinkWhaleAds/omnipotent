@@ -10,6 +10,7 @@
  * which Google refuses a service account. The campaigns arrive in lot 3.
  */
 import type { CallJournal } from '@src/services/platform-call.service';
+import type { AdAccountScope } from '@src/types';
 import { httpError } from '@utils';
 import type { DesiredUnit } from '../desired-state';
 import {
@@ -176,10 +177,11 @@ export class GoogleAdsAdapter implements PlatformAdapter {
    * why — `TOO_MANY_MANAGERS` rather than the vaguer `INVALID_CHANGE` listed before it.
    *
    * @param reference - Its customer id, ten digits
+   * @param _scope - Nothing Google needs: its client is named by the customer id alone
    * @returns `active` when our MCC manages it, `pending` when an invitation waits
    * @throws PlatformError: our own credentials when the inviter cannot act, Google's refusal otherwise
    */
-  public async requestLink(reference: string): Promise<'pending' | 'active'> {
+  public async requestLink(reference: string, _scope?: AdAccountScope): Promise<'pending' | 'active'> {
     const status: GoogleClientLinkStatus | undefined = (await this.latestLinkOf(reference))?.status;
     if (status === 'ACTIVE') return 'active';
     if (status === 'PENDING') return 'pending';

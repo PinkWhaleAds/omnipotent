@@ -16,6 +16,7 @@ export * from './google-ads.config';
 export * from './http-server.config';
 export * from './logger.config';
 export * from './mcp-server.config';
+export * from './microsoft-ads.config';
 export * from './omnipass.config';
 export * from './preview.config';
 export * from './queue.config';
