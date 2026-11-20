@@ -6,6 +6,7 @@ import {
   AdvertiserAdAccountEntity,
   CampaignEntity,
   CreativeEntity,
+  CreativeVersionEntity,
   KeywordEntity,
   LeverEntity,
   LineEntity,
@@ -541,6 +542,34 @@ describe('Unit::Services::PreviewService', () => {
       const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
 
       expect(codes(preview.errors)).toContain('preview_click_url_missing');
+    });
+
+    it('should refuse a responsive ad that repeats a headline, spaces and case aside', async (): Promise<void> => {
+      seedComplete();
+      Object.assign(store.rows(CreativeEntity)[0], { name: 'Annonce', format: 'search_text', subtype: 'rsa' });
+      store.seed(CreativeVersionEntity, [
+        {
+          id: 'fd000000-0000-4000-8000-000000000001',
+          organizationId: IDS.organization,
+          creativeId: CREATIVE_ID,
+          payload: {
+            headlines: ['Lits en chêne', 'Livraison offerte', ' lits EN CHÊNE'],
+            descriptions: ['Fabriqués en France.', 'Livrés chez vous.'],
+          },
+        },
+      ]);
+
+      const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+      // The descriptions all differ: only the headlines are refused.
+      expect(preview.errors).toEqual([
+        expect.objectContaining({
+          code: 'preview_creative_text_duplicate',
+          params: { creative: 'Annonce', field: 'headlines', text: ' lits EN CHÊNE' },
+          level: 'line',
+          nodeId: LINE_ID,
+        }),
+      ]);
     });
 
     it('should take the page of the Line as the click URL, over a creative that has none', async (): Promise<void> => {

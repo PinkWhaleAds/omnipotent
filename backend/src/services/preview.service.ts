@@ -9,6 +9,7 @@ import {
   AdvertiserAdAccountEntity,
   CampaignEntity,
   CreativeEntity,
+  CreativeVersionEntity,
   LeverEntity,
   LineEntity,
   TargetingGroupEntity,
@@ -43,6 +44,7 @@ import {
 import { httpError } from '@utils';
 import { AccessService } from './access.service';
 import { CampaignService } from './campaign.service';
+import { rulesOfCouple } from '@src/creatives/creative-formats';
 import { adapterOf, hasAdapterFor } from '@src/platforms/platform-adapter';
 import { countByObject, ProjectedObject, projectObjects } from '@src/platforms/projection';
 import { adGroupStructure, CampaignTree, leverStructure, readCampaignTree } from './campaign-tree.helpers';
@@ -423,6 +425,8 @@ export class PreviewService {
         errors.push(this.finding('preview_creative_missing', { name: line.name }, 'line', line.id));
       } else if (creative.activeVersionId === null) {
         errors.push(this.finding('preview_creative_version_missing', { creative: creative.name }, 'line', line.id));
+      } else {
+        this.checkDistinctTexts(creative, tree.versions.get(creative.id), line, errors);
       }
     }
     for (const [level, nodes] of [
@@ -433,6 +437,46 @@ export class PreviewService {
     ] as [TreeLevel, { id: string; status: string }[]][]) {
       for (const node of nodes.filter((node: { status: string }): boolean => node.status === 'paused')) {
         warnings.push(this.finding('preview_node_paused', {}, level, node.id));
+      }
+    }
+  }
+
+  /**
+   * Refuse a creative that repeats a text where its couple wants them all different, as multi-search
+   * does: two headlines that read the same, spaces and case aside, are refused by the platforms.
+   *
+   * @param creative - The creative of the Line
+   * @param version - Its delivering version, when it was read
+   * @param line - The Line
+   * @param errors - Collected errors
+   * @returns Nothing
+   */
+  private checkDistinctTexts(
+    creative: CreativeEntity,
+    version: CreativeVersionEntity | undefined,
+    line: LineEntity,
+    errors: PreviewFinding[]
+  ): void {
+    if (!version) return;
+    for (const field of rulesOfCouple(creative.format, creative.subtype).distinctTexts ?? []) {
+      const seen = new Set<string>();
+      const repeated: string | undefined = (version.payload as Record<string, string[]>)[field].find(
+        (text: string): boolean => {
+          const read: string = text.trim().toLowerCase();
+          if (seen.has(read)) return true;
+          seen.add(read);
+          return false;
+        }
+      );
+      if (repeated !== undefined) {
+        errors.push(
+          this.finding(
+            'preview_creative_text_duplicate',
+            { creative: creative.name, field, text: repeated },
+            'line',
+            line.id
+          )
+        );
       }
     }
   }

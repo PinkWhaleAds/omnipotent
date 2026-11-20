@@ -55,6 +55,11 @@ export type CreativeFormatRules = {
   requiredRoles: readonly AssetRole[];
   /** Those it may carry. */
   optionalRoles: readonly AssetRole[];
+  /**
+   * The fields of its payload whose texts must all differ, spaces and case aside: a platform refuses
+   * an ad repeating one (Google answers `DUPLICATE_ASSET`). The preview checks it, not the entry.
+   */
+  distinctTexts?: readonly string[];
 };
 
 /** The key of the registry: the couple, as a route and a message spell it. */
@@ -89,6 +94,7 @@ export const CREATIVE_FORMATS: Readonly<Partial<Record<CoupleKey, CreativeFormat
     }),
     requiredRoles: [],
     optionalRoles: ['logo', 'image'],
+    distinctTexts: ['headlines', 'descriptions'],
   },
   'display:image': {
     label: 'Display image',
