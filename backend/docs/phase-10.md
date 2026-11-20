@@ -579,7 +579,10 @@ Livré en pas successifs sur la branche `phase-10-lot-3` (PR n°7), chacun vert 
    propre de chaque nœud ; une campagne Google qu'aucun objet ne représente plus — un éclatement
    défait — est lue pour être mise en pause ; et les appareils s'ajustent sur l'ad group, par un
    modificateur d'enchère à zéro, quand les lieux et les rayons restent sur la campagne ;
-7. **à faire** : les preuves du § 8.6, par Lorin.
+7. ✅ une Line choisit sa créa par l'API (`creativeId`) : la phase 6 avait la colonne et l'unicité,
+   aucune route ne l'écrivait, et aucune campagne n'aurait pu passer la preview ;
+8. **à faire** : les preuves du § 8.6, par Lorin, pas à pas dans `../../docs/runbook-acces.md`
+   partie D.
 
 ### 8.6 Les preuves de 3a, sur le vrai compte
 
