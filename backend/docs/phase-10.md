@@ -285,6 +285,15 @@ Ils sont dans `error-codes.md` depuis le lot 1, avec `sync_account_not_linked` e
   d'un vrai compte client, jusqu'à lire sa devise et son fuseau. C'est la première preuve de
   `plateformes/google-ads.md` § 10.
 
+**La première preuve est faite, le 2026-11-20**, avec le lot 2a. Lorin, super-admin, a connecté depuis
+le Swagger local un vrai compte client que notre MCC gère déjà, dans l'Organization PinkWhale FR :
+`POST /ad-accounts` avec la seule référence, tirets compris, a répondu **201**, le compte `active`, son
+nom, `EUR` et `Europe/Paris` lus chez Google. Le journal des appels en compte **deux**, tous deux en
+200 et d'environ 350 ms : l'état du lien lu sur notre MCC, puis le compte lu sur lui-même. Aucune
+invitation n'est partie, et la connexion a coûté deux opérations du quota du projet. Le consentement de
+l'inviteur, lui, reste à faire avec le lot 2b, et le chemin de l'invitation à prouver sur un compte
+que notre MCC ne gère pas encore.
+
 ## 7. Les points présentés à Lorin
 
 **Validés par Lorin le 2026-11-19**, avec la précision du point 6. Rien d'autre n'a été déduit en

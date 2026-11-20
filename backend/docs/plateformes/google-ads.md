@@ -275,7 +275,7 @@ Rien de ce qui suit ne peut s'écrire depuis un document ; c'est la liste de cl�
 (`../../../docs/cadrage-plateforme.md` § 5), et elle attend les accès du point 3 de
 `../../../A-FAIRE.md`.
 
-- [ ] Connecter un compte, lire sa devise et son fuseau.
+- [x] Connecter un compte, lire sa devise et son fuseau — **fait le 2026-11-20** (`../phase-10.md` § 6).
 - [ ] Créer une campagne complète de bout en bout, visible dans l'interface de Google Ads.
 - [ ] Vérifier que la preview annonçait exactement ce qui a été créé, l'éclatement compris.
 - [ ] Modifier quelque chose et vérifier que la synchro n'a touché que ce qui a changé.
