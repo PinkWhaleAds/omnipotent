@@ -47,6 +47,9 @@ const timezoneSchema = z
 /** A day of delivery (`YYYY-MM-DD`), in the timezone of the campaign. */
 const daySchema = z.iso.date();
 
+/** A time of day, `HH:mm` on twenty-four hours, as multi-search takes a start time. */
+const timeOfDaySchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'A time of day is HH:mm, e.g. 09:30');
+
 /**
  * Zod schema of a Campaign as returned by the API.
  *
@@ -58,6 +61,7 @@ const daySchema = z.iso.date();
  * @property currency - ISO 4217 currency of every amount of the tree
  * @property timezone - IANA timezone, `null` to follow the Organization's
  * @property startsOn - First day of delivery
+ * @property startTime - The time it starts on that day, `HH:mm` in its timezone; `null` is midnight
  * @property endsOn - Last day of delivery
  * @property budget - What it carries and what it may spend, computed at read time
  * @property capping - The stack of frequency caps; empty means explicitly none
@@ -77,6 +81,7 @@ export const campaignSchema = z.object({
   currency: z.string(),
   timezone: z.string().nullable(),
   startsOn: z.iso.date(),
+  startTime: z.string().nullable(),
   endsOn: z.iso.date(),
   budget: budgetBlockSchema,
   capping: cappingSchema,
@@ -111,6 +116,8 @@ export type ListCampaignsQuery = z.infer<typeof listCampaignsQuerySchema>;
  * @property currency - ISO 4217 currency of the whole tree
  * @property timezone - IANA timezone, left out to follow the Organization's
  * @property startsOn - First day of delivery
+ * @property startTime - The time it starts on that day, `HH:mm` in its timezone; left out for midnight.
+ *   It is never sent to a platform: everything stays paused until it (`docs/phase-10.md` § 8.4)
  * @property endsOn - Last day of delivery
  * @property budgetCents - Total budget in integer cents. A **volume** entry (L25) is not offered
  *   here: it converts through a bid CPM, and the bid lives on the AdGroup
@@ -128,6 +135,7 @@ export const createCampaignBodySchema = z.strictObject({
   currency: currencySchema,
   timezone: timezoneSchema.nullable().optional(),
   startsOn: daySchema,
+  startTime: timeOfDaySchema.nullable().optional(),
   endsOn: daySchema,
   budgetCents: z.number().int().min(0),
   capping: cappingSchema.optional(),
@@ -145,11 +153,14 @@ export type CreateCampaignBody = z.infer<typeof createCampaignBodySchema>;
  * The status is **not** here: moving a campaign through its lifecycle is `preview` and `launch`, and
  * belongs to the phase that owns them. Neither is a budget of `null`: the whole tree divides the
  * campaign's amount, so there is nothing to give up.
+ *
+ * Once launched, its first day and its start time move only while they are to come.
  */
 export const updateCampaignBodySchema = z.strictObject({
   name: campaignNameSchema.optional(),
   timezone: timezoneSchema.nullable().optional(),
   startsOn: daySchema.optional(),
+  startTime: timeOfDaySchema.nullable().optional(),
   endsOn: daySchema.optional(),
   budgetCents: z.number().int().min(0).optional(),
   capping: cappingSchema.nullable().optional(),

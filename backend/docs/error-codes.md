@@ -389,12 +389,14 @@ traduit de la même façon.
 
 ### Les refus des routes
 
-| Code                                         | Statut | Quand                                                                                                                                                                                              | `params`     |
-| -------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
-| `campaign_preview_failed`                    | 400    | Lancer alors que la preview rapporte au moins une erreur                                                                                                                                           | `errors`     |
-| `campaign_not_draft`                         | 400    | Lancer autre chose qu'un brouillon                                                                                                                                                                 | `status`     |
-| `campaign_transition_invalid`                | 400    | La table des transitions ne nomme pas ce passage                                                                                                                                                   | `from`, `to` |
-| `campaign_political_advertising_unsupported` | 400    | Déclarer une campagne **déjà lancée** comme publicité politique : les plateformes portent notre déclaration inverse, et l'arrêter pour une déclaration tardive est une fonctionnalité à part (D53) | `status`     |
+| Code                                         | Statut | Quand                                                                                                                                                                                              | `params`                |
+| -------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| `campaign_preview_failed`                    | 400    | Lancer alors que la preview rapporte au moins une erreur                                                                                                                                           | `errors`                |
+| `campaign_not_draft`                         | 400    | Lancer autre chose qu'un brouillon                                                                                                                                                                 | `status`                |
+| `campaign_transition_invalid`                | 400    | La table des transitions ne nomme pas ce passage                                                                                                                                                   | `from`, `to`            |
+| `campaign_political_advertising_unsupported` | 400    | Déclarer une campagne **déjà lancée** comme publicité politique : les plateformes portent notre déclaration inverse, et l'arrêter pour une déclaration tardive est une fonctionnalité à part (D53) | `status`                |
+| `campaign_start_reached`                     | 400    | Déplacer le premier jour ou l'heure de départ d'une campagne lancée qui a déjà démarré                                                                                                             | `startsOn`, `startTime` |
+| `campaign_start_past`                        | 400    | Déplacer le départ d'une campagne lancée vers un moment déjà passé                                                                                                                                 | `startsOn`, `startTime` |
 
 `draft → active` n'est pas dans la table : on ne lance pas une campagne en écrivant un champ, et
 `PUT /campaigns/:id/status` n'accepte donc pas `draft` dans son corps.

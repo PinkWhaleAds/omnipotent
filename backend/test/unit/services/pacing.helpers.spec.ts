@@ -3,10 +3,12 @@ import {
   dayStart,
   moveToTimezone,
   nextDay,
+  nextAppointment,
   nextLocalMidnight,
   paceDay,
   PlannedDay,
   resolveCampaignTimezone,
+  startInstant,
 } from '@src/services/pacing.helpers';
 import { Pacing } from '@src/types';
 import { IDS, JANE } from '@test/unit/mocks/auth.fixtures';
@@ -203,6 +205,47 @@ describe('Unit::Services::PacingHelpers', () => {
 
     it('should fall back to UTC for an Organization the snapshot does not carry', (): void => {
       expect(resolveCampaignTimezone(null, JANE, 'another-organization')).toBe('UTC');
+    });
+  });
+
+  describe('startInstant', () => {
+    it('should answer the first day at its start time, in the campaign timezone', (): void => {
+      expect(new Date(startInstant('2027-01-04', '09:30', 'Europe/Paris')).toISOString()).toBe(
+        '2027-01-04T08:30:00.000Z'
+      );
+      expect(new Date(startInstant('2027-07-01', '09:30', 'Europe/Paris')).toISOString()).toBe(
+        '2027-07-01T07:30:00.000Z'
+      );
+    });
+
+    it('should start at midnight without a start time', (): void => {
+      expect(new Date(startInstant('2027-01-04', null, 'Europe/Paris')).toISOString()).toBe('2027-01-03T23:00:00.000Z');
+    });
+
+    it('should land a time the clocks skip an hour early, and take the second of a time they repeat', (): void => {
+      // 02:30 does not exist in Paris on 2027-03-28; it does twice on 2027-10-31.
+      expect(new Date(startInstant('2027-03-28', '02:30', 'Europe/Paris')).toISOString()).toBe(
+        '2027-03-28T00:30:00.000Z'
+      );
+      expect(new Date(startInstant('2027-10-31', '02:30', 'Europe/Paris')).toISOString()).toBe(
+        '2027-10-31T01:30:00.000Z'
+      );
+    });
+  });
+
+  describe('nextAppointment', () => {
+    const DAILY: Date = new Date('2027-01-04T23:00:00.000Z');
+    const NOW_MS: number = Date.parse('2027-01-04T06:00:00.000Z');
+
+    it('should wake a campaign at its start when that comes before its daily appointment', (): void => {
+      expect(nextAppointment(DAILY, Date.parse('2027-01-04T08:30:00.000Z'), NOW_MS).toISOString()).toBe(
+        '2027-01-04T08:30:00.000Z'
+      );
+    });
+
+    it('should keep the daily appointment once the start has passed, or when it comes later', (): void => {
+      expect(nextAppointment(DAILY, Date.parse('2027-01-03T08:30:00.000Z'), NOW_MS)).toBe(DAILY);
+      expect(nextAppointment(DAILY, Date.parse('2027-01-06T08:30:00.000Z'), NOW_MS)).toBe(DAILY);
     });
   });
 

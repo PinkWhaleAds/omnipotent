@@ -55,6 +55,10 @@ export class CampaignEntity extends BaseEntity {
   @Column({ type: 'date' })
   endsOn!: string;
 
+  /** The time of day it starts on its first day, `HH:mm` in its timezone; `null` is midnight. */
+  @Column({ type: 'varchar', length: 5, nullable: true })
+  startTime!: string | null;
+
   /** Total budget, in integer cents of {@link CampaignEntity.currency}. */
   @Column({ type: 'bigint', transformer: centsTransformer })
   budgetCents!: number;

@@ -261,3 +261,45 @@ export function resolveCampaignTimezone(own: string | null, actor: AuthContext |
 export function nextLocalMidnight(at: number, timezone: string): Date {
   return new Date(dayStart(nextDay(dayAt(at, timezone)), timezone));
 }
+
+/**
+ * The instant a campaign starts: its first day, at its start time, in its timezone
+ * (`docs/phase-10.md` § 8.4, point 3).
+ *
+ * Guessed twice, like {@link dayStart}: the offset of the wall clock asked for is not always the
+ * offset of the instant before it. A time the clocks skip, the night they go forward, does not exist:
+ * it lands an hour early, before the jump.
+ *
+ * @param day - The first day, `YYYY-MM-DD`
+ * @param time - Its start time, `HH:mm`, `null` for midnight
+ * @param timezone - IANA timezone
+ * @returns Epoch milliseconds
+ *
+ * @example
+ * ```typescript
+ * startInstant('2027-01-04', '09:30', 'Europe/Paris'); // 2027-01-04T08:30:00Z
+ * ```
+ */
+export function startInstant(day: string, time: string | null, timezone: string): number {
+  if (time === null) return dayStart(day, timezone);
+  const naive: number = Date.parse(`${day}T${time}:00Z`);
+  const first: number = naive - offsetAt(naive, timezone);
+  const second: number = naive - offsetAt(first, timezone);
+  return second + offsetAt(second, timezone) === naive ? second : first;
+}
+
+/**
+ * When a campaign must next be looked at: its daily appointment, or its start when that comes first.
+ *
+ * The start time is **never sent** to a platform: until it, the desired state holds everything
+ * paused, and the campaign is woken at it so its hash changes and one call activates it — by the
+ * appointment it already has, not by a sweep of the fleet (D34).
+ *
+ * @param daily - Its next daily appointment
+ * @param start - The instant it starts, epoch milliseconds
+ * @param now - Now, epoch milliseconds
+ * @returns The earlier of the two, the start counting only while it is to come
+ */
+export function nextAppointment(daily: Date, start: number, now: number): Date {
+  return start > now && start < daily.getTime() ? new Date(start) : daily;
+}

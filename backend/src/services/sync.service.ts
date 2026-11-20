@@ -51,7 +51,7 @@ import {
   readCampaignTree,
   targetingGroupsOf,
 } from './campaign-tree.helpers';
-import { dayAt, nextLocalMidnight, resolveCampaignTimezone } from './pacing.helpers';
+import { dayAt, nextAppointment, nextLocalMidnight, resolveCampaignTimezone, startInstant } from './pacing.helpers';
 import { SecretStore } from './secret-store.service';
 import { markCampaignDirty } from './sync.helpers';
 import { resolvePlatformShares } from './tree.helpers';
@@ -260,11 +260,7 @@ export class SyncService {
     });
     for (const campaign of due) {
       await this.dataSource.transaction(async (manager: EntityManager): Promise<void> => {
-        await manager.update(
-          CampaignEntity,
-          { id: campaign.id },
-          { nextPacingAt: this.nextPacingAt(campaign.timezone) }
-        );
+        await manager.update(CampaignEntity, { id: campaign.id }, { nextPacingAt: this.nextPacingAt(campaign) });
         await markCampaignDirty(manager, campaign.id);
       });
       await this.scheduler.request(campaign.id);
@@ -554,6 +550,7 @@ export class SyncService {
       timezone: bought.timezone,
       fxRate: unit.fxRate,
       live: campaign.status === 'active',
+      started: this.now() >= startInstant(campaign.startsOn, campaign.startTime, timezone),
       today: dayAt(this.now(), timezone),
       minDailyBudgetCents: rulesOf(unit.platform, unit.lever).minDailyBudgetCents,
     });
@@ -839,18 +836,23 @@ export class SyncService {
   }
 
   /**
-   * When a campaign's day must be recomputed next: its **next local midnight**, plus a jitter (D47).
+   * When a campaign must be looked at next: its **next local midnight**, plus a jitter (D47), or its
+   * start time when that comes first.
    *
    * The jitter is what stops every campaign of one timezone from recomputing in the same second — the
-   * thundering herd a single UTC schedule would create, moved to each zone.
+   * thundering herd a single UTC schedule would create, moved to each zone. A start time takes none:
+   * the campaign is meant to start then (`docs/phase-10.md` § 8.4, point 3).
    *
-   * @param timezone - The campaign's own timezone, stamped at the launch
+   * @param campaign - The campaign, its timezone stamped at the launch
    * @returns The instant of that appointment
    */
-  private nextPacingAt(timezone: string | null): Date {
-    const zone: string = resolveCampaignTimezone(timezone, null, '');
+  private nextPacingAt(campaign: CampaignEntity): Date {
+    const zone: string = resolveCampaignTimezone(campaign.timezone, null, '');
     const midnight: Date = nextLocalMidnight(this.now(), zone);
-    return new Date(midnight.getTime() + Math.floor(this.random() * this.config.pacingJitterMinutes) * MINUTE_IN_MS);
+    const daily = new Date(
+      midnight.getTime() + Math.floor(this.random() * this.config.pacingJitterMinutes) * MINUTE_IN_MS
+    );
+    return nextAppointment(daily, startInstant(campaign.startsOn, campaign.startTime, zone), this.now());
   }
 
   /**

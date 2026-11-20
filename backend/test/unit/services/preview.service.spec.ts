@@ -103,6 +103,7 @@ describe('Unit::Services::PreviewService', () => {
         currency: 'EUR',
         timezone: null,
         startsOn: '2027-01-01',
+        startTime: null,
         endsOn: '2027-01-07',
         budgetCents: 100_000,
         deletedAt: null,
@@ -875,6 +876,16 @@ describe('Unit::Services::PreviewService', () => {
       const campaign = store.rows(CampaignEntity)[0] as { timezone: string; nextPacingAt: Date };
       expect(campaign.timezone).toBe('Europe/Paris');
       expect(campaign.nextPacingAt.toISOString()).toBe('2026-10-06T22:00:00.000Z');
+    });
+
+    it('should set the appointment at the start time when it comes before midnight', async (): Promise<void> => {
+      // It is 12:00 in Paris, and the campaign starts today at 15:00: that is when it must be woken.
+      seedComplete({ campaign: { timezone: 'Europe/Paris', startsOn: '2026-10-06', startTime: '15:00' } });
+
+      await service.launch(JANE, IDS.organization, CAMPAIGN_ID);
+
+      const campaign = store.rows(CampaignEntity)[0] as { nextPacingAt: Date };
+      expect(campaign.nextPacingAt.toISOString()).toBe('2026-10-06T13:00:00.000Z');
     });
 
     it('should keep the timezone the campaign already names', async (): Promise<void> => {

@@ -107,6 +107,7 @@ function input(overrides: Partial<DesiredInput> = {}): DesiredInput {
     timezone: 'Europe/Paris',
     fxRate: 1,
     live: true,
+    started: true,
     // Inside the window every node of `branch()` declares.
     today: '2027-01-03',
     minDailyBudgetCents: 0,
@@ -281,6 +282,14 @@ describe('Unit::Platforms::DesiredState', () => {
 
     it('should pause everything, unit included, while the campaign is not active', (): void => {
       const { desired } = desiredUnit(input({ live: false }));
+
+      expect(desired.status).toBe('paused');
+      expect(desired.objects.every((object: DesiredObject): boolean => object.status === 'paused')).toBe(true);
+    });
+
+    it('should pause everything, unit included, until the start time has come', (): void => {
+      // The time itself is never sent: the platforms hold the campaign paused until it.
+      const { desired } = desiredUnit(input({ started: false }));
 
       expect(desired.status).toBe('paused');
       expect(desired.objects.every((object: DesiredObject): boolean => object.status === 'paused')).toBe(true);

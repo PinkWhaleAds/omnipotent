@@ -21,6 +21,7 @@ import { AccessService } from './access.service';
 import { applyLabelFilter, runBulk, toOrder } from './crud.helpers';
 import { assertDistinctIds, LabelService } from './label.service';
 import { deleteNode, findNodeOrFail, normalizeNodeWrite, restoreNode } from './node.helpers';
+import { nextAppointment, startInstant } from './pacing.helpers';
 import { budgetBlockOf, TreeNodeRow } from './tree.helpers';
 
 /** The level this service owns, as the profiles and the label assignments name it. */
@@ -44,6 +45,7 @@ export function toCampaign(entity: CampaignEntity, budget: Campaign['budget'], l
     currency: entity.currency,
     timezone: entity.timezone,
     startsOn: entity.startsOn,
+    startTime: entity.startTime ?? null,
     endsOn: entity.endsOn,
     budget,
     capping: entity.capping ?? [],
@@ -74,11 +76,13 @@ export class CampaignService {
    * @param dataSource - Application database
    * @param access - Permission checks
    * @param labels - Posting and reading the Labels of a resource
+   * @param now - Current time, injectable so a test owns the clock
    */
   constructor(
     private readonly dataSource: DataSource,
     private readonly access: AccessService,
-    private readonly labels: LabelService
+    private readonly labels: LabelService,
+    private readonly now: () => number = Date.now
   ) {}
 
   /**
@@ -367,6 +371,7 @@ export class CampaignService {
         name: body.name,
         currency: body.currency,
         timezone: body.timezone ?? null,
+        startTime: body.startTime ?? null,
         insertionOrderNumber: body.insertionOrderNumber ?? null,
         containsPoliticalAdvertising: body.containsPoliticalAdvertising,
         capping: body.capping ?? null,
@@ -412,10 +417,13 @@ export class CampaignService {
       { level: LEVEL, levers: await this.leversOf(manager, id), parentId: null, nodeId: id, current, campaignId: id },
       body
     );
+    const appointment: Date | null = this.movedStart(current as CampaignEntity, body);
 
     const saved: CampaignEntity = await manager.save(CampaignEntity, {
       ...(current as CampaignEntity),
       ...(body.name === undefined ? {} : { name: body.name }),
+      ...(body.startTime === undefined ? {} : { startTime: body.startTime }),
+      ...(appointment === null ? {} : { nextPacingAt: appointment }),
       ...(body.timezone === undefined ? {} : { timezone: body.timezone }),
       ...(body.insertionOrderNumber === undefined ? {} : { insertionOrderNumber: body.insertionOrderNumber }),
       ...(body.containsPoliticalAdvertising === undefined
@@ -425,6 +433,44 @@ export class CampaignService {
     });
     const [campaign]: Campaign[] = await this.toApi(manager, [saved]);
     return campaign;
+  }
+
+  /**
+   * Check a move of a launched campaign's start, and say when it must next be looked at.
+   *
+   * A draft moves freely. A launched campaign moves its first day and its start time **only while
+   * they are to come**, and only to a moment still to come: the platforms hold it paused until then,
+   * and its appointment is brought forward to wake it at the new start (`docs/phase-10.md` § 8.4,
+   * point 3).
+   *
+   * @param current - The campaign as it is
+   * @param body - What the caller sent
+   * @returns Its next appointment when the start moves on a launched campaign, `null` otherwise
+   * @throws Error with status 400 coded `campaign_start_reached` once the start has passed, or
+   *   `campaign_start_past` for a new start already gone
+   */
+  private movedStart(current: CampaignEntity, body: UpdateCampaignBody): Date | null {
+    const startsOn: string = body.startsOn ?? current.startsOn;
+    const startTime: string | null = body.startTime === undefined ? current.startTime : body.startTime;
+    if (current.status === 'draft' || (startsOn === current.startsOn && startTime === current.startTime)) return null;
+
+    // A launched campaign has its timezone frozen.
+    const timezone: string = current.timezone as string;
+    const now: number = this.now();
+    if (startInstant(current.startsOn, current.startTime, timezone) <= now) {
+      throw httpError(400, 'This campaign has already started: its start cannot move any more', {
+        code: 'campaign_start_reached',
+        params: { startsOn: current.startsOn, startTime: current.startTime },
+      });
+    }
+    const start: number = startInstant(startsOn, startTime, timezone);
+    if (start <= now) {
+      throw httpError(400, 'A launched campaign cannot be moved to a start already gone', {
+        code: 'campaign_start_past',
+        params: { startsOn, startTime },
+      });
+    }
+    return nextAppointment(current.nextPacingAt as Date, start, now);
   }
 
   /**

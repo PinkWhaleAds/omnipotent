@@ -109,6 +109,7 @@ describe('Unit::Services::SyncService', () => {
         currency: 'EUR',
         timezone: 'Europe/Paris',
         startsOn: '2027-01-01',
+        startTime: null,
         endsOn: '2027-01-07',
         budgetCents: 100_000,
         capping: null,
@@ -639,6 +640,16 @@ describe('Unit::Services::SyncService', () => {
       expect(desired.objects.find((object): boolean => object.level === 'line')?.creative).toBeNull();
     });
 
+    it('should hold everything paused until the start time has come', async (): Promise<void> => {
+      // It is 11:00 in Paris, and the campaign starts today at 15:00: the time itself is never sent.
+      seedTree({ campaign: { startsOn: '2027-01-03', startTime: '15:00' } });
+      seedUnit();
+
+      await service.syncCampaign(CAMPAIGN_ID);
+
+      expect((apply.mock.calls[0] as [unknown, DesiredUnit])[1].status).toBe('paused');
+    });
+
     it('should send a Line without a page of its own the page of its creative (L18)', async (): Promise<void> => {
       seedTree({ line: { landingPageUrl: null } });
       seedUnit();
@@ -1060,6 +1071,16 @@ describe('Unit::Services::SyncService', () => {
       // Next local midnight in Paris, plus half of the configured jitter.
       const appointment: Date = (store.rows(CampaignEntity)[0] as { nextPacingAt: Date }).nextPacingAt;
       expect(appointment.toISOString()).toBe('2027-01-03T23:15:00.000Z');
+    });
+
+    it('should set the appointment at the start time when it comes before midnight', async (): Promise<void> => {
+      // It is 11:00 in Paris, and the campaign starts today at 15:00: that is when it must be woken.
+      seedTree({ campaign: { startsOn: '2027-01-03', startTime: '15:00', nextPacingAt: new Date(NOW.getTime() - 1) } });
+
+      await service.refreshPacing();
+
+      const appointment: Date = (store.rows(CampaignEntity)[0] as { nextPacingAt: Date }).nextPacingAt;
+      expect(appointment.toISOString()).toBe('2027-01-03T14:00:00.000Z');
     });
 
     it('should leave a campaign whose appointment is not due', async (): Promise<void> => {

@@ -52,6 +52,7 @@ function campaignRow(overrides: Partial<CampaignEntity> = {}): CampaignEntity {
     currency: 'EUR',
     timezone: null,
     startsOn: '2026-11-05',
+    startTime: null,
     endsOn: '2026-11-20',
     budgetCents: 100_000,
     budgetVolume: null,
@@ -85,6 +86,7 @@ const AUTOMNE: Campaign = {
   currency: 'EUR',
   timezone: null,
   startsOn: '2026-11-05',
+  startTime: null,
   endsOn: '2026-11-20',
   budget: BUDGET,
   capping: [],
@@ -223,6 +225,23 @@ describe('Unit::Services::CampaignService', () => {
       ).resolves.toEqual({ ...AUTOMNE, labels: [SPRING] });
       expect(access.assertOrganizationRole).toHaveBeenCalledWith(JANE, IDS.organization, 'manager');
       expect(labels.setOn).toHaveBeenCalledWith(db.manager, IDS.organization, 'campaign', CAMPAIGN_ID, [SPRING.id]);
+    });
+
+    it('should keep the time the campaign starts at', async (): Promise<void> => {
+      db.manager.save.mockResolvedValue(campaignRow({ startTime: '09:30' }));
+
+      await expect(
+        service.create(JANE, IDS.organization, IDS.advertiser, {
+          name: 'Herbéa — Automne',
+          currency: 'EUR',
+          startsOn: '2026-11-05',
+          startTime: '09:30',
+          endsOn: '2026-11-20',
+          budgetCents: 100_000,
+          containsPoliticalAdvertising: false,
+        })
+      ).resolves.toMatchObject({ startTime: '09:30' });
+      expect(db.manager.create).toHaveBeenCalledWith(CampaignEntity, expect.objectContaining({ startTime: '09:30' }));
     });
 
     it('should create a campaign with no Label and no timezone of its own', async (): Promise<void> => {
@@ -389,6 +408,86 @@ describe('Unit::Services::CampaignService', () => {
       expect(db.manager.find).toHaveBeenCalledWith(LeverEntity, {
         where: { campaignId: CAMPAIGN_ID },
         select: { lever: true },
+      });
+    });
+
+    describe('the start of a launched campaign', () => {
+      /** Its daily appointment: the next Paris midnight after {@link NOW}. */
+      const DAILY: Date = new Date('2026-10-06T22:00:00.000Z');
+
+      beforeEach((): void => {
+        service = new CampaignService(db.dataSource, access as never, labels as unknown as LabelService, (): number =>
+          NOW.getTime()
+        );
+      });
+
+      /**
+       * A launched campaign, its timezone frozen.
+       *
+       * @param overrides - Columns to change
+       * @returns The row
+       */
+      function launched(overrides: Partial<CampaignEntity> = {}): CampaignEntity {
+        return campaignRow({ status: 'active', timezone: 'Europe/Paris', nextPacingAt: DAILY, ...overrides });
+      }
+
+      it('should move while it is to come, its appointment kept when the new start is later', async (): Promise<void> => {
+        db.manager.findOne.mockResolvedValue(launched());
+
+        await service.update(JANE, IDS.organization, CAMPAIGN_ID, { startsOn: '2026-11-06', startTime: '09:30' });
+
+        expect(db.manager.save).toHaveBeenCalledWith(
+          CampaignEntity,
+          expect.objectContaining({ startsOn: '2026-11-06', startTime: '09:30', nextPacingAt: DAILY })
+        );
+      });
+
+      it('should bring its appointment forward to a start that comes first', async (): Promise<void> => {
+        // It is 12:00 in Paris; the campaign starts today at 14:00, and now at 13:00.
+        db.manager.findOne.mockResolvedValue(launched({ startsOn: '2026-10-06', startTime: '14:00' }));
+
+        await service.update(JANE, IDS.organization, CAMPAIGN_ID, { startTime: '13:00' });
+
+        expect(db.manager.save).toHaveBeenCalledWith(
+          CampaignEntity,
+          expect.objectContaining({ startTime: '13:00', nextPacingAt: new Date('2026-10-06T11:00:00.000Z') })
+        );
+      });
+
+      it('should refuse to move once it has started', async (): Promise<void> => {
+        db.manager.findOne.mockResolvedValue(launched({ startsOn: '2026-10-01' }));
+
+        await expect(
+          service.update(JANE, IDS.organization, CAMPAIGN_ID, { startsOn: '2026-10-08' })
+        ).rejects.toMatchObject({
+          statusCode: 400,
+          errorCode: 'campaign_start_reached',
+          errorParams: { startsOn: '2026-10-01', startTime: null },
+        });
+        expect(db.manager.save).not.toHaveBeenCalled();
+      });
+
+      it('should refuse to move to a start already gone', async (): Promise<void> => {
+        db.manager.findOne.mockResolvedValue(launched());
+
+        await expect(
+          service.update(JANE, IDS.organization, CAMPAIGN_ID, { startsOn: '2026-10-06', startTime: '08:00' })
+        ).rejects.toMatchObject({
+          statusCode: 400,
+          errorCode: 'campaign_start_past',
+          errorParams: { startsOn: '2026-10-06', startTime: '08:00' },
+        });
+      });
+
+      it('should let a started campaign change anything but its start', async (): Promise<void> => {
+        db.manager.findOne.mockResolvedValue(launched({ startsOn: '2026-10-01' }));
+
+        await service.update(JANE, IDS.organization, CAMPAIGN_ID, { startsOn: '2026-10-01', name: 'Herbéa — Hiver' });
+
+        expect(db.manager.save).toHaveBeenCalledWith(
+          CampaignEntity,
+          expect.objectContaining({ name: 'Herbéa — Hiver', startsOn: '2026-10-01' })
+        );
       });
     });
 

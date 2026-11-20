@@ -67,6 +67,7 @@ const CAMPAIGN = {
   currency: 'EUR',
   timezone: null,
   startsOn: '2027-01-01',
+  startTime: null,
   endsOn: '2027-01-07',
   budget: {
     explicitCents: 100_000,

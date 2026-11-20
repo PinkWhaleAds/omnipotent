@@ -198,6 +198,8 @@ export type DesiredUnit = {
  * @property timezone - The account's timezone
  * @property fxRate - Units of the account currency for one of the campaign currency, frozen (D22)
  * @property live - Whether the campaign is `active`; anything else pauses every object
+ * @property started - Whether its start time has come: before it, every object stays paused, since
+ *   the time itself is never sent (`docs/phase-10.md` § 8.4, point 3)
  * @property today - Today, in the campaign's timezone (`YYYY-MM-DD`): what tells an object whose
  *   window has not started, or has ended, from one that delivers
  * @property minDailyBudgetCents - The platform's floor, in the account's currency: a platform refuses
@@ -217,6 +219,7 @@ export type DesiredInput = {
   timezone: string;
   fxRate: number;
   live: boolean;
+  started: boolean;
   today: string;
   minDailyBudgetCents: number;
 };
@@ -331,7 +334,7 @@ export function desiredUnit(input: DesiredInput): { desired: DesiredUnit; hash: 
     for (const keyword of node.keywords) keywords.set(keyword.id, keyword);
     for (const child of node.children) index(child, own, bidStrategy);
   };
-  index(input.campaign, !input.live, null);
+  index(input.campaign, !input.live || !input.started, null);
   const objects: DesiredObject[] = projected.map((object: ProjectedObject): DesiredObject => {
     // Every projected object comes from a node of this very tree, so both lookups are total.
     const { node, paused, bidStrategy } = nodes.get(object.nodeId) as {

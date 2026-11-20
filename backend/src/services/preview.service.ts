@@ -45,7 +45,7 @@ import { CampaignService } from './campaign.service';
 import { adapterOf, hasAdapterFor } from '@src/platforms/platform-adapter';
 import { countByObject, ProjectedObject, projectObjects } from '@src/platforms/projection';
 import { adGroupStructure, CampaignTree, leverStructure, readCampaignTree } from './campaign-tree.helpers';
-import { dayAt, nextLocalMidnight, resolveCampaignTimezone } from './pacing.helpers';
+import { dayAt, nextAppointment, nextLocalMidnight, resolveCampaignTimezone, startInstant } from './pacing.helpers';
 import { SyncScheduler, SyncService } from './sync.service';
 import { markCampaignDirty } from './sync.helpers';
 import {
@@ -211,7 +211,15 @@ export class PreviewService {
       await manager.update(
         CampaignEntity,
         { id: campaignId },
-        { status: 'active', timezone, nextPacingAt: nextLocalMidnight(this.now(), timezone) }
+        {
+          status: 'active',
+          timezone,
+          nextPacingAt: nextAppointment(
+            nextLocalMidnight(this.now(), timezone),
+            startInstant(tree.campaign.startsOn, tree.campaign.startTime, timezone),
+            this.now()
+          ),
+        }
       );
       await manager.update(AdGroupEntity, { campaignId, status: 'active', activatedAt: IsNull() }, { activatedAt });
       await this.sync.ensureUnits(manager, {

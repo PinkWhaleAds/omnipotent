@@ -109,6 +109,7 @@ const LEVELS: Level[] = [
       currency: 'EUR',
       timezone: null,
       startsOn: '2026-11-05',
+      startTime: null,
       endsOn: '2026-11-20',
       capping: [],
       insertionOrderNumber: null,
