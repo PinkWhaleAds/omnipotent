@@ -3,9 +3,12 @@ import type { FastifySchema } from 'fastify';
 import {
   campaignSchema,
   idParamSchema,
+  NodeLevel,
+  nodeStatusChangeSchema,
   organizationHeadersSchema,
   previewSchema,
   setCampaignStatusBodySchema,
+  setNodeStatusBodySchema,
 } from '@src/types';
 import { errorResponses, toJsonSchema } from '@utils';
 
@@ -56,4 +59,36 @@ export const setCampaignStatusSchema: FastifySchema = {
   params,
   body: toJsonSchema(setCampaignStatusBodySchema, 'input'),
   response: { 200: toJsonSchema(campaignSchema), ...errorResponses(400, 401, 403, 404) },
+};
+
+/**
+ * Fastify schema for `PUT /<level>/:id/status`, one per level below the campaign.
+ *
+ * @param level - The level, as a sentence names it
+ * @returns The schema
+ */
+function setNodeStatusSchemaOf(level: string): FastifySchema {
+  return {
+    tags: TAGS,
+    description: [
+      `Pause or activate one ${level} (manager).`,
+      '',
+      `A ${level} created in a launched campaign is born paused and reaches no platform until it is`,
+      'activated here. Activating one is refused when its window has ended, and when the preview finds',
+      'an error on it or under it: the refusal names the codes to fix. A node of an ended or archived',
+      'campaign keeps its status.',
+    ].join('\n'),
+    headers,
+    params,
+    body: toJsonSchema(setNodeStatusBodySchema, 'input'),
+    response: { 200: toJsonSchema(nodeStatusChangeSchema), ...errorResponses(400, 401, 403, 404) },
+  };
+}
+
+/** Fastify schemas of the four `PUT /<level>/:id/status`. */
+export const setNodeStatusSchemas: Readonly<Record<NodeLevel, FastifySchema>> = {
+  lever: setNodeStatusSchemaOf('lever'),
+  ad_group: setNodeStatusSchemaOf('AdGroup'),
+  targeting_group: setNodeStatusSchemaOf('TargetingGroup'),
+  line: setNodeStatusSchemaOf('Line'),
 };

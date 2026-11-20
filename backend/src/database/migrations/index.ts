@@ -19,6 +19,7 @@ import { PlatformAccounts1793010942785 } from './1793010942785-PlatformAccounts'
 import { Sync1793045657967 } from './1793045657967-Sync';
 import { PoliticalAdvertising1793131915395 } from './1793131915395-PoliticalAdvertising';
 import { LinkedAccounts1793218800000 } from './1793218800000-LinkedAccounts';
+import { AdGroupActivation1793304000000 } from './1793304000000-AdGroupActivation';
 
 export const MIGRATIONS: (new () => unknown)[] = [
   AdvertisersAndLabels1792936887388,
@@ -30,4 +31,5 @@ export const MIGRATIONS: (new () => unknown)[] = [
   Sync1793045657967,
   PoliticalAdvertising1793131915395,
   LinkedAccounts1793218800000,
+  AdGroupActivation1793304000000,
 ];

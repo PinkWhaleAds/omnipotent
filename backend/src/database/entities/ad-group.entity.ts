@@ -110,6 +110,13 @@ export class AdGroupEntity extends BaseEntity {
   @Column({ type: 'jsonb', nullable: true })
   capping!: Capping | null;
 
+  /**
+   * When it was first activated in a launched campaign, by the launch or by its own activation;
+   * `null` until then, and an AdGroup never activated reaches no platform (`docs/phase-10.md` § 8.4).
+   */
+  @Column({ type: 'timestamptz', nullable: true })
+  activatedAt!: Date | null;
+
   /** Soft-delete marker. */
   @DeleteDateColumn({ type: 'timestamptz', nullable: true })
   deletedAt!: Date | null;

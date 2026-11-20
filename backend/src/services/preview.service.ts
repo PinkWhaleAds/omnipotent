@@ -26,6 +26,8 @@ import {
   Campaign,
   CampaignStatus,
   Lever,
+  NodeLevel,
+  NodeStatusChange,
   Platform,
   PlatformObject,
   PlatformShare,
@@ -33,6 +35,7 @@ import {
   Preview,
   PreviewFinding,
   SetCampaignStatusBody,
+  SetNodeStatusBody,
   TargetingDimension,
   TreeLevel,
 } from '@src/types';
@@ -42,10 +45,17 @@ import { CampaignService } from './campaign.service';
 import { adapterOf, hasAdapterFor } from '@src/platforms/platform-adapter';
 import { countByObject, ProjectedObject, projectObjects } from '@src/platforms/projection';
 import { adGroupStructure, CampaignTree, leverStructure, readCampaignTree } from './campaign-tree.helpers';
-import { nextLocalMidnight, resolveCampaignTimezone } from './pacing.helpers';
+import { dayAt, nextLocalMidnight, resolveCampaignTimezone } from './pacing.helpers';
 import { SyncScheduler, SyncService } from './sync.service';
 import { markCampaignDirty } from './sync.helpers';
-import { effectiveBudgetOf, resolvePlatformShares } from './tree.helpers';
+import {
+  descriptorOf,
+  effectiveBudgetOf,
+  effectiveWindowOf,
+  findNodeOrFail,
+  resolvePlatformShares,
+  TreeNodeRow,
+} from './tree.helpers';
 
 /**
  * The transitions the lifecycle of a campaign allows (`docs/phase-8.md` § 4).
@@ -128,10 +138,12 @@ export class PreviewService {
     this.checkStructure(tree, errors, warnings);
     const platforms: PlatformPreview[] = await this.projectPlatforms(tree, errors, warnings);
 
+    const nodes: NodeIndex = indexNodes(tree);
     return {
       campaignId: tree.campaign.id,
       status: tree.campaign.status,
-      launchable: errors.length === 0,
+      // An error under a paused node does not stop the launch: that node sends nothing.
+      launchable: !errors.some((finding: PreviewFinding): boolean => blocks(finding, nodes, null)),
       platforms,
       errors,
       warnings,
@@ -189,13 +201,24 @@ export class PreviewService {
       });
     }
     const timezone: string = resolveCampaignTimezone(tree.campaign.timezone, actor, organizationId);
+    const activatedAt = new Date(this.now());
+    // The AdGroups the launch sends: the active ones. One left paused reaches no platform until it is
+    // activated on its own (`../../CADRAGE.md` § 13).
+    const adGroups: AdGroupEntity[] = tree.adGroups.map((group: AdGroupEntity): AdGroupEntity =>
+      group.status === 'active' ? ({ ...group, activatedAt } as AdGroupEntity) : group
+    );
     await this.dataSource.transaction(async (manager: EntityManager): Promise<void> => {
       await manager.update(
         CampaignEntity,
         { id: campaignId },
         { status: 'active', timezone, nextPacingAt: nextLocalMidnight(this.now(), timezone) }
       );
-      await this.sync.ensureUnits(manager, { ...tree, campaign: { ...tree.campaign, status: 'active', timezone } });
+      await manager.update(AdGroupEntity, { campaignId, status: 'active', activatedAt: IsNull() }, { activatedAt });
+      await this.sync.ensureUnits(manager, {
+        ...tree,
+        adGroups,
+        campaign: { ...tree.campaign, status: 'active', timezone },
+      });
     });
     await this.scheduler.request(campaignId);
     return this.campaigns.get(actor, organizationId, campaignId);
@@ -234,6 +257,103 @@ export class PreviewService {
     });
     await this.scheduler.request(campaignId);
     return this.campaigns.get(actor, organizationId, campaignId);
+  }
+
+  /**
+   * Pause or activate one node below the campaign (`docs/phase-10.md` § 8.4, point 2).
+   *
+   * A node created in a launched campaign is born paused, and this is how it starts delivering. The
+   * rules are multi-search's, for its AdGroups, spread over the four levels:
+   *
+   * - an ended or archived campaign changes nothing any more, and a status already held is refused;
+   * - **activating** a node of a launched campaign is refused when its window has ended, and when the
+   *   preview finds an error on it or under it that its activation would send;
+   * - an AdGroup activated for the first time in a launched campaign is dated, which gives it its
+   *   units: until then it reaches no platform.
+   *
+   * @param actor - The caller
+   * @param organizationId - The Organization
+   * @param level - The level of the node
+   * @param id - The node
+   * @param body - What it becomes
+   * @returns The node and its status now
+   * @throws Error with status 403 without the manager role, 404 when absent, 400 when the campaign is
+   *   closed, the status is already held, the node has ended or the preview finds an error under it
+   */
+  public async setNodeStatus(
+    actor: AuthContext,
+    organizationId: string,
+    level: NodeLevel,
+    id: string,
+    body: SetNodeStatusBody
+  ): Promise<NodeStatusChange> {
+    await this.access.assertOrganizationRole(actor, organizationId, 'manager');
+    const node: TreeNodeRow = await findNodeOrFail(this.dataSource.manager, level, organizationId, id);
+    const campaign: CampaignEntity = await this.campaignOrFail(organizationId, node.campaignId as string);
+    if (campaign.status === 'ended' || campaign.status === 'archived') {
+      throw httpError(400, `A node of an ${campaign.status} campaign keeps its status`, {
+        code: 'node_campaign_closed',
+        params: { status: campaign.status },
+      });
+    }
+    if (node.status === body.status) {
+      throw httpError(400, `This ${level.replace('_', ' ')} is already ${body.status}`, {
+        code: 'node_status_unchanged',
+        params: { level, status: body.status },
+      });
+    }
+
+    const launched: boolean = campaign.status !== 'draft';
+    const columns: { status: string; activatedAt?: Date } = { status: body.status };
+    if (body.status === 'active' && launched) {
+      await this.assertActivatable(campaign, level, id);
+      if (level === 'ad_group' && node.activatedAt === null) columns.activatedAt = new Date(this.now());
+    }
+    await this.dataSource.transaction(async (manager: EntityManager): Promise<void> => {
+      await manager.update(descriptorOf(level).entity, { id }, columns);
+      await markCampaignDirty(manager, campaign.id);
+    });
+    if (launched) await this.scheduler.request(campaign.id);
+    return { level, id, campaignId: campaign.id, status: body.status };
+  }
+
+  /**
+   * Refuse to activate a node that would send something wrong, or nothing at all.
+   *
+   * @param campaign - Its campaign, launched
+   * @param level - Its level
+   * @param id - The node
+   * @returns A promise that resolves when it can be activated
+   * @throws Error with status 400 coded `node_ended` when its window is over, or
+   *   `node_not_activatable` when the preview finds an error on it or under it
+   */
+  private async assertActivatable(campaign: CampaignEntity, level: NodeLevel, id: string): Promise<void> {
+    const window: { endsOn: string } = await effectiveWindowOf(this.dataSource.manager, level, id);
+    // A launched campaign has its timezone frozen.
+    const today: string = dayAt(this.now(), campaign.timezone as string);
+    if (window.endsOn < today) {
+      throw httpError(400, `This ${level.replace('_', ' ')} ended on ${window.endsOn}`, {
+        code: 'node_ended',
+        params: { level, endsOn: window.endsOn },
+      });
+    }
+
+    const tree: CampaignTree = await readCampaignTree(this.dataSource.manager, campaign);
+    const nodes: NodeIndex = indexNodes(tree);
+    const found: PreviewFinding[] = (await this.previewOf(tree)).errors.filter(
+      (finding: PreviewFinding): boolean =>
+        finding.nodeId !== null && pathOf(nodes, finding.nodeId).includes(id) && blocks(finding, nodes, id)
+    );
+    if (found.length > 0) {
+      throw httpError(400, `The preview reports ${found.length} error(s) under this ${level.replace('_', ' ')}`, {
+        code: 'node_not_activatable',
+        params: {
+          level,
+          errors: found.length,
+          codes: [...new Set(found.map((finding: PreviewFinding): string => finding.code))].join(', '),
+        },
+      });
+    }
   }
 
   /**
@@ -744,6 +864,57 @@ export class PreviewService {
   ): PreviewFinding {
     return { code, params, level, nodeId, platform };
   }
+}
+
+/** Each node below the campaign, by id: its status and the node above it. */
+type NodeIndex = Map<string, { status: string; parentId: string | null }>;
+
+/**
+ * Index the nodes of a tree below the campaign.
+ *
+ * @param tree - The tree
+ * @returns Each node, by id
+ */
+function indexNodes(tree: CampaignTree): NodeIndex {
+  const nodes: NodeIndex = new Map();
+  for (const node of tree.levers) nodes.set(node.id, { status: node.status, parentId: null });
+  for (const node of tree.adGroups) nodes.set(node.id, { status: node.status, parentId: node.leverId });
+  for (const node of tree.targetingGroups) nodes.set(node.id, { status: node.status, parentId: node.adGroupId });
+  for (const node of tree.lines) nodes.set(node.id, { status: node.status, parentId: node.targetingGroupId });
+  return nodes;
+}
+
+/**
+ * The ids from a node up to its lever, the node first.
+ *
+ * @param nodes - The index
+ * @param id - The node
+ * @returns The path
+ */
+function pathOf(nodes: NodeIndex, id: string): string[] {
+  const path: string[] = [];
+  for (let current: string | null = id; current !== null; current = nodes.get(current)?.parentId ?? null) {
+    path.push(current);
+  }
+  return path;
+}
+
+/**
+ * Whether an error stops what it concerns from being sent.
+ *
+ * An error on the campaign, or on no node, always does. One on a node does unless that node or one
+ * above it is paused — a paused node sends nothing —, the node being activated counting as active.
+ *
+ * @param finding - The error
+ * @param nodes - The index of the tree
+ * @param activating - The node about to be activated, `null` for a launch
+ * @returns `true` when it blocks
+ */
+function blocks(finding: PreviewFinding, nodes: NodeIndex, activating: string | null): boolean {
+  if (finding.nodeId === null) return true;
+  return !pathOf(nodes, finding.nodeId).some(
+    (id: string): boolean => id !== activating && nodes.get(id)?.status === 'paused'
+  );
 }
 
 /**

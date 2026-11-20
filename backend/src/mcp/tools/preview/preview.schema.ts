@@ -1,6 +1,13 @@
 import { z } from 'zod';
 
-import { campaignSchema, organizationArgSchema, previewSchema, setCampaignStatusBodySchema } from '@src/types';
+import {
+  campaignSchema,
+  nodeStatusChangeSchema,
+  organizationArgSchema,
+  previewSchema,
+  setCampaignStatusBodySchema,
+  setNodeStatusBodySchema,
+} from '@src/types';
 
 /** Argument naming the campaign the lifecycle acts on. */
 const campaignIdArg = z.uuid().describe('Campaign id (from list-campaigns)');
@@ -58,4 +65,85 @@ export const setCampaignStatusSchema = {
   inputSchema: setCampaignStatusInputSchema,
   outputSchema: campaignSchema,
   annotations: { idempotentHint: true },
+};
+
+/** Arguments of `set-lever-status`. */
+export const setLeverStatusInputSchema = setNodeStatusBodySchema.extend({
+  organizationId: organizationArgSchema,
+  leverId: z.uuid().describe('Lever id (from get-campaign)'),
+});
+
+/** Arguments of `set-ad-group-status`. */
+export const setAdGroupStatusInputSchema = setNodeStatusBodySchema.extend({
+  organizationId: organizationArgSchema,
+  adGroupId: z.uuid().describe('AdGroup id (from list-ad-groups)'),
+});
+
+/** Arguments of `set-targeting-group-status`. */
+export const setTargetingGroupStatusInputSchema = setNodeStatusBodySchema.extend({
+  organizationId: organizationArgSchema,
+  targetingGroupId: z.uuid().describe('TargetingGroup id (from list-targeting-groups)'),
+});
+
+/** Arguments of `set-line-status`. */
+export const setLineStatusInputSchema = setNodeStatusBodySchema.extend({
+  organizationId: organizationArgSchema,
+  lineId: z.uuid().describe('Line id (from list-lines)'),
+});
+
+/** TypeScript type inferred from {@link setLeverStatusInputSchema}. */
+export type SetLeverStatusInput = z.infer<typeof setLeverStatusInputSchema>;
+
+/** TypeScript type inferred from {@link setAdGroupStatusInputSchema}. */
+export type SetAdGroupStatusInput = z.infer<typeof setAdGroupStatusInputSchema>;
+
+/** TypeScript type inferred from {@link setTargetingGroupStatusInputSchema}. */
+export type SetTargetingGroupStatusInput = z.infer<typeof setTargetingGroupStatusInputSchema>;
+
+/** TypeScript type inferred from {@link setLineStatusInputSchema}. */
+export type SetLineStatusInput = z.infer<typeof setLineStatusInputSchema>;
+
+/**
+ * What every `set-<level>-status` tool says of itself.
+ *
+ * @param level - The level, as a sentence names it
+ * @returns Its title and description
+ */
+function nodeStatusTool(level: string): { title: string; description: string } {
+  return {
+    title: `Pause or activate a ${level}`,
+    description:
+      `Pause or activate one ${level}. A ${level} created in a launched campaign is born paused and ` +
+      'reaches no platform until it is activated here. Activating one is refused when its window has ' +
+      'ended, and when preview-campaign reports an error on it or under it: fix those first. A node of ' +
+      'an ended or archived campaign keeps its status. Requires the manager role',
+  };
+}
+
+export const setLeverStatusSchema = {
+  ...nodeStatusTool('lever'),
+  inputSchema: setLeverStatusInputSchema,
+  outputSchema: nodeStatusChangeSchema,
+  annotations: {},
+};
+
+export const setAdGroupStatusSchema = {
+  ...nodeStatusTool('AdGroup'),
+  inputSchema: setAdGroupStatusInputSchema,
+  outputSchema: nodeStatusChangeSchema,
+  annotations: {},
+};
+
+export const setTargetingGroupStatusSchema = {
+  ...nodeStatusTool('TargetingGroup'),
+  inputSchema: setTargetingGroupStatusInputSchema,
+  outputSchema: nodeStatusChangeSchema,
+  annotations: {},
+};
+
+export const setLineStatusSchema = {
+  ...nodeStatusTool('Line'),
+  inputSchema: setLineStatusInputSchema,
+  outputSchema: nodeStatusChangeSchema,
+  annotations: {},
 };

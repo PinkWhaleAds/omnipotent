@@ -125,7 +125,8 @@ export class SyncService {
   /**
    * Create the units a campaign needs, and nothing else.
    *
-   * One unit per couple **(AdGroup, platform)** among the platforms **that AdGroup** buys on — its own
+   * One unit per couple **(AdGroup, platform)**, for each AdGroup **activated** once, among the
+   * platforms **that AdGroup** buys on — its own
    * distribution key when it carries one, its lever's otherwise —, where the brand has an account in
    * the campaign's currency and the couple has rules. Idempotent, and called inside the transaction
    * that launches a campaign so a launch cannot half-happen.
@@ -154,6 +155,9 @@ export class SyncService {
 
     for (const lever of tree.levers) {
       for (const group of adGroupsOf(tree, lever.id)) {
+        // An AdGroup never activated reaches no platform (`../../CADRAGE.md` § 13): born paused in a
+        // live campaign, or left paused at the launch, it gets its units when it is activated.
+        if (group.activatedAt === null) continue;
         // Resolved on the **AdGroup**, not on the lever: an AdGroup may carry its own distribution
         // key, and it is the one that decides which platforms this AdGroup buys on (§ 4 of
         // `../../CADRAGE.md`).

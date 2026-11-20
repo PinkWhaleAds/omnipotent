@@ -488,6 +488,21 @@ const LIFECYCLE_CASES: ToolCase[] = [
     answer: { ...TREE_LEVELS[0].resource, id: PREVIEW.campaignId },
     expected: [PREVIEW.campaignId, { status: 'paused' }],
   },
+  ...(
+    [
+      ['set-lever-status', 'leverId', 'lever'],
+      ['set-ad-group-status', 'adGroupId', 'ad_group'],
+      ['set-targeting-group-status', 'targetingGroupId', 'targeting_group'],
+      ['set-line-status', 'lineId', 'line'],
+    ] as const
+  ).map(([tool, arg, level]): ToolCase => ({
+    tool,
+    args: { [arg]: 'f3000000-0000-4000-8000-000000000001', status: 'active' },
+    service: 'previewService',
+    method: 'setNodeStatus',
+    answer: { level, id: 'f3000000-0000-4000-8000-000000000001', campaignId: PREVIEW.campaignId, status: 'active' },
+    expected: [level, 'f3000000-0000-4000-8000-000000000001', { status: 'active' }],
+  })),
 ];
 
 /** Where a campaign stands on its platforms, as the synchronization answers it. */
@@ -1476,7 +1491,7 @@ function fakeServices(): FakeServices {
     },
     listService: { ...crud(), duplicate: jest.fn(), move: jest.fn() },
     assetService: { ...crud(), upload: jest.fn() },
-    previewService: { preview: jest.fn(), launch: jest.fn(), setStatus: jest.fn() },
+    previewService: { preview: jest.fn(), launch: jest.fn(), setStatus: jest.fn(), setNodeStatus: jest.fn() },
     syncService: { platformStatus: jest.fn(), requestSync: jest.fn(), retry: jest.fn() },
     adAccountService: {
       list: jest.fn(),

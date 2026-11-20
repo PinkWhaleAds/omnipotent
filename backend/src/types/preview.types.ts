@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { leverSchema, treeLevelSchema } from './lever.types';
 import { messageCodeSchema, messageParamsSchema } from './error.types';
 import { platformSchema } from './platform.types';
-import { campaignStatusSchema } from './tree.types';
+import { campaignStatusSchema, nodeStatusSchema } from './tree.types';
 
 /**
  * What one of our levels becomes on a platform (`../../CADRAGE.md` § 7).
@@ -113,3 +113,39 @@ export const setCampaignStatusBodySchema = z.strictObject({
 
 /** TypeScript type inferred from {@link setCampaignStatusBodySchema}. */
 export type SetCampaignStatusBody = z.infer<typeof setCampaignStatusBodySchema>;
+
+/** The levels below the campaign, whose status is set on its own (`docs/phase-10.md` § 8.4). */
+export const nodeLevelSchema = treeLevelSchema.exclude(['campaign']);
+
+/** TypeScript type inferred from {@link nodeLevelSchema}. */
+export type NodeLevel = z.infer<typeof nodeLevelSchema>;
+
+/**
+ * Zod schema of the body pausing or activating one node.
+ *
+ * @property status - What it becomes
+ */
+export const setNodeStatusBodySchema = z.strictObject({
+  status: nodeStatusSchema,
+});
+
+/** TypeScript type inferred from {@link setNodeStatusBodySchema}. */
+export type SetNodeStatusBody = z.infer<typeof setNodeStatusBodySchema>;
+
+/**
+ * Zod schema of a node whose status was set.
+ *
+ * @property level - Its level
+ * @property id - Its id
+ * @property campaignId - Its campaign
+ * @property status - Its status now
+ */
+export const nodeStatusChangeSchema = z.object({
+  level: nodeLevelSchema,
+  id: z.uuid(),
+  campaignId: z.uuid(),
+  status: nodeStatusSchema,
+});
+
+/** TypeScript type inferred from {@link nodeStatusChangeSchema}. */
+export type NodeStatusChange = z.infer<typeof nodeStatusChangeSchema>;

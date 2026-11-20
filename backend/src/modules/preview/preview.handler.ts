@@ -1,6 +1,6 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
-import { IdParam, SetCampaignStatusBody } from '@src/types';
+import { IdParam, NodeLevel, SetCampaignStatusBody, SetNodeStatusBody } from '@src/types';
 import { actorOf, organizationIdOf } from '@utils';
 
 /**
@@ -48,4 +48,34 @@ export async function setCampaignStatus(
   reply.send(
     await this.previewService.setStatus(actorOf(request), organizationIdOf(request), request.params.id, request.body)
   );
+}
+
+/**
+ * The handler of `PUT /<level>/:id/status`, for one level below the campaign.
+ *
+ * @param level - The level its route names
+ * @returns The handler
+ */
+export function setNodeStatusOf(
+  level: NodeLevel
+): (
+  this: FastifyInstance,
+  request: FastifyRequest<{ Params: IdParam; Body: SetNodeStatusBody }>,
+  reply: FastifyReply
+) => Promise<void> {
+  return async function setNodeStatus(
+    this: FastifyInstance,
+    request: FastifyRequest<{ Params: IdParam; Body: SetNodeStatusBody }>,
+    reply: FastifyReply
+  ): Promise<void> {
+    reply.send(
+      await this.previewService.setNodeStatus(
+        actorOf(request),
+        organizationIdOf(request),
+        level,
+        request.params.id,
+        request.body
+      )
+    );
+  };
 }

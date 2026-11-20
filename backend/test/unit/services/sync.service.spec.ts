@@ -145,6 +145,7 @@ describe('Unit::Services::SyncService', () => {
         name: 'Grand Paris',
         status: 'active',
         bidStrategy: 'fixed_cpm',
+        activatedAt: new Date('2026-10-01T08:00:00.000Z'),
         budgetCents: null,
         bidAmountCents: null,
         platformShares: null,
@@ -342,6 +343,15 @@ describe('Unit::Services::SyncService', () => {
         adAccountId: ACCOUNT_ID,
         fxRate: 1,
       });
+    });
+
+    it('should create nothing for an AdGroup never activated, which reaches no platform', async (): Promise<void> => {
+      // Born paused in the live campaign, or left paused at its launch (`../../CADRAGE.md` § 13).
+      seedTree({ adGroup: { status: 'paused', activatedAt: null } });
+
+      await service.syncCampaign(CAMPAIGN_ID);
+
+      expect(units()).toEqual([]);
     });
 
     it('should create nothing for a platform the brand has no account on', async (): Promise<void> => {

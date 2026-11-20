@@ -163,6 +163,11 @@ const API_ROUTES: RouteKey[] = [
   { method: 'GET', url: '/campaigns/:id/preview' },
   { method: 'POST', url: '/campaigns/:id/launch' },
   { method: 'PUT', url: '/campaigns/:id/status' },
+  // Phase 10: the status of one node below the campaign.
+  { method: 'PUT', url: '/levers/:id/status' },
+  { method: 'PUT', url: '/ad-groups/:id/status' },
+  { method: 'PUT', url: '/targeting-groups/:id/status' },
+  { method: 'PUT', url: '/lines/:id/status' },
   // Phase 4: the daily curve and the pacing, on each level of the tree.
   ...curveRoutes('campaigns'),
   ...curveRoutes('levers'),

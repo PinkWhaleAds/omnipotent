@@ -399,6 +399,19 @@ traduit de la même façon.
 `draft → active` n'est pas dans la table : on ne lance pas une campagne en écrivant un champ, et
 `PUT /campaigns/:id/status` n'accepte donc pas `draft` dans son corps.
 
+Le statut d'un nœud sous la campagne — levier, AdGroup, TargetingGroup, Line — se change par
+`PUT /<niveau>/:id/status` (`phase-10.md` § 8.4, point 2) :
+
+| Code                    | Statut | Quand                                                                                             | `params`                   |
+| ----------------------- | ------ | ------------------------------------------------------------------------------------------------- | -------------------------- |
+| `node_campaign_closed`  | 400    | La campagne est terminée ou archivée : ses nœuds gardent leur statut                              | `status`                   |
+| `node_status_unchanged` | 400    | Le nœud a déjà ce statut                                                                          | `level`, `status`          |
+| `node_ended`            | 400    | Activer, dans une campagne lancée, un nœud dont la fenêtre est finie                              | `level`, `endsOn`          |
+| `node_not_activatable`  | 400    | Activer, dans une campagne lancée, un nœud sur lequel ou sous lequel la preview trouve une erreur | `level`, `errors`, `codes` |
+
+Une erreur de la preview sous un nœud **en pause** ne bloque pas le lancement : ce nœud n'envoie rien.
+Elle bloquera son activation.
+
 ### Les erreurs de la preview, qui bloquent le lancement
 
 | Code                                        | Quand                                                                                                                                                                                                                                 | `params`                             |

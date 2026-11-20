@@ -2,8 +2,24 @@ import type { FastifyInstance } from 'fastify';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 import { McpContext } from '@src/types';
-import { launchCampaign, previewCampaign, setCampaignStatus } from './preview.handler';
-import { launchCampaignSchema, previewCampaignSchema, setCampaignStatusSchema } from './preview.schema';
+import {
+  launchCampaign,
+  previewCampaign,
+  setAdGroupStatus,
+  setCampaignStatus,
+  setLeverStatus,
+  setLineStatus,
+  setTargetingGroupStatus,
+} from './preview.handler';
+import {
+  launchCampaignSchema,
+  previewCampaignSchema,
+  setAdGroupStatusSchema,
+  setCampaignStatusSchema,
+  setLeverStatusSchema,
+  setLineStatusSchema,
+  setTargetingGroupStatusSchema,
+} from './preview.schema';
 
 /**
  * Preview and lifecycle tools controller: one tool per route (D21).
@@ -24,5 +40,17 @@ export default function PreviewToolsController(server: McpServer, fastify: Fasti
   );
   server.registerTool('set-campaign-status', setCampaignStatusSchema, async (args) =>
     setCampaignStatus(fastify.previewService, context, args)
+  );
+  server.registerTool('set-lever-status', setLeverStatusSchema, async (args) =>
+    setLeverStatus(fastify.previewService, context, args)
+  );
+  server.registerTool('set-ad-group-status', setAdGroupStatusSchema, async (args) =>
+    setAdGroupStatus(fastify.previewService, context, args)
+  );
+  server.registerTool('set-targeting-group-status', setTargetingGroupStatusSchema, async (args) =>
+    setTargetingGroupStatus(fastify.previewService, context, args)
+  );
+  server.registerTool('set-line-status', setLineStatusSchema, async (args) =>
+    setLineStatus(fastify.previewService, context, args)
   );
 }

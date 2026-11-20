@@ -895,6 +895,36 @@ describe('Unit::Services::PreviewService', () => {
       expect(store.rows(CampaignEntity)[0].status).toBe('draft');
     });
 
+    it('should date the AdGroups it sends, and leave a paused one unsent', async (): Promise<void> => {
+      seedComplete({ adGroup: { activatedAt: null } });
+      store.seed(AdGroupEntity, [
+        {
+          id: 'f3000000-0000-4000-8000-000000000002',
+          organizationId: IDS.organization,
+          campaignId: CAMPAIGN_ID,
+          leverId: LEVER_ID,
+          lever: 'dooh',
+          name: 'En réserve',
+          status: 'paused',
+          bidStrategy: 'fixed_cpm',
+          budgetCents: null,
+          platformShares: null,
+          activatedAt: null,
+          deletedAt: null,
+        },
+      ]);
+
+      await service.launch(JANE, IDS.organization, CAMPAIGN_ID);
+
+      // A paused AdGroup's missing TargetingGroup does not stop the launch: it sends nothing.
+      const dated = (groups: { id: string; activatedAt: Date | null }[]): Record<string, Date | null> =>
+        Object.fromEntries(groups.map((group) => [group.id, group.activatedAt]));
+      const expected = { [AD_GROUP_ID]: NOW, 'f3000000-0000-4000-8000-000000000002': null };
+      expect(dated(store.rows(AdGroupEntity) as { id: string; activatedAt: Date | null }[])).toEqual(expected);
+      // The engine is handed the tree as it now stands, so it makes units for the dated one only.
+      expect(dated((sync.ensureUnits.mock.calls[0][1] as { adGroups: [] }).adGroups)).toEqual(expected);
+    });
+
     it('should refuse to launch anything but a draft', async (): Promise<void> => {
       seedComplete({ campaign: { status: 'active' } });
 
@@ -903,6 +933,136 @@ describe('Unit::Services::PreviewService', () => {
         errorCode: 'campaign_not_draft',
         errorParams: { status: 'active' },
       });
+    });
+  });
+
+  describe('setNodeStatus', () => {
+    /** A campaign that delivers, in a timezone of its own. */
+    const LIVE = { status: 'active', timezone: 'Europe/Paris' };
+
+    it('should pause a node of a live campaign, and have the platforms hear about it', async (): Promise<void> => {
+      seedComplete({ campaign: LIVE });
+
+      const change = await service.setNodeStatus(JANE, IDS.organization, 'targeting_group', NODE_ID, {
+        status: 'paused',
+      });
+
+      expect(change).toEqual({ level: 'targeting_group', id: NODE_ID, campaignId: CAMPAIGN_ID, status: 'paused' });
+      expect(store.rows(TargetingGroupEntity)[0].status).toBe('paused');
+      expect(access.assertOrganizationRole).toHaveBeenCalledWith(JANE, IDS.organization, 'manager');
+      expect(scheduler.request).toHaveBeenCalledWith(CAMPAIGN_ID);
+    });
+
+    it('should switch a node of a draft freely, and ask no platform anything', async (): Promise<void> => {
+      seedComplete({ line: { status: 'paused', creativeId: null } });
+
+      await service.setNodeStatus(JANE, IDS.organization, 'line', LINE_ID, { status: 'active' });
+
+      // Nothing has been sent from a draft: the preview judges it at the launch.
+      expect(store.rows(LineEntity)[0].status).toBe('active');
+      expect(scheduler.request).not.toHaveBeenCalled();
+    });
+
+    it('should refuse a node of an ended or archived campaign', async (): Promise<void> => {
+      for (const status of ['ended', 'archived']) {
+        store = createTreeStore();
+        service = build();
+        seedComplete({ campaign: { ...LIVE, status } });
+
+        await expect(
+          service.setNodeStatus(JANE, IDS.organization, 'ad_group', AD_GROUP_ID, { status: 'paused' })
+        ).rejects.toMatchObject({ statusCode: 400, errorCode: 'node_campaign_closed', errorParams: { status } });
+      }
+    });
+
+    it('should refuse a status the node already holds', async (): Promise<void> => {
+      seedComplete({ campaign: LIVE });
+
+      await expect(
+        service.setNodeStatus(JANE, IDS.organization, 'lever', LEVER_ID, { status: 'active' })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        errorCode: 'node_status_unchanged',
+        errorParams: { level: 'lever', status: 'active' },
+      });
+    });
+
+    it('should not find a node of another Organization', async (): Promise<void> => {
+      seedComplete({ campaign: LIVE });
+
+      await expect(
+        service.setNodeStatus(JANE, IDS.otherOrganization, 'line', LINE_ID, { status: 'paused' })
+      ).rejects.toMatchObject({ statusCode: 404, errorCode: 'line_not_found' });
+    });
+
+    it('should relay a refusal of the role, before reading anything', async (): Promise<void> => {
+      access.assertOrganizationRole.mockRejectedValue(httpError(403, 'Forbidden', { code: 'role_required' }));
+
+      await expect(
+        service.setNodeStatus(JANE, IDS.organization, 'line', LINE_ID, { status: 'paused' })
+      ).rejects.toMatchObject({ statusCode: 403 });
+    });
+
+    it('should refuse to activate a node whose window has ended', async (): Promise<void> => {
+      seedComplete({ campaign: { ...LIVE, startsOn: '2026-09-01', endsOn: '2026-09-30' }, line: { status: 'paused' } });
+
+      await expect(
+        service.setNodeStatus(JANE, IDS.organization, 'line', LINE_ID, { status: 'active' })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        errorCode: 'node_ended',
+        errorParams: { level: 'line', endsOn: '2026-09-30' },
+      });
+      expect(store.rows(LineEntity)[0].status).toBe('paused');
+    });
+
+    it('should refuse to activate a node the preview finds an error under, and name its codes', async (): Promise<void> => {
+      seedComplete({ campaign: LIVE, adGroup: { status: 'paused', activatedAt: null }, line: { creativeId: null } });
+
+      await expect(
+        service.setNodeStatus(JANE, IDS.organization, 'ad_group', AD_GROUP_ID, { status: 'active' })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        errorCode: 'node_not_activatable',
+        errorParams: { level: 'ad_group', errors: 1, codes: 'preview_creative_missing' },
+      });
+      expect(store.rows(AdGroupEntity)[0]).toMatchObject({ status: 'paused', activatedAt: null });
+    });
+
+    it('should not hold against a node an error under a node still paused below it', async (): Promise<void> => {
+      // The Line stays paused, so activating its TargetingGroup sends nothing wrong: the Line's own
+      // activation will be judged on its own.
+      seedComplete({ campaign: LIVE, node: { status: 'paused' }, line: { status: 'paused', creativeId: null } });
+
+      await service.setNodeStatus(JANE, IDS.organization, 'targeting_group', NODE_ID, { status: 'active' });
+
+      expect(store.rows(TargetingGroupEntity)[0].status).toBe('active');
+    });
+
+    it('should not hold against a node an error elsewhere in the campaign', async (): Promise<void> => {
+      seedComplete({ campaign: LIVE, line: { status: 'paused' }, account: { status: 'pending' } });
+
+      await service.setNodeStatus(JANE, IDS.organization, 'line', LINE_ID, { status: 'active' });
+
+      expect(store.rows(LineEntity)[0].status).toBe('active');
+    });
+
+    it('should date the first activation of an AdGroup, which gives it its units', async (): Promise<void> => {
+      seedComplete({ campaign: LIVE, adGroup: { status: 'paused', activatedAt: null } });
+
+      await service.setNodeStatus(JANE, IDS.organization, 'ad_group', AD_GROUP_ID, { status: 'active' });
+
+      expect(store.rows(AdGroupEntity)[0]).toMatchObject({ status: 'active', activatedAt: NOW });
+      expect(scheduler.request).toHaveBeenCalledWith(CAMPAIGN_ID);
+    });
+
+    it('should keep the date of an AdGroup activated before', async (): Promise<void> => {
+      const before = new Date('2026-10-01T08:00:00.000Z');
+      seedComplete({ campaign: LIVE, adGroup: { status: 'paused', activatedAt: before } });
+
+      await service.setNodeStatus(JANE, IDS.organization, 'ad_group', AD_GROUP_ID, { status: 'active' });
+
+      expect(store.rows(AdGroupEntity)[0]).toMatchObject({ status: 'active', activatedAt: before });
     });
   });
 

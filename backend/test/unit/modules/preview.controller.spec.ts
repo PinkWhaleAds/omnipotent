@@ -94,6 +94,12 @@ describe('Unit::Modules::PreviewController', () => {
       preview: jest.fn().mockResolvedValue(PREVIEW),
       launch: jest.fn().mockResolvedValue(CAMPAIGN),
       setStatus: jest.fn().mockResolvedValue(CAMPAIGN),
+      setNodeStatus: jest.fn(async (_actor, _organizationId, level: string, id: string, body: { status: string }) => ({
+        level,
+        id,
+        campaignId: CAMPAIGN_ID,
+        status: body.status,
+      })),
     };
     app = await setupRouteAppForTest(PreviewController, { previewService: service }, JANE);
   });
@@ -138,6 +144,41 @@ describe('Unit::Modules::PreviewController', () => {
       expect(response.statusCode).toBe(200);
       expect(service.setStatus).toHaveBeenCalledWith(JANE, IDS.organization, CAMPAIGN_ID, { status });
     }
+  });
+
+  it('should pause and activate a node of each level through its own route', async (): Promise<void> => {
+    const NODE_ID = 'f3000000-0000-4000-8000-000000000001';
+    for (const [path, level] of [
+      ['levers', 'lever'],
+      ['ad-groups', 'ad_group'],
+      ['targeting-groups', 'targeting_group'],
+      ['lines', 'line'],
+    ] as const) {
+      const response: LightMyRequestResponse = await app.inject({
+        method: 'PUT',
+        url: `/${path}/${NODE_ID}/status`,
+        headers: HEADERS,
+        payload: { status: 'active' },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(JSON.parse(response.body)).toEqual({ level, id: NODE_ID, campaignId: CAMPAIGN_ID, status: 'active' });
+      expect(service.setNodeStatus).toHaveBeenCalledWith(JANE, IDS.organization, level, NODE_ID, { status: 'active' });
+    }
+  });
+
+  it('should refuse a status a node does not have, and a field the route does not declare', async (): Promise<void> => {
+    for (const payload of [{ status: 'ended' }, { status: 'paused', reason: 'x' }]) {
+      const response: LightMyRequestResponse = await app.inject({
+        method: 'PUT',
+        url: '/ad-groups/f3000000-0000-4000-8000-000000000001/status',
+        headers: HEADERS,
+        payload,
+      });
+
+      expect(response.statusCode).toBe(400);
+    }
+    expect(service.setNodeStatus).not.toHaveBeenCalled();
   });
 
   it('should refuse to set a campaign back to draft: a draft is launched', async (): Promise<void> => {
