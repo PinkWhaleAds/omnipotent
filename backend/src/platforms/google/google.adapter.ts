@@ -11,7 +11,6 @@
  */
 import type { CallJournal } from '@src/services/platform-call.service';
 import type { AdAccountScope } from '@src/types';
-import { httpError } from '@utils';
 import type { DesiredUnit } from '../desired-state';
 import {
   ApplyResult,
@@ -25,6 +24,7 @@ import {
 } from '../platform-adapter';
 import { PlatformHttp } from '../platform-http';
 import { GoogleInviterAuth, GoogleServiceAccountAuth } from './google.auth';
+import { GoogleUnitSync } from './google.apply';
 import { describeGoogleAdsError, GoogleAdsClient } from './google.client';
 import { GOOGLE_ADS_API, GoogleAdsRow, GoogleClientLinkStatus } from './google.types';
 
@@ -159,10 +159,19 @@ export class GoogleAdsAdapter implements PlatformAdapter {
   /** @inheritdoc */
   public readonly connection: PlatformConnection = 'manager_link';
 
+  /** What pushes the campaigns. */
+  private readonly units: GoogleUnitSync;
+
   /**
    * @param client - The calls of the API, through our manager account
+   * @param now - The clock, which decides whether a start or an end is still to come
    */
-  constructor(private readonly client: GoogleAdsClient) {}
+  constructor(
+    private readonly client: GoogleAdsClient,
+    now: () => number = Date.now
+  ) {
+    this.units = new GoogleUnitSync(client, now);
+  }
 
   /** @inheritdoc */
   public referenceOf(input: string): string | null {
@@ -255,22 +264,17 @@ export class GoogleAdsAdapter implements PlatformAdapter {
   }
 
   /**
-   * The campaigns arrive in lot 3 (`docs/phase-10.md` § 1). Until then Google Ads has no couple in
-   * `PLATFORM_RULES`, so no unit exists and the engine never calls this.
+   * Make Google Ads match the desired state of one unit (`docs/phase-10.md` § 8.5): see
+   * `google.apply.ts`.
    *
-   * @param _context - Account and credentials
-   * @param _desired - What must be true over there
-   * @param _refs - What exists
-   * @returns Never
-   * @throws Error with status 500 coded `sync_adapter_missing`
+   * @param context - The account
+   * @param desired - What must be true over there
+   * @param refs - What exists, as the engine last recorded it
+   * @returns What exists now
+   * @throws PlatformError
    */
-  public apply(_context: PlatformContext, _desired: DesiredUnit, _refs: UnitRefs): Promise<ApplyResult> {
-    return Promise.reject(
-      httpError(500, 'The Google Ads campaigns arrive with lot 3 of phase 10', {
-        code: 'sync_adapter_missing',
-        params: { platform: 'google_ads' },
-      })
-    );
+  public apply(context: PlatformContext, desired: DesiredUnit, refs: UnitRefs): Promise<ApplyResult> {
+    return this.units.apply(context, desired, refs);
   }
 
   /**
@@ -329,6 +333,7 @@ export function createGoogleAdsAdapter(setup: GoogleAdsSetup, journal: CallJourn
         http: httpWith((): Promise<string> => inviter.accessToken()),
         onUnauthenticated: (): void => inviter.invalidate(),
       }
-    )
+    ),
+    setup.now
   );
 }

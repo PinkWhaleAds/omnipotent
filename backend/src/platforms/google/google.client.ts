@@ -20,6 +20,8 @@ import {
   GoogleAdsRow,
   GoogleAdsSearchResponse,
   GoogleClientLinkRequest,
+  GoogleMutateOperation,
+  GoogleMutateResponse,
 } from './google.types';
 
 /** gRPC statuses after which trying again later can succeed. */
@@ -242,6 +244,34 @@ export class GoogleAdsClient {
       pageToken = page.nextPageToken || undefined;
     } while (pageToken);
     return rows;
+  }
+
+  /**
+   * Apply changes to a client account in one atomic request: all of them, or none
+   * (`plateformes/google-ads.md` § 6). Every operation counts against the daily quota.
+   *
+   * @param adAccountId - Our account, for the journal
+   * @param customerId - The account changed, ten digits
+   * @param operations - The changes, in the order they must apply; a temporary negative id names
+   *   what an earlier one creates
+   * @returns The resource name of what each operation created or changed, in order
+   * @throws PlatformError
+   */
+  public async mutate(
+    adAccountId: string,
+    customerId: string,
+    operations: readonly GoogleMutateOperation[]
+  ): Promise<string[]> {
+    const response: GoogleMutateResponse = await this.send<GoogleMutateResponse>(adAccountId, {
+      method: 'POST',
+      path: `/customers/${customerId}/googleAds:mutate`,
+      body: { mutateOperations: operations },
+      operations: operations.length,
+    });
+    return (response.mutateOperationResponses ?? []).map(
+      (result: Record<string, { resourceName?: string } | undefined>): string =>
+        Object.values(result).find((value) => value?.resourceName !== undefined)?.resourceName ?? ''
+    );
   }
 
   /**

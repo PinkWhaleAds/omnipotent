@@ -50,9 +50,20 @@ describe('Unit::Platforms::PlatformRules', () => {
     for (const platform of Object.keys(registry)) Reflect.deleteProperty(registry, platform);
   });
 
-  it('should hold no platform yet: each one arrives with its phase', (): void => {
-    expect(PLATFORM_RULES).toEqual({});
-    expect(supportedPlatforms()).toEqual([]);
+  it('should declare Google Ads on Search as phase 10 lands it', (): void => {
+    // The first case of the file: the registry is still the one the code declares.
+    expect(supportedPlatforms()).toEqual(['google_ads']);
+    expect(rulesOf('google_ads', 'search')).toMatchObject({
+      creatives: ['search_text:rsa'],
+      projection: { budgetLevel: 'ad_group' },
+      requiresClickThroughUrl: true,
+      bidStrategies: ['max_cpc', 'maximize_clicks'],
+      sharedTargeting: ['country', 'proximity'],
+      maxActiveAds: 3,
+      settings: { searchPartners: true, aiMax: false },
+      locationIntent: true,
+      extensions: true,
+    });
   });
 
   it('should be keyed by the couple (platform, lever), never by the platform alone', (): void => {

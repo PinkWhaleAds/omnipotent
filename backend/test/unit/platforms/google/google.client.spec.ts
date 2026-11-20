@@ -271,6 +271,40 @@ describe('Unit::Platforms::Google::Client', () => {
       );
     });
 
+    it('should change an account in one atomic call, each operation costing, and name what each made', async (): Promise<void> => {
+      http.request.mockResolvedValueOnce({
+        mutateOperationResponses: [
+          { campaignBudgetResult: { resourceName: 'customers/5550001111/campaignBudgets/1' } },
+          { campaignResult: { resourceName: 'customers/5550001111/campaigns/2' } },
+          {},
+        ],
+      });
+      const operations = [
+        { campaignBudgetOperation: { create: { amountMicros: '1000000' } } },
+        { campaignOperation: { create: { name: 'Automne' } } },
+        { campaignAssetOperation: { remove: 'customers/5550001111/campaignAssets/3' } },
+      ];
+
+      await expect(client.mutate('acc-1', '5550001111', operations)).resolves.toEqual([
+        'customers/5550001111/campaignBudgets/1',
+        'customers/5550001111/campaigns/2',
+        '',
+      ]);
+      expect(http.request).toHaveBeenCalledWith('acc-1', {
+        method: 'POST',
+        path: '/customers/5550001111/googleAds:mutate',
+        body: { mutateOperations: operations },
+        operations: 3,
+        headers: { 'login-customer-id': '7719345054' },
+      });
+    });
+
+    it('should answer nothing made when Google answers no result', async (): Promise<void> => {
+      http.request.mockResolvedValueOnce({});
+
+      await expect(client.mutate('acc-1', '5550001111', [])).resolves.toEqual([]);
+    });
+
     it('should drop a token Google refused, and try once more with a new one', async (): Promise<void> => {
       http.request.mockRejectedValueOnce(refused(401)).mockResolvedValueOnce({ results: [] });
 

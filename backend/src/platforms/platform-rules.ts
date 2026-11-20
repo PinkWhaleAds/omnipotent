@@ -93,10 +93,35 @@ export type PlatformProjection = {
  * other: the profile declares the permitted set and refuses in 400, the registry intersects it, and
  * the preview shows what was lost.
  *
- * Empty in the socle: the platforms of the matrix arrive in their own phases, each adding its
- * couples here and the fields its capabilities need.
+ * The platforms of the matrix arrive in their own phases, each adding its couples here and the
+ * fields its capabilities need.
  */
-export const PLATFORM_RULES: Readonly<Record<string, Readonly<Record<string, PlatformRules>>>> = {};
+export const PLATFORM_RULES: Readonly<Record<string, Readonly<Record<string, PlatformRules>>>> = {
+  google_ads: {
+    // `docs/phase-10.md` § 8.3, from the study `plateformes/google-ads.md` and multi-search.
+    search: {
+      label: 'Google Ads',
+      // Finer places — regions, cities, postal codes — come with the place referential of lot 3c.
+      targeting: ['country', 'proximity', 'device'],
+      creatives: ['search_text:rsa'],
+      projection: {
+        levels: { campaign: null, lever: null, ad_group: 'campaign', targeting_group: 'ad_group', line: 'ad' },
+        budgetLevel: 'ad_group',
+      },
+      requiresClickThroughUrl: true,
+      requiresIabCategories: false,
+      minDailyBudgetCents: 0,
+      // `maximize_conversions` comes with the conversions of lot 3d; Search never buys per thousand.
+      bidStrategies: ['max_cpc', 'maximize_clicks'],
+      // Places and circles are set on the campaign; a device is adjusted on the ad group.
+      sharedTargeting: ['country', 'proximity'],
+      maxActiveAds: 3,
+      settings: { searchPartners: true, aiMax: false },
+      locationIntent: true,
+      extensions: true,
+    },
+  },
+};
 
 /**
  * Ids of the platforms that have a connector, as the API names them.
@@ -105,7 +130,7 @@ export const PLATFORM_RULES: Readonly<Record<string, Readonly<Record<string, Pla
  *
  * @example
  * ```typescript
- * supportedPlatforms(); // [] until the first platform phase
+ * supportedPlatforms(); // ['google_ads', …]
  * ```
  */
 export function supportedPlatforms(): string[] {

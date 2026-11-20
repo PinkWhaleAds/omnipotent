@@ -438,12 +438,18 @@ describe('Unit::Platforms::Google::Adapter', () => {
   });
 
   describe('apply', () => {
-    it('should refuse to push a campaign before lot 3 writes it', async (): Promise<void> => {
-      await expect(adapter.apply({} as never, {} as never, {})).rejects.toMatchObject({
-        statusCode: 500,
-        errorCode: 'sync_adapter_missing',
-        errorParams: { platform: 'google_ads' },
-      });
+    it('should hand the unit to what pushes the campaigns, through the same client', async (): Promise<void> => {
+      const client = { search: jest.fn().mockResolvedValue([]), mutate: jest.fn() };
+      const desired = { unitId: 'u1', adGroupId: 'g1', objects: [] };
+
+      await expect(
+        new GoogleAdsAdapter(client as unknown as GoogleAdsClient, () => 0).apply(
+          { externalId: CLIENT, adAccountId: 'acc-1' } as never,
+          desired as never,
+          {}
+        )
+      ).resolves.toEqual({ refs: {}, appliedStatus: null });
+      expect(new GoogleAdsAdapter(client as unknown as GoogleAdsClient)).toBeInstanceOf(GoogleAdsAdapter);
     });
   });
 

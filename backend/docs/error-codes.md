@@ -480,6 +480,17 @@ sauf quand c'est nous qui avons formulé le message — les phases plateformes a
 ici. Les erreurs que la synchronisation rencontre ailleurs dans l'application (un secret absent, un
 compte illisible) arrivent avec leur propre code, celui qu'elles portaient déjà.
 
+Les refus que l'adapter de Google Ads formule lui-même, avant ou après avoir appelé Google
+(`phase-10.md` § 8.5) — aucun ne se retente seul :
+
+| Code                              | Quand                                                                                                  | `params`   |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------ | ---------- |
+| `google_campaign_removed`         | La campagne Google de ce nœud a été supprimée hors d'Omnipotent : elle n'est jamais recréée en silence | `campaign` |
+| `google_country_unsupported`      | Un pays inclus que Google Ads ne cible pas                                                             | `country`  |
+| `google_bid_strategy_unsupported` | Une stratégie avec laquelle Google Search n'enchérit pas ici — la preview la refuse d'abord            | `strategy` |
+| `google_bid_required`             | Un CPC manuel sans montant d'enchère                                                                   | `{}`       |
+| `google_ad_incomplete`            | Une Line active sans créa ou sans page de destination — la preview la refuse d'abord                   | `line`     |
+
 Ce qui distingue les deux familles n'est pas le code mais `nextAttemptAt` : une prochaine tentative
 fixée veut dire « réessayer peut marcher », et **nulle** veut dire qu'il faut corriger quelque chose —
 une modification, qui remet le bit, ou `POST /campaigns/:id/platform-units/:unitId/retry`.
@@ -519,7 +530,7 @@ Un tool qui échoue ne renvoie pas une erreur de protocole : il renvoie un résu
 
 Le registre est clé sur le couple **`(plateforme, levier)`** (`leviers.md` L2, confirmé par F11 de
 `plateformes/faisabilite-search.md`) : la même plateforme n'accepte pas les mêmes choses sur deux
-leviers. Il est vide dans le socle — chaque plateforme arrive avec sa phase, et ce qu'un levier
+leviers. Chaque plateforme y arrive avec sa phase — Google Ads sur le Search avec la phase 10 —, et ce qu'un levier
 _autorise_ est l'affaire du profil de levier, qui refuse en 400 à l'écriture.
 
 Les identifiants de plateforme sont ceux de `../../CADRAGE.md` § 6 : `google_ads`, `microsoft`,

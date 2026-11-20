@@ -137,10 +137,28 @@ export type GoogleClientLinkStatus = 'ACTIVE' | 'PENDING' | 'REFUSED' | 'CANCELE
 /**
  * One row of a GAQL search: the resources it selected, by name.
  *
+ * @property campaign - A campaign
+ * @property campaignBudget - Its budget
+ * @property campaignCriterion - A place or a circle it targets
+ * @property adGroup - An ad group
+ * @property adGroupCriterion - A keyword of an ad group
+ * @property adGroupBidModifier - A device an ad group adjusts its bids on
+ * @property adGroupAd - An ad
+ * @property campaignAsset - An asset linked to a campaign
+ * @property asset - An asset of the account
  * @property customerClientLink - A link of our manager account to a client account
  * @property customer - The account queried
  */
 export type GoogleAdsRow = {
+  campaign?: GoogleCampaign;
+  campaignBudget?: GoogleCampaignBudget;
+  campaignCriterion?: GoogleCampaignCriterion;
+  adGroup?: GoogleAdGroup;
+  adGroupCriterion?: GoogleAdGroupCriterion;
+  adGroupBidModifier?: GoogleAdGroupBidModifier;
+  adGroupAd?: GoogleAdGroupAd;
+  campaignAsset?: GoogleCampaignAsset;
+  asset?: GoogleAsset;
   customerClientLink?: {
     resourceName?: string;
     clientCustomer?: string;
@@ -176,3 +194,161 @@ export type GoogleClientLinkRequest = {
  * @property nextPageToken - Where the next page starts, absent on the last
  */
 export type GoogleAdsSearchResponse = { results?: GoogleAdsRow[]; nextPageToken?: string };
+
+/** A status Google gives an object it serves; `REMOVED` is never sent by us (R5). */
+export type GoogleStatus = 'ENABLED' | 'PAUSED' | 'REMOVED';
+
+/**
+ * A campaign budget, its own and never shared (`plateformes/google-ads.md` § 1).
+ *
+ * @property amountMicros - What it may spend a day, in micros of the account currency, as a string
+ */
+export type GoogleCampaignBudget = {
+  resourceName?: string;
+  name?: string;
+  amountMicros?: string;
+  deliveryMethod?: 'STANDARD';
+  explicitlyShared?: boolean;
+};
+
+/** Where a Search campaign shows. */
+export type GoogleNetworkSettings = {
+  targetGoogleSearch?: boolean;
+  targetSearchNetwork?: boolean;
+  targetContentNetwork?: boolean;
+  targetPartnerSearchNetwork?: boolean;
+};
+
+/** Who a targeted place reaches. */
+export type GoogleGeoTargetTypeSetting = { positiveGeoTargetType?: string; negativeGeoTargetType?: string };
+
+/** A campaign, as we write and read it. */
+export type GoogleCampaign = {
+  resourceName?: string;
+  id?: string;
+  name?: string;
+  status?: GoogleStatus;
+  advertisingChannelType?: 'SEARCH';
+  campaignBudget?: string;
+  networkSettings?: GoogleNetworkSettings;
+  geoTargetTypeSetting?: GoogleGeoTargetTypeSetting;
+  aiMaxSetting?: { enableAiMax?: boolean };
+  containsEuPoliticalAdvertising?: string;
+  startDateTime?: string;
+  endDateTime?: string;
+  biddingStrategyType?: string;
+  manualCpc?: { enhancedCpcEnabled?: boolean };
+  targetSpend?: { cpcBidCeilingMicros?: string };
+};
+
+/** A circle around a point. */
+export type GoogleProximity = {
+  geoPoint?: { latitudeInMicroDegrees?: number; longitudeInMicroDegrees?: number };
+  radius?: number;
+  radiusUnits?: 'KILOMETERS';
+};
+
+/** A place or a circle a campaign targets, or excludes. */
+export type GoogleCampaignCriterion = {
+  resourceName?: string;
+  campaign?: string;
+  negative?: boolean;
+  location?: { geoTargetConstant?: string };
+  proximity?: GoogleProximity;
+};
+
+/** An ad group. */
+export type GoogleAdGroup = {
+  resourceName?: string;
+  id?: string;
+  campaign?: string;
+  name?: string;
+  status?: GoogleStatus;
+  type?: 'SEARCH_STANDARD';
+  cpcBidMicros?: string;
+};
+
+/** A keyword of an ad group: a negative one has no status. */
+export type GoogleAdGroupCriterion = {
+  resourceName?: string;
+  adGroup?: string;
+  status?: GoogleStatus;
+  negative?: boolean;
+  keyword?: { text?: string; matchType?: string };
+};
+
+/** A device an ad group adjusts its bids on: `0` excludes it. */
+export type GoogleAdGroupBidModifier = {
+  resourceName?: string;
+  adGroup?: string;
+  device?: { type?: string };
+  bidModifier?: number;
+};
+
+/** A responsive search ad. */
+export type GoogleAd = {
+  resourceName?: string;
+  id?: string;
+  finalUrls?: string[];
+  urlCustomParameters?: { key: string; value: string }[];
+  responsiveSearchAd?: {
+    headlines?: { text: string }[];
+    descriptions?: { text: string }[];
+    path1?: string;
+    path2?: string;
+  };
+};
+
+/** An ad in its ad group. */
+export type GoogleAdGroupAd = {
+  resourceName?: string;
+  adGroup?: string;
+  status?: GoogleStatus;
+  ad?: GoogleAd;
+};
+
+/** What an asset of the account holds: one of these. */
+export type GoogleAsset = {
+  resourceName?: string;
+  name?: string;
+  type?: string;
+  finalUrls?: string[];
+  sitelinkAsset?: { linkText?: string; description1?: string; description2?: string };
+  calloutAsset?: { calloutText?: string };
+  structuredSnippetAsset?: { header?: string; values?: string[] };
+  textAsset?: { text?: string };
+  imageAsset?: { data?: string };
+};
+
+/** An asset shown by a campaign, in one role. */
+export type GoogleCampaignAsset = {
+  resourceName?: string;
+  campaign?: string;
+  asset?: string;
+  fieldType?: string;
+  status?: GoogleStatus;
+};
+
+/** One operation of a `googleAds:mutate`: create, update with its mask, or remove. */
+export type GoogleOperation<T> = { create: T } | { update: T; updateMask: string } | { remove: string };
+
+/** One operation of a `googleAds:mutate`, by the resource it changes. */
+export type GoogleMutateOperation =
+  | { campaignBudgetOperation: GoogleOperation<GoogleCampaignBudget> }
+  | { campaignOperation: GoogleOperation<GoogleCampaign> }
+  | { campaignCriterionOperation: GoogleOperation<GoogleCampaignCriterion> }
+  | { adGroupOperation: GoogleOperation<GoogleAdGroup> }
+  | { adGroupCriterionOperation: GoogleOperation<GoogleAdGroupCriterion> }
+  | { adGroupBidModifierOperation: GoogleOperation<GoogleAdGroupBidModifier> }
+  | { adGroupAdOperation: GoogleOperation<GoogleAdGroupAd> }
+  | { adOperation: GoogleOperation<GoogleAd> }
+  | { assetOperation: GoogleOperation<GoogleAsset> }
+  | { campaignAssetOperation: GoogleOperation<GoogleCampaignAsset> };
+
+/**
+ * The answer of a `googleAds:mutate`: one result per operation, in order, each naming what it
+ * created or changed under its own key (`campaignResult`, `adGroupResult`…).
+ */
+export type GoogleMutateResponse = {
+  mutateOperationResponses?: Record<string, { resourceName?: string } | undefined>[];
+};
