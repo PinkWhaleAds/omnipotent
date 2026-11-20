@@ -26,6 +26,19 @@ Chaque lot se livre seul et laisse les vérifications au vert (`../../CLAUDE.md`
 Le **lot 3** sera détaillé dans ce document avant d'être commencé : ses questions (le compte de test,
 les limites d'objets) attendent des réponses que les lots 1 et 2 vont apporter.
 
+**Le compte de test est tranché par Lorin le 2026-11-20** : les preuves se font sur **les vrais
+comptes** déjà connectés, et aucun MCC de test Google ni bac à sable Microsoft n'est monté. Il a
+précisé le même jour :
+
+- une campagne de test a **10 € de budget au total**, sur toute sa période ; Google en reçoit une part
+  par jour ;
+- elle est **lancée, puis mise en pause aussitôt**. Le lancement envoie tout à Google sans attendre :
+  elle y est donc active quelques instants, le temps de la pause, ses annonces encore en examen ;
+- la preuve du **rapport** (`plateformes/google-ads.md` § 10), qui demande des impressions, passe à la
+  **phase 15**, qui lit de toute façon les campagnes des phases 10 à 13. Celle du **verdict** d'une
+  annonce se tente en pause : si Google n'examine pas une annonce en pause, la question revient à
+  Lorin.
+
 ## 2. Ce que « connecter un compte » veut dire chez Google
 
 Un client ne nous donne **aucune clé**. Nous agissons sur son compte par **notre** compte gestionnaire
@@ -338,3 +351,104 @@ Et deux questions qui ne sont pas des déductions :
 Et un préalable, trouvé et levé le 2026-11-19 : le secret de la clé du compte de service contenait le
 chemin du fichier, pas la clé (`A-FAIRE.md` § 2). La clé a été refaite le jour même, et elle est
 **vérifiée contre le vrai Google** : un jeton obtenu, puis le compte ci-dessus lu depuis notre MCC.
+
+## 8. Lot 3 — les campagnes Google
+
+Écrit le 2026-11-20, avant la moindre ligne de code du lot, les lots 1 et 2 livrés. Ce que le lot
+transcrit de multi-search, l'étude le décrit déjà (`plateformes/google-ads.md` §§ 1 à 8) ; ce qui suit
+dit ce que **notre** code doit gagner pour le recevoir, et ce qui reste à trancher.
+
+### 8.1 En deux temps
+
+| Temps                | Ce qu'il livre                                                                                                                            | Ce qui le clôt                                                                                                                                       |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **3a. Pousser**      | Le couple `(google_ads, search)` du registre, ce que l'état voulu porte en plus, le mapping et `apply` : créer, modifier, mettre en pause | Les preuves de l'étude § 10 : la campagne créée, la preview fidèle, la modification ciblée, zéro appel, l'erreur à code stable, les limites d'objets |
+| **3b. Les verdicts** | Le verdict de chaque annonce, gardé par plateforme et montré dans l'API et le MCP (`../../CADRAGE.md` § 9), et le job `review.poll`       | La preuve du verdict, si Google examine une annonce en pause (§ 1)                                                                                   |
+
+Le temps 3b sera détaillé ici avant d'être commencé.
+
+### 8.2 Le couple `(google_ads, search)` du registre
+
+`PLATFORM_RULES` est vide : aucune campagne ne peut encore viser Google, et la preview répond
+`preview_adapter_missing`. Le lot y déclare le couple, d'après l'étude :
+
+- **la projection** (§ 1) : AdGroup → campagne, qui porte le budget (`budgetLevel: 'ad_group'`),
+  TargetingGroup → ad group, Line → annonce responsive, et chaque mot-clé → un critère. Un
+  TargetingGroup à budget propre devient sa propre campagne : l'éclatement, que le moteur déduit déjà ;
+- **les créas** (§ 8) : `search:responsive` seul ;
+- **aucun budget minimum** (§ 5) : `minDailyBudgetCents: 0` ;
+- **le ciblage** : `country`, `proximity` et `device`. Un pays part par son identifiant chez Google,
+  qui vaut 2000 plus son code numérique ISO 3166 — 2250 pour la France —, à constater sur quelques
+  pays. `language` n'y est pas, Google la refusant depuis septembre (§ 2), ni `zip_code` et `location`,
+  qui demandent les identifiants de lieux de Google et viennent avec le référentiel géo de la phase 21.
+  Comme toute dimension qu'un couple n'exprime pas, ils sont **retirés pour Google**, et la preview le
+  dit avec le montant qui part sans eux (L2) ;
+- **les stratégies d'enchère** (§ 5), un champ de plus au registre : `max_cpc` → `MANUAL_CPC`,
+  `maximize_clicks` → `TARGET_SPEND`. `cpm` est refusé, le Search n'achetant pas au mille, et
+  `maximize_conversions` attend le suivi des conversions de la phase 18 : pour Google, la preview les
+  refuse tous deux en erreur, sous un code de plus ;
+- **les plafonds** (§ 8) : trois annonces actives par ad group, au-delà desquelles la preview avertit,
+  et dix mots par mot-clé.
+
+### 8.3 Ce que l'état voulu porte en plus
+
+L'état voulu de la phase 9 ne dit pas tout ce que Google demande, et ce qui lui manque vaut pour
+toutes les plateformes :
+
+- **la stratégie d'enchère** de l'AdGroup, héritée du Lever : seul son montant (`bidMicros`) y est ;
+- **la déclaration de publicité politique** de la campagne (D53). L'adapter envoie
+  `DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING`, la preview refusant l'autre cas.
+
+Un champ de plus change l'empreinte de chaque unité : chacune repasse une fois à la première synchro.
+Aucune n'existe encore chez une plateforme, donc rien n'en bouge.
+
+### 8.4 `apply`, transcrit de multi-search
+
+- **Retrouver avant de créer** : un objet est cherché dans `refs`, puis, pour une campagne, par un tag
+  dans son nom, `[op:<clé>]` — le seul moyen de retrouver ce qu'une synchro tuée entre l'appel et
+  l'écriture de `refs` a créé (étude § 7).
+- **Un `mutate` atomique par campagne Google**, parents et enfants d'un coup par des identifiants
+  temporaires : l'arbre existe en entier, ou rien (§ 6).
+- **Ne modifier que ce qui a changé.** Ce que Google fige — un lieu, un cercle, un mot-clé — se
+  remplace dans le même appel (§ 1).
+- **Ne jamais supprimer** (R5) : un nœud retiré de notre arbre, une campagne terminée ou archivée
+  mettent leurs objets **en pause** chez Google. C'est un écart avec multi-search, qui supprime la
+  campagne Google à l'archivage.
+- **Chaque annonce porte `mskey`**, un paramètre d'URL personnalisé qui nomme sa Line : c'est ce qui
+  rattachera les rapports à nos entités en phase 15.
+- **Une campagne supprimée chez Google**, hors d'Omnipotent, est un refus à code stable, jamais une
+  recréation silencieuse.
+- **Le statut appliqué se relit** chez Google après l'appel.
+
+Le compte se désigne par son customer id, et la marque aussi : Google n'a pas d'objet « advertiser »
+sous un compte, donc l'`externalAdvertiserId` d'un `AdvertiserAdAccount` Google vaut le customer id
+(étude § 9, point 2).
+
+### 8.5 Les preuves, sur le vrai compte
+
+Aux règles du § 1, depuis le Swagger local, par Lorin :
+
+1. une marque reliée au compte Google connecté ;
+2. une campagne de test de **10 € au total** — un AdGroup, un TargetingGroup, deux Lines, quelques
+   mots-clés — et sa preview ;
+3. le lancement, **puis la pause aussitôt** ;
+4. dans l'interface de Google Ads, la campagne en pause, conforme à la preview ;
+5. une modification, et le journal des appels : seul ce qui a changé est parti ; puis une synchro sans
+   modification : **zéro appel** ;
+6. une erreur provoquée, remontée avec son code ;
+7. les limites d'objets du compte, relevées (`../../A-FAIRE.md` § 5).
+
+### 8.6 Les points présentés à Lorin
+
+1. **Le lot 3 en deux temps** : pousser (3a), puis les verdicts (3b) (§ 8.1).
+2. **Le ciblage Google de 3a est le pays, le rayon autour d'un point et l'appareil.** Les codes
+   postaux et les lieux attendent le référentiel géo de la phase 21 ; d'ici là, ils sont retirés pour
+   Google avec un avertissement chiffré, comme le veut L2 (§ 8.2).
+3. **Pour Google, `max_cpc` et `maximize_clicks` seulement** : `cpm` est refusé, et
+   `maximize_conversions` attend la phase 18 (§ 8.2).
+4. **L'état voulu porte la stratégie d'enchère et la déclaration politique**, pour toutes les
+   plateformes (§ 8.3).
+5. **Un tag `[op:…]` dans le nom de chaque campagne Google**, en secours de `refs` (§ 8.4).
+6. **Rien n'est supprimé chez Google** : retiré, terminé ou archivé, c'est mis en pause (R5), là où
+   multi-search supprime à l'archivage (§ 8.4).
+7. **L'`externalAdvertiserId` d'un compte Google est son customer id** (§ 8.4).

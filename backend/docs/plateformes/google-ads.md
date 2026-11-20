@@ -280,7 +280,9 @@ Rien de ce qui suit ne peut s'écrire depuis un document ; c'est la liste de cl�
 - [ ] Vérifier que la preview annonçait exactement ce qui a été créé, l'éclatement compris.
 - [ ] Modifier quelque chose et vérifier que la synchro n'a touché que ce qui a changé.
 - [ ] Relancer la synchro sans modification et vérifier **zéro appel**.
-- [ ] Lire le verdict de validation d'une annonce, et un verdict « limité ».
-- [ ] Lire un rapport et vérifier que ses lignes se rattachent à nos entités par `mskey`.
+- [ ] Lire le verdict de validation d'une annonce, et un verdict « limité » — en pause, si Google
+      examine une annonce en pause (`../phase-10.md` § 1).
+- [ ] Lire un rapport et vérifier que ses lignes se rattachent à nos entités par `mskey` — **passe à la
+      phase 15** : les campagnes de test restent en pause, sans impressions (`../phase-10.md` § 1).
 - [ ] Provoquer une erreur et vérifier qu'elle remonte avec un code stable.
 - [ ] Relever les limites d'objets du compte, qui règlent le plafond d'éclatement.

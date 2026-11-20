@@ -14,10 +14,10 @@ Entrées validées : `phase-10.md` §§ 3 à 7 (la connexion par lien, la règle
 
 ## 1. La phase en deux lots
 
-| Lot                        | Ce qu'il livre                                                                                                                                              | Ce qui le clôt                                                                |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| **A. Connecter un compte** | Le jeton de notre utilisateur de service, le client de l'API, l'invitation, la lecture d'un compte, et la commande de consentement `pnpm microsoft:connect` | Un vrai compte connecté : son nom, sa devise et son fuseau lus chez Microsoft |
-| **B. Les campagnes**       | Le mapping, `apply`, les verdicts de validation — après le lot 3 de la phase 10, qu'il suit                                                                 | Le scénario de `plan.md`, sur un compte à décider                             |
+| Lot                        | Ce qu'il livre                                                                                                                                              | Ce qui le clôt                                                                                 |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| **A. Connecter un compte** | Le jeton de notre utilisateur de service, le client de l'API, l'invitation, la lecture d'un compte, et la commande de consentement `pnpm microsoft:connect` | Un vrai compte connecté : son nom, sa devise et son fuseau lus chez Microsoft                  |
+| **B. Les campagnes**       | Le mapping, `apply`, les verdicts de validation — après le lot 3 de la phase 10, qu'il suit                                                                 | Le scénario de `plan.md`, sur le vrai compte connecté, aux règles de test de `phase-10.md` § 1 |
 
 Le lot B sera détaillé ici avant d'être commencé.
 
