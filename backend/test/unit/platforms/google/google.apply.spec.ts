@@ -507,6 +507,20 @@ describe('Unit::Platforms::Google::Apply', () => {
       expect(result.appliedStatus).toBeNull();
     });
 
+    it('should create a campaign already begun, or past its end, without the dates Google refuses', async (): Promise<void> => {
+      await sync.apply(
+        context(),
+        desired({ objects: { 'ad_group:g1': { startsOn: '2027-01-04', endsOn: '2027-01-03' } } }),
+        {}
+      );
+
+      const created = google.mutations[0].find((operation) => 'campaignOperation' in operation) as {
+        campaignOperation: { create: object };
+      };
+      expect(created.campaignOperation.create).not.toHaveProperty('startDateTime');
+      expect(created.campaignOperation.create).not.toHaveProperty('endDateTime');
+    });
+
     it('should answer no status for a unit that holds no campaign', async (): Promise<void> => {
       const result: ApplyResult = await sync.apply(context(), desired({ unit: { objects: [] } }), {});
 
@@ -570,8 +584,19 @@ describe('Unit::Platforms::Google::Apply', () => {
         }
       );
       google.rows.campaign[0].campaign = { ...google.rows.campaign[0].campaign, status: 'PAUSED' };
-      // What Google answers half: a criterion of no campaign, a keyword with no term, a link with no asset.
+      // What Google answers half: a criterion of no campaign, a keyword with no term, a link with no asset,
+      // an ad of nobody's; and a country no node targets any more.
       google.rows.criterion.push({});
+      google.rows.criterion.push({
+        campaignCriterion: {
+          resourceName: `${CAMPAIGN}~be`,
+          campaign: CAMPAIGN,
+          location: { geoTargetConstant: 'geoTargetConstants/2056' },
+        },
+      });
+      google.rows.ad.push({
+        adGroupAd: { resourceName: `${AD_GROUP}~nobody`, adGroup: AD_GROUP, status: 'PAUSED', ad: {} },
+      });
       google.rows.keyword.push({
         adGroupCriterion: { resourceName: `${AD_GROUP}~junk`, adGroup: AD_GROUP, status: 'PAUSED' },
       });
@@ -705,6 +730,14 @@ describe('Unit::Platforms::Google::Apply', () => {
       );
       expect(operations).toContainEqual({ campaignAssetOperation: { remove: `${CAMPAIGN}~c1` } });
       expect(operations).toContainEqual({ campaignAssetOperation: { remove: `${CAMPAIGN}~x` } });
+      expect(operations).toContainEqual({ campaignCriterionOperation: { remove: `${CAMPAIGN}~be` } });
+      expect(operations).not.toContainEqual(
+        expect.objectContaining({
+          adGroupAdOperation: expect.objectContaining({
+            update: expect.objectContaining({ resourceName: `${AD_GROUP}~nobody` }),
+          }),
+        })
+      );
       expect(operations).toContainEqual(
         expect.objectContaining({
           assetOperation: { create: expect.objectContaining({ sitelinkAsset: { linkText: 'Nos lits' } }) },
