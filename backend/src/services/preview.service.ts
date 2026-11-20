@@ -25,6 +25,7 @@ import {
   AuthContext,
   Campaign,
   CampaignStatus,
+  Extensions,
   Lever,
   NodeLevel,
   NodeStatusChange,
@@ -391,6 +392,12 @@ export class PreviewService {
       if (!tree.adGroups.some((group: AdGroupEntity): boolean => group.leverId === lever.id)) {
         errors.push(this.finding('preview_ad_group_missing', { lever: lever.lever }, 'lever', lever.id));
       }
+      // The platforms take a sitelink's two description lines, or none (multi-search).
+      for (const sitelink of lever.extensions?.sitelinks ?? []) {
+        if ((sitelink.description1 === undefined) !== (sitelink.description2 === undefined)) {
+          errors.push(this.finding('preview_sitelink_descriptions', { text: sitelink.text }, 'lever', lever.id));
+        }
+      }
     }
     for (const group of tree.adGroups) {
       if (!tree.targetingGroups.some((node: TargetingGroupEntity): boolean => node.adGroupId === group.id)) {
@@ -471,7 +478,7 @@ export class PreviewService {
         });
         if (projection) this.checkCreatives(tree, lever, platform as Platform, errors, warnings);
         if (projection) this.checkTargeting(tree, lever, platform as Platform, effectiveCents, warnings);
-        if (projection) this.checkLimits(tree, lever, projection, platform as Platform, errors);
+        if (projection) this.checkLimits(tree, lever, projection, platform as Platform, errors, warnings);
       }
     }
     return previews;
@@ -656,7 +663,8 @@ export class PreviewService {
   /**
    * Refuse what a couple cannot hold, in the AdGroups that buy on it: a bid strategy it does not bid
    * with, more active ads than one of its objects holds, and a targeting it can only set above the
-   * nodes that ask for it differently (`docs/phase-10.md` § 8.3).
+   * nodes that ask for it differently (`docs/phase-10.md` § 8.3). Warn about what it will not show:
+   * the extensions of the lever, and who a place reaches.
    *
    * An AdGroup whose own distribution key leaves the platform out sends nothing there, so it is not
    * asked.
@@ -666,6 +674,7 @@ export class PreviewService {
    * @param projection - What the platform makes of our levels
    * @param platform - The platform
    * @param errors - Collected errors
+   * @param warnings - Collected warnings
    * @returns Nothing
    */
   private checkLimits(
@@ -673,9 +682,13 @@ export class PreviewService {
     lever: LeverEntity,
     projection: PlatformProjection,
     platform: Platform,
-    errors: PreviewFinding[]
+    errors: PreviewFinding[],
+    warnings: PreviewFinding[]
   ): void {
     const rules: PlatformRules = rulesOf(platform, lever.lever);
+    if (!rules.extensions && hasExtensions(lever)) {
+      warnings.push(this.finding('preview_extensions_dropped', { platform }, 'lever', lever.id, platform));
+    }
     for (const group of tree.adGroups.filter((node: AdGroupEntity): boolean => node.leverId === lever.id)) {
       const shares: PlatformShare[] = group.platformShares?.length ? group.platformShares : lever.platformShares;
       if (!shares.some((share: PlatformShare): boolean => share.platform === platform)) continue;
@@ -689,6 +702,9 @@ export class PreviewService {
             platform
           )
         );
+      }
+      if (!rules.locationIntent && group.locationIntent === 'presence_or_interest') {
+        warnings.push(this.finding('preview_location_intent_dropped', { platform }, 'ad_group', group.id, platform));
       }
       const branch: ProjectedObject[] = projectObjects(projection, adGroupStructure(tree, group));
       this.checkActiveAds(tree, branch, rules, platform, errors);
@@ -872,6 +888,20 @@ export class PreviewService {
   ): PreviewFinding {
     return { code, params, level, nodeId, platform };
   }
+}
+
+/**
+ * Whether a lever shows anything around its ads.
+ *
+ * @param lever - The lever
+ * @returns `true` when it carries at least one extension
+ */
+function hasExtensions(lever: LeverEntity): boolean {
+  const extensions: Extensions | null = lever.extensions ?? null;
+  return (
+    extensions !== null &&
+    extensions.sitelinks.length + extensions.callouts.length + extensions.structuredSnippets.length > 0
+  );
 }
 
 /** Each node below the campaign, by id: its status and the node above it. */

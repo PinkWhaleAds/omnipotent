@@ -1,6 +1,7 @@
 import { Column, DeleteDateColumn, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import type { BidStrategy, Capping, Lever, Objective, VolumeUnit } from '@src/types/lever.types';
+import type { LocationIntent } from '@src/types/extension.types';
 import type { PlatformShare } from '@src/types/platform.types';
 import type { NodeStatus } from '@src/types/tree.types';
 import { centsTransformer } from '../transformers';
@@ -116,6 +117,10 @@ export class AdGroupEntity extends BaseEntity {
    */
   @Column({ type: 'timestamptz', nullable: true })
   activatedAt!: Date | null;
+
+  /** Who its places reach, on a lever that says it; `null` is the people in them. */
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  locationIntent!: LocationIntent | null;
 
   /** Soft-delete marker. */
   @DeleteDateColumn({ type: 'timestamptz', nullable: true })

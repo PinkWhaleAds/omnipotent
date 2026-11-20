@@ -39,6 +39,12 @@ import { httpError } from '@utils';
  *   the campaign, never on an ad group (`docs/phase-10.md` § 8.4, point 9)
  * @property maxActiveAds - How many active ads one object may hold, `null` when the platform sets no
  *   limit: Google serves three responsive search ads per ad group at most
+ * @property settings - The settings a Lever may give it, each with its default: Google's search
+ *   partners and AI Max (`docs/phase-10.md` § 8.4, point 4)
+ * @property locationIntent - Whether it reads a place as « the people in it, or also those interested
+ *   in it »; where it does not, the preview warns an AdGroup that asks for the latter
+ * @property extensions - Whether it shows the extensions of a Lever; where it does not, the preview
+ *   warns
  */
 export type PlatformRules = {
   label: string;
@@ -51,6 +57,9 @@ export type PlatformRules = {
   bidStrategies: readonly BidStrategy[];
   sharedTargeting: readonly TargetingDimension[];
   maxActiveAds: number | null;
+  settings: Readonly<Record<string, boolean>>;
+  locationIntent: boolean;
+  extensions: boolean;
 };
 
 /**

@@ -3,7 +3,13 @@ import fastifyPlugin from 'fastify-plugin';
 import { DataSource, EntityManager, ObjectLiteral } from 'typeorm';
 
 import { LeverEntity } from '@src/database/entities';
-import { assertFieldAllowedForLevers, assertPlatformEligible, profileOf } from '@src/levers/lever-profiles';
+import {
+  assertFieldAllowedForLevers,
+  assertPlatformEligible,
+  assertSearchFieldPermitted,
+  profileOf,
+} from '@src/levers/lever-profiles';
+import { rulesOf } from '@src/platforms/platform-rules';
 import { Paginated } from '@src/types/api.types';
 import { AuthContext } from '@src/types/auth.types';
 import { CampaignLever, CreateLeverBody, ListLeversQuery, UpdateLeverBody } from '@src/types/campaign-lever.types';
@@ -48,6 +54,8 @@ export function toCampaignLever(
     status: entity.status,
     productsMode: entity.productsMode,
     platformShares: entity.platformShares,
+    platformSettings: entity.platformSettings ?? {},
+    extensions: entity.extensions ?? null,
     budget,
     startsOn: entity.startsOn,
     endsOn: entity.endsOn,
@@ -154,6 +162,7 @@ export class LeverService {
       this.assertKey(body.lever, body.platformShares);
       this.assertProductsMode(body.lever, body.productsMode === true);
       this.assertCampaignExpressible(body.lever, campaign);
+      this.assertSearchFields(body.lever, body);
 
       const columns: ObjectLiteral = await normalizeNodeWrite(
         manager,
@@ -168,6 +177,8 @@ export class LeverService {
           lever: body.lever,
           platformShares: body.platformShares,
           productsMode: body.productsMode === true,
+          platformSettings: body.platformSettings ?? {},
+          extensions: body.extensions ?? null,
           ...columns,
         }),
         body.lever
@@ -201,6 +212,7 @@ export class LeverService {
       const lever: Lever = current.lever as Lever;
       if (body.platformShares) this.assertKey(lever, body.platformShares);
       if (body.productsMode !== undefined) this.assertProductsMode(lever, body.productsMode);
+      this.assertSearchFields(lever, body);
 
       const columns: ObjectLiteral = await normalizeNodeWrite(
         manager,
@@ -218,6 +230,8 @@ export class LeverService {
         ...(current as LeverEntity),
         ...(body.platformShares === undefined ? {} : { platformShares: body.platformShares }),
         ...(body.productsMode === undefined ? {} : { productsMode: body.productsMode }),
+        ...(body.platformSettings === undefined ? {} : { platformSettings: body.platformSettings }),
+        ...(body.extensions === undefined ? {} : { extensions: body.extensions }),
         ...columns,
       });
       const [updated]: CampaignLever[] = await this.toApi(manager, [saved]);
@@ -296,6 +310,33 @@ export class LeverService {
   private assertKey(lever: Lever, shares: PlatformShare[]): void {
     for (const share of shares) assertPlatformEligible(lever, share.platform);
     assertSharesComplete(shares);
+  }
+
+  /**
+   * Refuse extensions on a channel that has none, and a setting no platform declares for it
+   * (`docs/phase-10.md` § 8.4, points 4 and 6).
+   *
+   * A setting is the **registry's**: a platform with no connector for the channel is refused as the
+   * registry refuses it, and a name it does not declare is refused by name.
+   *
+   * @param lever - The channel
+   * @param body - What the caller sent
+   * @returns Nothing
+   * @throws Error with status 400 coded `lever_field_forbidden`, `platform_unknown`,
+   *   `platform_lever_unsupported` or `platform_setting_unknown`
+   */
+  private assertSearchFields(lever: Lever, body: Pick<UpdateLeverBody, 'platformSettings' | 'extensions'>): void {
+    if (body.extensions != null) assertSearchFieldPermitted(lever, LEVEL, 'extensions');
+    for (const [platform, settings] of Object.entries(body.platformSettings ?? {})) {
+      const declared: Readonly<Record<string, boolean>> = rulesOf(platform, lever).settings;
+      for (const setting of Object.keys(settings as Record<string, boolean>)) {
+        if (setting in declared) continue;
+        throw httpError(400, `${platform} has no setting ${setting} on the ${lever} lever`, {
+          code: 'platform_setting_unknown',
+          params: { platform, lever, setting },
+        });
+      }
+    }
   }
 
   /**

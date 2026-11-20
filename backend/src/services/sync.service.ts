@@ -26,7 +26,7 @@ import {
   PlatformError,
 } from '@src/platforms/platform-adapter';
 import { DesiredCreative, DesiredKeyword, DesiredNode, desiredUnit, DesiredUnit } from '@src/platforms/desired-state';
-import { hasAdapter, PlatformProjection, projectionOf, rulesOf } from '@src/platforms/platform-rules';
+import { hasAdapter, PlatformProjection, PlatformRules, projectionOf, rulesOf } from '@src/platforms/platform-rules';
 import { ProjectedObject, projectObjects } from '@src/platforms/projection';
 import {
   AuthContext,
@@ -491,6 +491,8 @@ export class SyncService {
       (node: LeverEntity): boolean => node.id === unit.leverId
     ) as LeverEntity;
     const projection: PlatformProjection = projectionOf(unit.platform, unit.lever);
+    const rules: PlatformRules = rulesOf(unit.platform, unit.lever);
+    const own: Readonly<Record<string, boolean>> = lever.platformSettings?.[unit.platform] ?? {};
 
     const campaignNode: Omit<DesiredNode, 'children'> = await this.nodeOf(
       tree,
@@ -546,13 +548,22 @@ export class SyncService {
       campaign: branch,
       insertionOrderNumber: campaign.insertionOrderNumber,
       containsPoliticalAdvertising: campaign.containsPoliticalAdvertising,
+      // Only what the registry declares now, each one left out at its default.
+      settings: Object.fromEntries(
+        Object.entries(rules.settings).map(([name, fallback]: [string, boolean]): [string, boolean] => [
+          name,
+          own[name] ?? fallback,
+        ])
+      ),
+      extensions: lever.extensions ?? null,
+      locationIntent: group.locationIntent ?? 'presence',
       currency: bought.currency,
       timezone: bought.timezone,
       fxRate: unit.fxRate,
       live: campaign.status === 'active',
       started: this.now() >= startInstant(campaign.startsOn, campaign.startTime, timezone),
       today: dayAt(this.now(), timezone),
-      minDailyBudgetCents: rulesOf(unit.platform, unit.lever).minDailyBudgetCents,
+      minDailyBudgetCents: rules.minDailyBudgetCents,
     });
   }
 

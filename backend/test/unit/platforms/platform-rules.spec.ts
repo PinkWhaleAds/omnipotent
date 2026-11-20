@@ -39,6 +39,9 @@ describe('Unit::Platforms::PlatformRules', () => {
       bidStrategies: ['max_cpc', 'maximize_clicks', 'maximize_conversions', 'cpm'],
       sharedTargeting: [],
       maxActiveAds: null,
+      settings: {},
+      locationIntent: false,
+      extensions: false,
       ...overrides,
     };
   }

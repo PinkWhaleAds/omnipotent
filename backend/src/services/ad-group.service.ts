@@ -7,6 +7,7 @@ import {
   assertBidStrategyPermitted,
   assertObjectivePermitted,
   assertPlatformEligible,
+  assertSearchFieldPermitted,
   defaultBidStrategyOf,
   defaultObjectiveOf,
 } from '@src/levers/lever-profiles';
@@ -56,6 +57,7 @@ export function toAdGroup(entity: AdGroupEntity, budget: AdGroup['budget'], labe
     bidStrategy: entity.bidStrategy,
     bidAmountCents: entity.bidAmountCents,
     platformShares: entity.platformShares,
+    locationIntent: entity.locationIntent ?? null,
     budget,
     startsOn: entity.startsOn,
     endsOn: entity.endsOn,
@@ -344,6 +346,7 @@ export class AdGroupService {
     assertObjectivePermitted(lever, objective);
     assertBidStrategyPermitted(lever, bidStrategy);
     if (body.platformShares) this.assertKey(lever, body.platformShares);
+    if (body.locationIntent != null) assertSearchFieldPermitted(lever, LEVEL, 'locationIntent');
 
     const columns: ObjectLiteral = await normalizeNodeWrite(
       manager,
@@ -369,6 +372,7 @@ export class AdGroupService {
         bidStrategy,
         bidAmountCents: body.bidAmountCents ?? null,
         platformShares: body.platformShares ?? null,
+        locationIntent: body.locationIntent ?? null,
         ...columns,
       })
     );
@@ -399,6 +403,7 @@ export class AdGroupService {
     if (body.objective !== undefined) assertObjectivePermitted(lever, body.objective);
     if (body.bidStrategy !== undefined) assertBidStrategyPermitted(lever, body.bidStrategy);
     if (body.platformShares) this.assertKey(lever, body.platformShares);
+    if (body.locationIntent != null) assertSearchFieldPermitted(lever, LEVEL, 'locationIntent');
 
     const columns: ObjectLiteral = await normalizeNodeWrite(
       manager,
@@ -420,6 +425,7 @@ export class AdGroupService {
       ...(body.bidStrategy === undefined ? {} : { bidStrategy: body.bidStrategy }),
       ...(body.bidAmountCents === undefined ? {} : { bidAmountCents: body.bidAmountCents }),
       ...(body.platformShares === undefined ? {} : { platformShares: body.platformShares }),
+      ...(body.locationIntent === undefined ? {} : { locationIntent: body.locationIntent }),
       ...columns,
     });
     const [updated]: AdGroup[] = await this.toApi(manager, [saved]);

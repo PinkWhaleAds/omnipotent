@@ -173,14 +173,14 @@ Ces refus viennent du **profil de levier**, qui dit ce que le modèle permet. Ce
 n'accepte pas est l'affaire du registre de plateforme, et devient un avertissement de preview, pas
 une erreur (L2).
 
-| Code                          | Statut | Quand                                                                                                                                                                                    | `params`                  |
-| ----------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
-| `lever_field_forbidden`       | 400    | Le profil déclare ce champ `interdit` à ce niveau — un budget sur une Line Search (D12), un capping sur le Search (L6). Sur une campagne, la règle est l'union des leviers qu'elle porte | `lever`, `level`, `field` |
-| `platform_not_eligible`       | 400    | La plateforme ne sert pas ce levier (`../../CADRAGE.md` § 6)                                                                                                                             | `platform`, `lever`       |
-| `bid_strategy_not_permitted`  | 400    | Stratégie hors de celles que le profil du levier permet                                                                                                                                  | `strategy`, `lever`       |
-| `objective_not_permitted`     | 400    | Objectif hors de ceux que le profil du levier permet                                                                                                                                     | `objective`, `lever`      |
-| `products_mode_not_permitted` | 400    | Le levier n'a pas de mode Produits (L13, L14)                                                                                                                                            | `lever`                   |
-| `volume_not_permitted`        | 400    | Le levier n'accepte pas de saisie en volume dans cette unité (L25)                                                                                                                       | `unit`, `lever`           |
+| Code                          | Statut | Quand                                                                                                                                                                                                                                            | `params`                  |
+| ----------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------- |
+| `lever_field_forbidden`       | 400    | Le profil déclare ce champ `interdit` à ce niveau — un budget sur une Line Search (D12), un capping sur le Search (L6), des extensions ou une intention de lieu hors du Search. Sur une campagne, la règle est l'union des leviers qu'elle porte | `lever`, `level`, `field` |
+| `platform_not_eligible`       | 400    | La plateforme ne sert pas ce levier (`../../CADRAGE.md` § 6)                                                                                                                                                                                     | `platform`, `lever`       |
+| `bid_strategy_not_permitted`  | 400    | Stratégie hors de celles que le profil du levier permet                                                                                                                                                                                          | `strategy`, `lever`       |
+| `objective_not_permitted`     | 400    | Objectif hors de ceux que le profil du levier permet                                                                                                                                                                                             | `objective`, `lever`      |
+| `products_mode_not_permitted` | 400    | Le levier n'a pas de mode Produits (L13, L14)                                                                                                                                                                                                    | `lever`                   |
+| `volume_not_permitted`        | 400    | Le levier n'accepte pas de saisie en volume dans cette unité (L25)                                                                                                                                                                               | `unit`, `lever`           |
 
 ### L'algèbre du budget et les fenêtres
 
@@ -434,17 +434,20 @@ Elle bloquera son activation.
 | `preview_bid_strategy_unsupported`          | La plateforme n'enchérit pas avec la stratégie de cet AdGroup                                                                                                                                                                         | `platform`, `strategy`               |
 | `preview_too_many_ads`                      | Plus d'annonces actives sous un même objet que la plateforme n'en diffuse : trois par ad group chez Google                                                                                                                            | `count`, `max`                       |
 | `preview_targeting_not_shared`              | Des TargetingGroups qui partagent une campagne de la plateforme demandent des lieux différents, alors qu'elle ne les pose que sur la campagne : donner un budget propre à l'un, ce qui l'éclate, ou le déplacer dans un autre AdGroup | `dimension`                          |
+| `preview_sitelink_descriptions`             | Un lien annexe à une seule ligne de description : les plateformes en prennent deux, ou aucune                                                                                                                                         | `text`                               |
 | `preview_iab_categories_missing`            | La plateforme exige des catégories IAB que la créa n'a pas                                                                                                                                                                            | `creative`                           |
 | `preview_platform_campaign_cap`             | L'éclatement dépasse le plafond d'objets par AdGroup                                                                                                                                                                                  | `objects`, `max`                     |
 
 ### Les avertissements, qui ne bloquent rien
 
-| Code                        | Quand                                                                                  | `params`             |
-| --------------------------- | -------------------------------------------------------------------------------------- | -------------------- |
-| `preview_targeting_dropped` | Cette plateforme n'applique pas cette dimension : **ce montant y diffusera sans elle** | `dimension`, `cents` |
-| `preview_creative_dropped`  | Cette plateforme n'accepte pas le couple de la créa                                    | `format`, `subtype`  |
-| `preview_campaign_split`    | L'éclatement crée plusieurs objets là où il y en aurait eu un                          | `objects`, `level`   |
-| `preview_node_paused`       | Un nœud en pause : il ne partira pas                                                   | `{}`                 |
+| Code                              | Quand                                                                                               | `params`             |
+| --------------------------------- | --------------------------------------------------------------------------------------------------- | -------------------- |
+| `preview_targeting_dropped`       | Cette plateforme n'applique pas cette dimension : **ce montant y diffusera sans elle**              | `dimension`, `cents` |
+| `preview_creative_dropped`        | Cette plateforme n'accepte pas le couple de la créa                                                 | `format`, `subtype`  |
+| `preview_campaign_split`          | L'éclatement crée plusieurs objets là où il y en aurait eu un                                       | `objects`, `level`   |
+| `preview_node_paused`             | Un nœud en pause : il ne partira pas                                                                | `{}`                 |
+| `preview_extensions_dropped`      | Cette plateforme ne montre aucune des extensions du levier                                          | `platform`           |
+| `preview_location_intent_dropped` | Cette plateforme ne vise que les personnes présentes dans les lieux, pas celles qui s'y intéressent | `platform`           |
 
 Chaque constat porte en plus `level`, `nodeId` et `platform` — nuls quand il concerne la campagne
 entière ou toutes les plateformes —, de sorte qu'une interface peut le poser à côté du nœud fautif
@@ -508,10 +511,11 @@ Un tool qui échoue ne renvoie pas une erreur de protocole : il renvoie un résu
 
 `src/platforms/platform-rules.ts`.
 
-| Code                         | Statut | Quand                                                  | `params`            |
-| ---------------------------- | ------ | ------------------------------------------------------ | ------------------- |
-| `platform_unknown`           | 400    | Aucun connecteur ne déclare cette plateforme           | `platform`          |
-| `platform_lever_unsupported` | 400    | La plateforme a un connecteur, mais pas pour ce levier | `platform`, `lever` |
+| Code                         | Statut | Quand                                                                                      | `params`                       |
+| ---------------------------- | ------ | ------------------------------------------------------------------------------------------ | ------------------------------ |
+| `platform_unknown`           | 400    | Aucun connecteur ne déclare cette plateforme                                               | `platform`                     |
+| `platform_lever_unsupported` | 400    | La plateforme a un connecteur, mais pas pour ce levier                                     | `platform`, `lever`            |
+| `platform_setting_unknown`   | 400    | Un réglage du levier que la plateforme ne déclare pas pour ce levier (`phase-10.md` § 8.4) | `platform`, `lever`, `setting` |
 
 Le registre est clé sur le couple **`(plateforme, levier)`** (`leviers.md` L2, confirmé par F11 de
 `plateformes/faisabilite-search.md`) : la même plateforme n'accepte pas les mêmes choses sur deux

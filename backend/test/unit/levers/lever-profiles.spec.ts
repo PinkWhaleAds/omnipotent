@@ -6,6 +6,7 @@ import {
   assertKeywordsPermitted,
   assertObjectivePermitted,
   assertPlatformEligible,
+  assertSearchFieldPermitted,
   assertVolumeUnitPermitted,
   carriesBudget,
   defaultBidStrategyOf,
@@ -271,6 +272,25 @@ describe('Unit::Levers::LeverProfiles', () => {
       for (const lever of allLevers().filter((lever: Lever): boolean => lever !== 'search')) {
         expect((): void => assertKeywordsPermitted(lever)).toThrow(
           expect.objectContaining({ errorCode: 'keywords_not_permitted', errorParams: { lever } })
+        );
+      }
+    });
+
+    it('should carry extensions and the intent of a place on Search only', (): void => {
+      expect((): void => assertSearchFieldPermitted('search', 'lever', 'extensions')).not.toThrow();
+      expect((): void => assertSearchFieldPermitted('search', 'ad_group', 'locationIntent')).not.toThrow();
+      for (const lever of allLevers().filter((lever: Lever): boolean => lever !== 'search')) {
+        expect((): void => assertSearchFieldPermitted(lever, 'lever', 'extensions')).toThrow(
+          expect.objectContaining({
+            errorCode: 'lever_field_forbidden',
+            errorParams: { lever, level: 'lever', field: 'extensions' },
+          })
+        );
+        expect((): void => assertSearchFieldPermitted(lever, 'ad_group', 'locationIntent')).toThrow(
+          expect.objectContaining({
+            errorCode: 'lever_field_forbidden',
+            errorParams: { lever, level: 'ad_group', field: 'locationIntent' },
+          })
         );
       }
     });

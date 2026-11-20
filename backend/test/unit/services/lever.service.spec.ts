@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 
 import { CampaignEntity, LeverEntity } from '@src/database/entities';
 import LabelServicePlugin, { LabelService } from '@src/services/label.service';
+import { PLATFORM_RULES, PlatformRules } from '@src/platforms/platform-rules';
 import LeverServicePlugin, { LeverService, toCampaignLever } from '@src/services/lever.service';
 import { Paginated } from '@src/types/api.types';
 import { CampaignLever, ListLeversQuery } from '@src/types/campaign-lever.types';
@@ -99,6 +100,8 @@ function leverRow(overrides: Partial<LeverEntity> = {}): LeverEntity {
     status: 'active',
     productsMode: false,
     platformShares: SHARES,
+    platformSettings: {},
+    extensions: null,
     budgetCents: null,
     budgetVolume: null,
     budgetVolumeUnit: null,
@@ -121,6 +124,8 @@ const DAC: CampaignLever = {
   status: 'active',
   productsMode: false,
   platformShares: SHARES,
+  platformSettings: {},
+  extensions: null,
   budget: BUDGET,
   startsOn: null,
   endsOn: null,
@@ -397,6 +402,101 @@ describe('Unit::Services::LeverService', () => {
         statusCode: 404,
         errorCode: 'lever_not_found',
       });
+    });
+  });
+
+  describe('the settings and the extensions of the Search', () => {
+    /** The registry, writable, so a spec declares a couple as a platform phase would. */
+    const registry: Record<string, Record<string, PlatformRules>> = PLATFORM_RULES as Record<
+      string,
+      Record<string, PlatformRules>
+    >;
+    const GOOGLE: PlatformShare[] = [{ platform: 'google_ads', shareBasisPoints: 10_000 }];
+    const EXTENSIONS = {
+      sitelinks: [{ text: 'Nos lits', finalUrl: 'https://herbea.test/lits' }],
+      callouts: ['Livraison offerte'],
+      structuredSnippets: [],
+    };
+
+    beforeEach((): void => {
+      registry.google_ads = {
+        search: { settings: { searchPartners: true, aiMax: false } } as unknown as PlatformRules,
+      };
+      db.manager.save.mockResolvedValue(leverRow({ lever: 'search', platformShares: GOOGLE }));
+      db.manager.findOne.mockImplementation(async (entity: unknown) =>
+        entity === CampaignEntity ? campaignRow() : leverRow({ lever: 'search', platformShares: GOOGLE })
+      );
+    });
+
+    afterEach((): void => {
+      Reflect.deleteProperty(registry, 'google_ads');
+    });
+
+    it('should keep what a Search lever is created with', async (): Promise<void> => {
+      await service.create(JANE, IDS.organization, CAMPAIGN_ID, {
+        lever: 'search',
+        platformShares: GOOGLE,
+        platformSettings: { google_ads: { searchPartners: false } },
+        extensions: EXTENSIONS,
+      });
+
+      expect(db.manager.create).toHaveBeenCalledWith(
+        LeverEntity,
+        expect.objectContaining({ platformSettings: { google_ads: { searchPartners: false } }, extensions: EXTENSIONS })
+      );
+    });
+
+    it('should replace them on an update', async (): Promise<void> => {
+      await service.update(JANE, IDS.organization, LEVER_ID, {
+        platformSettings: { google_ads: { aiMax: true } },
+        extensions: null,
+      });
+
+      expect(db.manager.save).toHaveBeenCalledWith(
+        LeverEntity,
+        expect.objectContaining({ platformSettings: { google_ads: { aiMax: true } }, extensions: null })
+      );
+    });
+
+    it('should answer them as written', (): void => {
+      const lever: CampaignLever = toCampaignLever(
+        leverRow({ platformSettings: { google_ads: { aiMax: true } }, extensions: EXTENSIONS }),
+        BUDGET
+      );
+
+      expect(lever).toMatchObject({ platformSettings: { google_ads: { aiMax: true } }, extensions: EXTENSIONS });
+    });
+
+    it('should refuse extensions on a channel that has none', async (): Promise<void> => {
+      await expect(
+        service.create(JANE, IDS.organization, CAMPAIGN_ID, {
+          lever: 'dac',
+          platformShares: SHARES,
+          extensions: EXTENSIONS,
+        })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        errorCode: 'lever_field_forbidden',
+        errorParams: { lever: 'dac', level: 'lever', field: 'extensions' },
+      });
+    });
+
+    it('should refuse a setting the platform does not declare, by name', async (): Promise<void> => {
+      await expect(
+        service.update(JANE, IDS.organization, LEVER_ID, {
+          platformSettings: { google_ads: { syndicationPartners: false } },
+        })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        errorCode: 'platform_setting_unknown',
+        errorParams: { platform: 'google_ads', lever: 'search', setting: 'syndicationPartners' },
+      });
+    });
+
+    it('should refuse a setting of a platform with no connector on the channel', async (): Promise<void> => {
+      await expect(
+        service.update(JANE, IDS.organization, LEVER_ID, { platformSettings: { microsoft: { aiMax: true } } })
+      ).rejects.toMatchObject({ statusCode: 400, errorCode: 'platform_unknown' });
     });
   });
 

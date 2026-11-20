@@ -1,6 +1,7 @@
 import { Column, DeleteDateColumn, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import type { Capping, Lever, VolumeUnit } from '@src/types/lever.types';
+import type { Extensions, PlatformSettings } from '@src/types/extension.types';
 import type { PlatformShare } from '@src/types/platform.types';
 import type { NodeStatus } from '@src/types/tree.types';
 import { centsTransformer } from '../transformers';
@@ -53,6 +54,17 @@ export class LeverEntity extends BaseEntity {
    */
   @Column({ type: 'jsonb' })
   platformShares!: PlatformShare[];
+
+  /**
+   * Its settings, platform by platform, among those the registry declares; one left out takes the
+   * platform's default (`docs/phase-10.md` § 8.4, point 4).
+   */
+  @Column({ type: 'jsonb', default: '{}' })
+  platformSettings!: PlatformSettings;
+
+  /** What every platform campaign of the lever shows around its ads, `null` for none. */
+  @Column({ type: 'jsonb', nullable: true })
+  extensions!: Extensions | null;
 
   /** Budget in integer cents, `null` to inherit its share by division. */
   @Column({ type: 'bigint', nullable: true, transformer: centsTransformer })

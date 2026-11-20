@@ -106,6 +106,12 @@ const CAPPING_NOWHERE: LevelRules = {
  * @property volumeUnits - The units a budget may be entered in; empty means money only (L25)
  * @property dealsPermitted - Whether deals may be attached (L7)
  * @property productsModePermitted - Whether a lever may run in Products mode (L13, L14)
+ * @property targetingDimensions - The targeting dimensions it permits
+ * @property keywordsPermitted - Whether it buys keywords
+ * @property extensionsPermitted - Whether its Lever carries extensions: sitelinks, callouts, structured
+ *   snippets (`docs/phase-10.md` § 8.4, point 6)
+ * @property locationIntentPermitted - Whether its AdGroups say who a place reaches: the people in it,
+ *   or also those interested in it (`docs/phase-10.md` § 8.4, point 5)
  */
 export type LeverProfile = {
   label: string;
@@ -119,6 +125,8 @@ export type LeverProfile = {
   productsModePermitted: boolean;
   targetingDimensions: readonly TargetingDimension[];
   keywordsPermitted: boolean;
+  extensionsPermitted: boolean;
+  locationIntentPermitted: boolean;
 };
 
 /**
@@ -262,6 +270,8 @@ export const LEVER_PROFILES: Readonly<Record<Lever, LeverProfile>> = {
     productsModePermitted: true,
     targetingDimensions: [...GEO, ...TECHNICAL_ON_SEARCH, ...AUDIENCES, ...TIME, ...SEARCH_ONLY],
     keywordsPermitted: true,
+    extensionsPermitted: true,
+    locationIntentPermitted: true,
   },
   dooh: {
     label: 'DOOH',
@@ -284,6 +294,8 @@ export const LEVER_PROFILES: Readonly<Record<Lever, LeverProfile>> = {
       'category',
     ],
     keywordsPermitted: false,
+    extensionsPermitted: false,
+    locationIntentPermitted: false,
   },
   audio: {
     label: 'Audio',
@@ -308,6 +320,8 @@ export const LEVER_PROFILES: Readonly<Record<Lever, LeverProfile>> = {
       ...PASSTHROUGH,
     ],
     keywordsPermitted: false,
+    extensionsPermitted: false,
+    locationIntentPermitted: false,
   },
   social: {
     label: 'Social',
@@ -331,6 +345,8 @@ export const LEVER_PROFILES: Readonly<Record<Lever, LeverProfile>> = {
       'content_genre',
     ],
     keywordsPermitted: false,
+    extensionsPermitted: false,
+    locationIntentPermitted: false,
   },
   ctv_tvs: {
     label: 'CTV & TVS',
@@ -356,6 +372,8 @@ export const LEVER_PROFILES: Readonly<Record<Lever, LeverProfile>> = {
       ...PASSTHROUGH,
     ],
     keywordsPermitted: false,
+    extensionsPermitted: false,
+    locationIntentPermitted: false,
   },
   dac: {
     label: 'Display & video on the web and in apps',
@@ -381,6 +399,8 @@ export const LEVER_PROFILES: Readonly<Record<Lever, LeverProfile>> = {
       ...PASSTHROUGH,
     ],
     keywordsPermitted: false,
+    extensionsPermitted: false,
+    locationIntentPermitted: false,
   },
 };
 
@@ -683,5 +703,33 @@ export function assertKeywordsPermitted(lever: Lever): void {
   throw httpError(400, `The ${lever} lever does not buy keywords`, {
     code: 'keywords_not_permitted',
     params: { lever },
+  });
+}
+
+/**
+ * Refuse a field of the Search paradigm on a lever that has no use for it: extensions, or the intent
+ * of a place.
+ *
+ * @param lever - The lever of the node
+ * @param level - The level the field is written on
+ * @param field - The field the caller sent
+ * @returns Nothing
+ * @throws Error with status 400 coded `lever_field_forbidden`
+ *
+ * @example
+ * ```typescript
+ * assertSearchFieldPermitted('dooh', 'lever', 'extensions'); // throws
+ * ```
+ */
+export function assertSearchFieldPermitted(
+  lever: Lever,
+  level: TreeLevel,
+  field: 'extensions' | 'locationIntent'
+): void {
+  const profile: LeverProfile = profileOf(lever);
+  if (field === 'extensions' ? profile.extensionsPermitted : profile.locationIntentPermitted) return;
+  throw httpError(400, `The ${lever} lever has no ${field}`, {
+    code: 'lever_field_forbidden',
+    params: { lever, level, field },
   });
 }

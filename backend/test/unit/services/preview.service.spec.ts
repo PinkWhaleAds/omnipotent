@@ -54,6 +54,9 @@ function hawkRules(overrides: Partial<PlatformRules> = {}): PlatformRules {
     bidStrategies: ['fixed_cpm', 'from_deal'],
     sharedTargeting: [],
     maxActiveAds: null,
+    settings: {},
+    locationIntent: false,
+    extensions: false,
     ...overrides,
   };
 }
@@ -769,6 +772,96 @@ describe('Unit::Services::PreviewService', () => {
       const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
 
       expect(preview.errors).toEqual([]);
+    });
+  });
+
+  describe('what a Search lever shows, and how it reads a place', () => {
+    const EXTENSIONS = { sitelinks: [], callouts: ['Livraison offerte'], structuredSnippets: [] };
+
+    it('should refuse a sitelink with one description line: the platforms take two or none', async (): Promise<void> => {
+      seedComplete({
+        lever: {
+          extensions: {
+            sitelinks: [
+              { text: 'Nos lits', description1: 'En chêne', finalUrl: 'https://herbea.test/lits' },
+              { text: 'Nos draps', finalUrl: 'https://herbea.test/draps' },
+              {
+                text: 'Nos oreillers',
+                description1: 'En plumes',
+                description2: 'Et en laine',
+                finalUrl: 'https://herbea.test/oreillers',
+              },
+            ],
+            callouts: [],
+            structuredSnippets: [],
+          },
+        },
+      });
+
+      const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+      expect(preview.errors).toEqual([
+        expect.objectContaining({
+          code: 'preview_sitelink_descriptions',
+          params: { text: 'Nos lits' },
+          level: 'lever',
+          nodeId: LEVER_ID,
+        }),
+      ]);
+    });
+
+    it('should warn that a platform shows none of the extensions of the lever', async (): Promise<void> => {
+      seedComplete({ lever: { extensions: EXTENSIONS } });
+
+      const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+      expect(preview.warnings).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ code: 'preview_extensions_dropped', params: { platform: 'hawk' }, level: 'lever' }),
+        ])
+      );
+    });
+
+    it('should say nothing of extensions a platform shows, or of a lever that carries none', async (): Promise<void> => {
+      registry.hawk = { dooh: hawkRules({ extensions: true }) };
+      seedComplete({ lever: { extensions: EXTENSIONS } });
+      expect(codes((await service.preview(JANE, IDS.organization, CAMPAIGN_ID)).warnings)).not.toContain(
+        'preview_extensions_dropped'
+      );
+
+      store = createTreeStore();
+      service = build();
+      registry.hawk = { dooh: hawkRules() };
+      seedComplete({ lever: { extensions: { sitelinks: [], callouts: [], structuredSnippets: [] } } });
+      expect(codes((await service.preview(JANE, IDS.organization, CAMPAIGN_ID)).warnings)).not.toContain(
+        'preview_extensions_dropped'
+      );
+    });
+
+    it('should warn that a platform reads a place as the people in it only', async (): Promise<void> => {
+      seedComplete({ adGroup: { locationIntent: 'presence_or_interest' } });
+
+      const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+      expect(preview.warnings).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            code: 'preview_location_intent_dropped',
+            params: { platform: 'hawk' },
+            level: 'ad_group',
+            nodeId: AD_GROUP_ID,
+          }),
+        ])
+      );
+    });
+
+    it('should say nothing of an intent the platform reads', async (): Promise<void> => {
+      registry.hawk = { dooh: hawkRules({ locationIntent: true }) };
+      seedComplete({ adGroup: { locationIntent: 'presence_or_interest' } });
+
+      const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+      expect(codes(preview.warnings)).not.toContain('preview_location_intent_dropped');
     });
   });
 

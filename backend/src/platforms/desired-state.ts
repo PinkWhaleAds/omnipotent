@@ -21,6 +21,8 @@ import {
   Capping,
   CreativeFormat,
   CreativeSubtype,
+  Extensions,
+  LocationIntent,
   MatchType,
   Lever,
   NodeStatus,
@@ -164,6 +166,9 @@ export type DesiredObject = ProjectedObject & {
  * @property insertionOrderNumber - The commercial reference some platforms refuse to deliver without
  * @property containsPoliticalAdvertising - What the user declared (D53), which every platform of the
  *   scope must be told
+ * @property settings - The settings of this platform on the lever, its defaults filled in
+ * @property extensions - What every campaign of the unit shows around its ads, `null` for none
+ * @property locationIntent - Who the places of the AdGroup reach
  * @property currency - The **account's** currency, which every amount here is in
  * @property timezone - The timezone the platform counts its days in
  * @property objects - Everything it must hold, parents first
@@ -178,6 +183,9 @@ export type DesiredUnit = {
   campaignName: string;
   insertionOrderNumber: string | null;
   containsPoliticalAdvertising: boolean;
+  settings: Readonly<Record<string, boolean>>;
+  extensions: Extensions | null;
+  locationIntent: LocationIntent;
   currency: string;
   timezone: string;
   objects: readonly DesiredObject[];
@@ -194,6 +202,9 @@ export type DesiredUnit = {
  * @property campaign - The branch to project: our campaign, down to the Lines of this unit's AdGroup
  * @property insertionOrderNumber - Its commercial reference
  * @property containsPoliticalAdvertising - What the user declared about the campaign (D53)
+ * @property settings - The settings of this platform on the lever, its defaults filled in
+ * @property extensions - The extensions of the lever
+ * @property locationIntent - Who the places of the AdGroup reach
  * @property currency - The account's currency
  * @property timezone - The account's timezone
  * @property fxRate - Units of the account currency for one of the campaign currency, frozen (D22)
@@ -215,6 +226,9 @@ export type DesiredInput = {
   campaign: DesiredNode;
   insertionOrderNumber: string | null;
   containsPoliticalAdvertising: boolean;
+  settings: Readonly<Record<string, boolean>>;
+  extensions: Extensions | null;
+  locationIntent: LocationIntent;
   currency: string;
   timezone: string;
   fxRate: number;
@@ -394,6 +408,9 @@ export function desiredUnit(input: DesiredInput): { desired: DesiredUnit; hash: 
     campaignName: input.campaign.name,
     insertionOrderNumber: input.insertionOrderNumber,
     containsPoliticalAdvertising: input.containsPoliticalAdvertising,
+    settings: input.settings,
+    extensions: input.extensions,
+    locationIntent: input.locationIntent,
     currency: input.currency,
     timezone: input.timezone,
     objects,

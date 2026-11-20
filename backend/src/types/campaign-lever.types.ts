@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { paginatedSchema } from './api.types';
 import { listQuerySchema } from './crud.types';
+import { extensionsSchema, platformSettingsSchema } from './extension.types';
 import { labelSummarySchema } from './label.types';
 import { leverSchema } from './lever.types';
 import { platformShareSchema } from './platform.types';
@@ -29,6 +30,10 @@ export const LEVER_SORTABLE_FIELDS = ['lever', 'createdAt', 'updatedAt'] as cons
  * @property status - Whether it delivers
  * @property productsMode - Whether it runs in Products mode (L14)
  * @property platformShares - Its platforms and their shares, the distribution key of the subtree
+ * @property platformSettings - Its settings, platform by platform, as written: one left out takes the
+ *   platform's default
+ * @property extensions - What every platform campaign of the lever shows around its ads, `null` for
+ *   none; the Search alone carries them
  * @property budget - What it carries and what it may spend, computed at read time
  * @property startsOn - First day of delivery, `null` to follow the campaign's
  * @property endsOn - Last day of delivery, `null` to follow the campaign's
@@ -46,6 +51,8 @@ export const campaignLeverSchema = z.object({
   status: nodeStatusSchema,
   productsMode: z.boolean(),
   platformShares: z.array(platformShareSchema),
+  platformSettings: platformSettingsSchema,
+  extensions: extensionsSchema.nullable(),
   budget: budgetBlockSchema,
   startsOn: z.iso.date().nullable(),
   endsOn: z.iso.date().nullable(),
@@ -82,12 +89,18 @@ export type ListLeversQuery = z.infer<typeof listLeversQuerySchema>;
  * @property lever - The channel
  * @property platformShares - Its platforms and their shares, totalling a hundred percent
  * @property productsMode - Whether it runs in Products mode, which only the Search permits
+ * @property platformSettings - Its settings, platform by platform: only those the registry declares
+ *   for the couple, `{ google_ads: { searchPartners: false } }`; a write replaces them all
+ * @property extensions - Sitelinks, callouts and structured snippets, which only the Search carries;
+ *   a write replaces them all
  * @property labelIds - Labels to post on it right away
  */
 export const createLeverBodySchema = z.strictObject({
   lever: leverSchema,
   platformShares: z.array(platformShareSchema).min(1),
   productsMode: z.boolean().optional(),
+  platformSettings: platformSettingsSchema.optional(),
+  extensions: extensionsSchema.nullable().optional(),
   labelIds: z.array(z.uuid()).optional(),
   ...nodeWriteFields,
 });
@@ -102,6 +115,8 @@ export type CreateLeverBody = z.infer<typeof createLeverBodySchema>;
 export const updateLeverBodySchema = z.strictObject({
   platformShares: z.array(platformShareSchema).min(1).optional(),
   productsMode: z.boolean().optional(),
+  platformSettings: platformSettingsSchema.optional(),
+  extensions: extensionsSchema.nullable().optional(),
   ...nodeWriteFields,
 });
 

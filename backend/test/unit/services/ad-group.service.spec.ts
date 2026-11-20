@@ -143,6 +143,7 @@ const PROSPECTION: AdGroup = {
   bidStrategy: 'fixed_cpm',
   bidAmountCents: 450,
   platformShares: null,
+  locationIntent: null,
   budget: BUDGET,
   startsOn: null,
   endsOn: null,
@@ -346,6 +347,40 @@ describe('Unit::Services::AdGroupService', () => {
         statusCode: 404,
         errorCode: 'lever_not_found',
       });
+    });
+  });
+
+  describe('who its places reach', () => {
+    it('should keep it on a Search AdGroup, and answer it', async (): Promise<void> => {
+      seedAbove(db, adGroupRow({ lever: 'search' }));
+      db.manager.save.mockResolvedValue(adGroupRow({ lever: 'search', locationIntent: 'presence_or_interest' }));
+
+      await expect(
+        service.update(JANE, IDS.organization, AD_GROUP_ID, { locationIntent: 'presence_or_interest' })
+      ).resolves.toMatchObject({ locationIntent: 'presence_or_interest' });
+      expect(db.manager.save).toHaveBeenCalledWith(
+        AdGroupEntity,
+        expect.objectContaining({ locationIntent: 'presence_or_interest' })
+      );
+    });
+
+    it('should refuse it on a lever that has no use for it', async (): Promise<void> => {
+      await expect(
+        service.create(JANE, IDS.organization, LEVER_ID, { name: 'Prospection', locationIntent: 'presence' })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        errorCode: 'lever_field_forbidden',
+        errorParams: { lever: 'dac', level: 'ad_group', field: 'locationIntent' },
+      });
+      await expect(
+        service.update(JANE, IDS.organization, AD_GROUP_ID, { locationIntent: 'presence' })
+      ).rejects.toMatchObject({ errorCode: 'lever_field_forbidden' });
+    });
+
+    it('should accept giving it back, on any lever', async (): Promise<void> => {
+      await service.update(JANE, IDS.organization, AD_GROUP_ID, { locationIntent: null });
+
+      expect(db.manager.save).toHaveBeenCalledWith(AdGroupEntity, expect.objectContaining({ locationIntent: null }));
     });
   });
 

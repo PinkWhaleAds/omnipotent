@@ -6,8 +6,8 @@
  * Fastify-specific type extensions.
  */
 export * from './ad-account.types';
-export * from './advertiser.types';
 export * from './ad-group.types';
+export * from './advertiser.types';
 export * from './api.types';
 export * from './asset.types';
 export * from './auth.types';
@@ -18,12 +18,13 @@ export * from './common.types';
 export * from './creative.types';
 export * from './crud.types';
 export * from './error.types';
+export * from './extension.types';
 export * from './fastify.types';
 export * from './health.types';
 export * from './job.types';
-export * from './lever.types';
 export * from './keyword.types';
 export * from './label.types';
+export * from './lever.types';
 export * from './line.types';
 export * from './list.types';
 export * from './mcp.types';

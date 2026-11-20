@@ -61,6 +61,9 @@ function hawkRules(overrides: Partial<PlatformRules> = {}): PlatformRules {
     bidStrategies: ['max_cpc', 'maximize_clicks', 'maximize_conversions', 'cpm'],
     sharedTargeting: [],
     maxActiveAds: null,
+    settings: {},
+    locationIntent: false,
+    extensions: false,
     ...overrides,
   };
 }
@@ -638,6 +641,46 @@ describe('Unit::Services::SyncService', () => {
       // The preview refuses the launch over it; a campaign already live simply keeps what it had.
       const desired: DesiredUnit = (apply.mock.calls[0] as [unknown, DesiredUnit])[1];
       expect(desired.objects.find((object): boolean => object.level === 'line')?.creative).toBeNull();
+    });
+
+    it('should send the settings of the platform, each one left out at its default', async (): Promise<void> => {
+      registry.hawk = { dooh: hawkRules({ settings: { searchPartners: true, aiMax: false } }) };
+      // A setting the registry no longer declares is not sent.
+      seedTree({ lever: { platformSettings: { hawk: { aiMax: true, retired: true } } } });
+      seedUnit();
+
+      await service.syncCampaign(CAMPAIGN_ID);
+
+      expect((apply.mock.calls[0] as [unknown, DesiredUnit])[1].settings).toEqual({
+        searchPartners: true,
+        aiMax: true,
+      });
+    });
+
+    it('should send the extensions of the lever and who the places of the AdGroup reach', async (): Promise<void> => {
+      const extensions = { sitelinks: [], callouts: ['Livraison offerte'], structuredSnippets: [] };
+      seedTree({ lever: { extensions }, adGroup: { locationIntent: 'presence_or_interest' } });
+      seedUnit();
+
+      await service.syncCampaign(CAMPAIGN_ID);
+
+      expect((apply.mock.calls[0] as [unknown, DesiredUnit])[1]).toMatchObject({
+        extensions,
+        locationIntent: 'presence_or_interest',
+      });
+    });
+
+    it('should send no extension and the people in the places when nothing says otherwise', async (): Promise<void> => {
+      seedTree();
+      seedUnit();
+
+      await service.syncCampaign(CAMPAIGN_ID);
+
+      expect((apply.mock.calls[0] as [unknown, DesiredUnit])[1]).toMatchObject({
+        settings: {},
+        extensions: null,
+        locationIntent: 'presence',
+      });
     });
 
     it('should hold everything paused until the start time has come', async (): Promise<void> => {

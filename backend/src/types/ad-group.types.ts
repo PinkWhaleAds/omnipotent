@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { paginatedSchema } from './api.types';
 import { bulkBodySchema, bulkResultSchema, listQuerySchema } from './crud.types';
+import { locationIntentSchema } from './extension.types';
 import { labelSummarySchema } from './label.types';
 import { bidStrategySchema, cappingSchema, leverSchema, objectiveSchema } from './lever.types';
 import { platformShareSchema } from './platform.types';
@@ -27,6 +28,8 @@ const adGroupNameSchema = z.string().trim().min(1).max(255);
  * @property bidStrategy - How it bids (L3)
  * @property bidAmountCents - Its bid amount, `null` when the strategy names none
  * @property platformShares - Its own distribution key, `null` to keep its lever's
+ * @property locationIntent - Who its places reach, on a lever that says it; `null` is the people in
+ *   them
  * @property budget - What it carries and what it may spend, computed at read time
  * @property startsOn - First day of delivery, `null` to follow its parent's
  * @property endsOn - Last day of delivery, `null` to follow its parent's
@@ -48,6 +51,7 @@ export const adGroupSchema = z.object({
   bidStrategy: bidStrategySchema,
   bidAmountCents: z.number().int().nullable(),
   platformShares: z.array(platformShareSchema).nullable(),
+  locationIntent: locationIntentSchema.nullable(),
   budget: budgetBlockSchema,
   startsOn: z.iso.date().nullable(),
   endsOn: z.iso.date().nullable(),
@@ -81,6 +85,8 @@ export type ListAdGroupsQuery = z.infer<typeof listAdGroupsQuerySchema>;
  * @property bidStrategy - How it bids, among those its lever permits
  * @property bidAmountCents - Its bid amount, which a volume entry converts through
  * @property platformShares - Its own distribution key, left out to keep its lever's
+ * @property locationIntent - Who its places reach: the people in them (`presence`, the default) or
+ *   also those interested in them; only the Search says it
  * @property labelIds - Labels to post on it right away
  */
 export const createAdGroupBodySchema = z.strictObject({
@@ -89,6 +95,7 @@ export const createAdGroupBodySchema = z.strictObject({
   bidStrategy: bidStrategySchema.optional(),
   bidAmountCents: z.number().int().min(0).nullable().optional(),
   platformShares: z.array(platformShareSchema).min(1).optional(),
+  locationIntent: locationIntentSchema.nullable().optional(),
   labelIds: z.array(z.uuid()).optional(),
   ...nodeWriteFields,
 });
@@ -103,6 +110,7 @@ export const updateAdGroupBodySchema = z.strictObject({
   bidStrategy: bidStrategySchema.optional(),
   bidAmountCents: z.number().int().min(0).nullable().optional(),
   platformShares: z.array(platformShareSchema).min(1).nullable().optional(),
+  locationIntent: locationIntentSchema.nullable().optional(),
   ...nodeWriteFields,
 });
 
