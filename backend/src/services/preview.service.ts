@@ -542,9 +542,11 @@ export class PreviewService {
       const branch: ProjectedObject[] = projectObjects(projection, adGroupStructure(tree, group));
       add(countByObject(branch));
 
-      // One object of the budget level is shared with the AdGroup; each split adds one of its own.
+      // The objects that hold a budget over there, the split's included: what the cap counts.
       const splits: number = branch.filter((object: ProjectedObject): boolean => object.split).length;
-      const budgetObjects: number = 1 + splits;
+      const budgetObjects: number = branch.filter(
+        (object: ProjectedObject): boolean => object.object === projection.levels[projection.budgetLevel]
+      ).length;
       if (splits > 0) {
         warnings.push(
           this.finding(

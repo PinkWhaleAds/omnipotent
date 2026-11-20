@@ -409,9 +409,12 @@ Omnipotent la **met en pause** (R5, § 8.5).
 `PLATFORM_RULES` est vide : aucune campagne ne peut encore viser Google, et la preview répond
 `preview_adapter_missing`. Le lot y déclare le couple :
 
-- **la projection** : AdGroup → campagne, qui porte le budget (`budgetLevel: 'ad_group'`),
-  TargetingGroup → ad group, Line → annonce responsive, et chaque mot-clé → un critère. Un
-  TargetingGroup à budget propre devient sa propre campagne : l'éclatement, que le moteur déduit déjà ;
+- **la projection**, revue le 2026-11-20 (D55, point 14) : **chaque TargetingGroup devient une
+  campagne Google et son ad group**, comme chez multi-search — `targeting_group` → campagne, qui porte
+  le budget (`budgetLevel: 'targeting_group'`), Line → annonce responsive, chaque mot-clé → un critère.
+  Son budget est le sien, ou sa part de l'AdGroup par division, sa courbe suivant celle de l'AdGroup :
+  rien à saisir de plus. L'éclatement n'a plus lieu chez Google. La première version disait AdGroup →
+  campagne et TargetingGroup → ad group ;
 - **les créas** : `search_text:rsa` seul — l'étude l'appelle `search:responsive`, le registre des créas
   de la phase 6 l'a nommé ainsi — et une Line sans page de destination est refusée
   (`requiresClickThroughUrl`) ;
@@ -427,8 +430,8 @@ Omnipotent la **met en pause** (R5, § 8.5).
 - **les plafonds**, en **erreur** de preview comme chez multi-search : trois annonces actives par ad
   group (`maxActiveAds`). Les dix mots par mot-clé et les cinq cents rayons, eux, le modèle les refuse
   déjà à la saisie (`MAX_KEYWORD_WORDS`, le schéma de `proximity`) ;
-- **le ciblage partagé** (`sharedTargeting`) : `country`, `proximity`, puis `zip_code` et `location`
-  en 3c — ce que Google ne pose que sur la campagne (§ 8.4, point 9) ;
+- **aucun ciblage partagé** (`sharedTargeting` vide) : chaque TargetingGroup a sa campagne, donc ses
+  propres lieux (§ 8.4, point 9) ;
 - **les réglages** que le couple accepte, avec leur valeur par défaut : `searchPartners: true`,
   `aiMax: false` (§ 8.4, point 4) ;
 - **l'intention de lieu** et **les extensions**, que le couple exprime (§ 8.4, points 5 et 6).
@@ -507,16 +510,15 @@ dont les fichiers sont cités.
    qui compte toutes ses annonces, faute de statut sur elles. La preview vérifie aussi, comme
    multi-search, qu'une créa RSA n'a pas deux titres ou deux descriptions identiques.
 
-9. **Le ciblage partagé.** Trouvé en écrivant le code, et absent de l'étude : une campagne Search de
-   Google pose ses lieux et ses rayons **sur la campagne**, jamais sur un ad group. Or notre ciblage
-   vit sur le TargetingGroup, qui devient un ad group : deux TargetingGroups d'un même AdGroup ciblant
-   deux villes ne peuvent pas tenir dans une seule campagne Google, et envoyer leur union diffuserait
-   plus large que chacun ne l'a demandé. Le registre nomme ces dimensions (`sharedTargeting`), et la
-   preview refuse en **erreur** (`preview_targeting_not_shared`) des TargetingGroups qui partagent une
-   campagne de la plateforme et les demandent différemment. Le remède est dit dans le message : donner
-   un budget propre à l'un, ce qui l'éclate en sa propre campagne, ou le déplacer dans un autre
-   AdGroup. multi-search n'a pas ce cas, n'ayant qu'un ad group par campagne. Les appareils, eux, se
-   règlent sur l'ad group chez Google, et ne sont pas concernés.
+9. **Le ciblage partagé, puis D55.** Trouvé en écrivant le code, et absent de l'étude : une campagne
+   Search de Google pose ses lieux et ses rayons **sur la campagne**, jamais sur un ad group. Avec la
+   première projection, deux TargetingGroups d'un même AdGroup ciblant deux villes auraient partagé
+   une campagne Google. Lorin a tranché le 2026-11-20 (D55) : **un TargetingGroup = une campagne
+   Google**, comme multi-search, et son budget est sa part de l'AdGroup quand il n'en a pas. Le
+   registre garde le mécanisme générique (`sharedTargeting`, `preview_targeting_not_shared`) pour une
+   plateforme qui en aurait besoin ; Google n'en a plus besoin. Les appareils s'ajustent sur l'ad group.
+   Chaque nœud reçoit aussi l'enchère du plus proche ancêtre qui en a une, que l'état voulu porte
+   désormais.
 
 10. **Un compte relié à notre MCC passe la preview.** Elle refusait tout compte sans secret propre
     (`preview_account_credentials_missing`), ce qu'un compte Google n'a jamais : c'est notre
@@ -631,8 +633,8 @@ large que celui de multi-search, oblige à choisir :
     non tant qu'il avance : D30 le disait gelé, il ne l'est pas, la cible l'est (D54). Ce qu'il gagne
     ensuite va dans une phase à part.
 
-**À valider** — trouvé en écrivant le code de 3a :
+**Tranché le 2026-11-20** — trouvé en écrivant le code de 3a :
 
-14. **Des TargetingGroups qui partagent une campagne Google doivent demander les mêmes lieux**, sinon
-    la preview refuse le lancement (§ 8.4, point 9). L'autre voie serait de les éclater d'office en
-    campagnes séparées, ce qui diviserait le budget de l'AdGroup sans que personne ne l'ait demandé.
+14. **Un TargetingGroup = une campagne Google** et son ad group, comme multi-search, son budget étant
+    sa part de l'AdGroup quand il n'en a pas (D55). Écartés : le blocage par la preview de
+    TargetingGroups aux lieux différents, et un budget obligatoire à saisir sur chacun.

@@ -14,6 +14,7 @@ import {
   googleMatchType,
   googleStatus,
   imageTag,
+  implicitAdGroupKey,
   keywordKey,
   lineOfAd,
   linkKey,
@@ -145,6 +146,30 @@ describe('Unit::Platforms::Google::Mapping', () => {
         ['ad_group:g1', ['targeting_group:t1']],
         ['split:targeting_group:t2', ['targeting_group:t2']],
       ]);
+      expect(slots[0].adGroups[0].ads.map((ad) => ad.key)).toEqual(['line:l1']);
+      expect(slots[0].adGroups[0].keywords.map((keyword) => keyword.key)).toEqual(['keyword:k1']);
+    });
+  });
+
+  describe('campaignSlots, a TargetingGroup that is both campaign and ad group (D55)', () => {
+    it('should give the campaign its own implicit ad group, holding its ads and keywords', (): void => {
+      const desired = {
+        objects: [
+          object('targeting_group:t1', 'campaign'),
+          object('keyword:k1', 'keyword', { parentKey: 'targeting_group:t1' }),
+          object('line:l1', 'ad', { parentKey: 'targeting_group:t1' }),
+          object('targeting_group:t2', 'campaign'),
+          object('line:l2', 'ad', { parentKey: 'targeting_group:t2' }),
+        ],
+      } as unknown as DesiredUnit;
+
+      const slots = campaignSlots(desired);
+
+      expect(slots.map((slot) => [slot.key, slot.adGroups.map((group) => group.key)])).toEqual([
+        ['targeting_group:t1', [implicitAdGroupKey('targeting_group:t1')]],
+        ['targeting_group:t2', ['targeting_group:t2#ad_group']],
+      ]);
+      expect(slots[0].adGroups[0].adGroup).toBe(slots[0].campaign);
       expect(slots[0].adGroups[0].ads.map((ad) => ad.key)).toEqual(['line:l1']);
       expect(slots[0].adGroups[0].keywords.map((keyword) => keyword.key)).toEqual(['keyword:k1']);
     });

@@ -26,6 +26,11 @@ découverte. Rien n'en vient de MBP, qui n'a pas d'adapter Google.
 
 ## 1. La projection sur notre arbre
 
+> **Revue le 2026-11-20 (D55)** : Google pose les lieux sur la campagne, pas sur l'ad group. Chez
+> Omnipotent, **un TargetingGroup devient donc une campagne Google et son ad group**, comme
+> multi-search, et son budget est le sien ou sa part de l'AdGroup (`../phase-10.md` § 8.3). Le tableau
+> ci-dessous est la première version, gardée pour l'histoire.
+
 | Notre niveau       | Objet chez Google                 | Porte un budget ?  | Une période ?      | Un capping ?   |
 | ------------------ | --------------------------------- | ------------------ | ------------------ | -------------- |
 | **Campaign**       | — rien                            | non                | non                | non            |

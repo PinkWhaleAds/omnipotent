@@ -488,14 +488,14 @@ describe('Unit::Platforms::Google::Apply', () => {
       expect(google.mutations[0].filter((operation) => 'adGroupCriterionOperation' in operation)).toHaveLength(2);
     });
 
-    it('should create a campaign the split adds, bidding the AdGroup amount, even before its ad group', async (): Promise<void> => {
+    it('should create a campaign that holds no ad group yet, beside another', async (): Promise<void> => {
       const split: DesiredObject = object('split:targeting_group:t2', 'campaign', { dailyBudgetMicros: 2_000_000 });
 
       await sync.apply(context(), desired({ extra: [split] }), {});
 
       expect(google.mutations[0].filter((operation) => 'campaignOperation' in operation)).toHaveLength(2);
 
-      // Alone, with no AdGroup to inherit from, it bids nothing it does not say.
+      // Alone, it is read back as the status of the unit.
       google.mutations.length = 0;
       const result: ApplyResult = await sync.apply(context(), desired({ unit: { objects: [split] } }), {});
       expect(google.mutations[0].map((operation) => Object.keys(operation)[0])).toEqual([
@@ -504,7 +504,7 @@ describe('Unit::Platforms::Google::Apply', () => {
         'assetOperation',
         'campaignAssetOperation',
       ]);
-      expect(result.appliedStatus).toBeNull();
+      expect(result.appliedStatus).toBe('active');
     });
 
     it('should create a campaign already begun, or past its end, without the dates Google refuses', async (): Promise<void> => {
@@ -519,6 +519,56 @@ describe('Unit::Platforms::Google::Apply', () => {
       };
       expect(created.campaignOperation.create).not.toHaveProperty('startDateTime');
       expect(created.campaignOperation.create).not.toHaveProperty('endDateTime');
+    });
+
+    it('should create a TargetingGroup as one campaign holding its own ad group, as Google projects it (D55)', async (): Promise<void> => {
+      const unit: DesiredUnit = desired({
+        unit: {
+          objects: [
+            object('targeting_group:t1', 'campaign', {
+              name: 'Île-de-France',
+              dailyBudgetMicros: 10_000_000,
+              bidMicros: 500_000,
+              targeting: { country: { include: ['FR'], exclude: [] } },
+            }),
+            object('keyword:k1', 'keyword', {
+              parentKey: 'targeting_group:t1',
+              bidStrategy: null,
+              keyword: { id: 'k1', text: 'lit chêne', matchType: 'exact', negative: false },
+            }),
+            object('line:l1', 'ad', {
+              parentKey: 'targeting_group:t1',
+              landingPageUrl: 'https://herbea.test/lits',
+              creative: { versionId: 'v1', format: 'search_text', subtype: 'rsa', payload: RSA, assets: [] },
+            }),
+          ],
+        },
+      });
+
+      const result: ApplyResult = await sync.apply(context(), unit, {});
+
+      expect(google.mutations[0].map((operation) => Object.keys(operation)[0])).toEqual([
+        'campaignBudgetOperation',
+        'campaignOperation',
+        'campaignCriterionOperation',
+        'adGroupOperation',
+        'adGroupCriterionOperation',
+        'adGroupAdOperation',
+        'assetOperation',
+        'campaignAssetOperation',
+      ]);
+      expect(google.mutations[0][3]).toMatchObject({
+        adGroupOperation: {
+          create: { name: `Île-de-France ${nameTag('u1', 'targeting_group:t1#ad_group')}`, cpcBidMicros: '500000' },
+        },
+      });
+      expect(result.refs).toMatchObject({
+        'targeting_group:t1': `customers/${CID}/made/1-1`,
+        'targeting_group:t1#ad_group': `customers/${CID}/made/1-3`,
+        'keyword:k1': `customers/${CID}/made/1-4`,
+        'line:l1': `customers/${CID}/made/1-5`,
+      });
+      expect(result.appliedStatus).toBe('active');
     });
 
     it('should answer no status for a unit that holds no campaign', async (): Promise<void> => {

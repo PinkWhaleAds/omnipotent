@@ -55,10 +55,14 @@ describe('Unit::Platforms::PlatformRules', () => {
     expect(supportedPlatforms()).toEqual(['google_ads']);
     expect(rulesOf('google_ads', 'search')).toMatchObject({
       creatives: ['search_text:rsa'],
-      projection: { budgetLevel: 'ad_group' },
+      // One TargetingGroup, one Google campaign with its ad group (D55).
+      projection: {
+        levels: { ad_group: null, targeting_group: 'campaign', line: 'ad' },
+        budgetLevel: 'targeting_group',
+      },
       requiresClickThroughUrl: true,
       bidStrategies: ['max_cpc', 'maximize_clicks'],
-      sharedTargeting: ['country', 'proximity'],
+      sharedTargeting: [],
       maxActiveAds: 3,
       settings: { searchPartners: true, aiMax: false },
       locationIntent: true,

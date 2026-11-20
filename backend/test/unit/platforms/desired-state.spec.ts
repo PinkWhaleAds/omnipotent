@@ -223,6 +223,16 @@ describe('Unit::Platforms::DesiredState', () => {
       expect(objectOf(desired, 'ad_group:g1').bidMicros).toBe(500 * MICROS_PER_CENT);
     });
 
+    it('should give a node with no bid of its own the bid of its nearest ancestor that has one', (): void => {
+      const { desired } = desiredUnit(
+        input({ campaign: branch({ adGroup: { bidAmountCents: 250 }, line: { bidAmountCents: 90 } }) })
+      );
+
+      expect(objectOf(desired, 'targeting_group:t1').bidMicros).toBe(250 * MICROS_PER_CENT);
+      expect(objectOf(desired, 'line:l1').bidMicros).toBe(90 * MICROS_PER_CENT);
+      expect(objectOf(desiredUnit(input()).desired, 'line:l1').bidMicros).toBeNull();
+    });
+
     it('should send a paused object the larger of the platform floor and the planned average', (): void => {
       const paused = input({
         campaign: branch({ adGroup: { status: 'paused', dailyBudgetCents: 1_000, averageDailyCents: 1_400 } }),

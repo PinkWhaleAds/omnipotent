@@ -130,7 +130,21 @@ export function refusal(
 }
 
 /**
+ * The key `refs` keeps the implicit ad group of a campaign under: the campaign holds its own key.
+ *
+ * @param campaignKey - The key of the campaign
+ * @returns The key of its ad group
+ */
+export function implicitAdGroupKey(campaignKey: string): string {
+  return `${campaignKey}#ad_group`;
+}
+
+/**
  * The Google campaigns of a unit, with what hangs from each, parents first.
+ *
+ * A campaign whose ads and keywords hang from it directly — the TargetingGroup that is both (D55) —
+ * holds one **implicit** ad group, the campaign's own node, kept in `refs` under its own key. A
+ * projection that gives the ad groups a level of their own is read as it is.
  *
  * @param desired - The desired state
  * @returns One slot per object of the campaign kind
@@ -140,18 +154,27 @@ export function campaignSlots(desired: DesiredUnit): CampaignSlot[] {
     desired.objects.filter(
       (candidate: DesiredObject): boolean => candidate.parentKey === key && candidate.object === object
     );
+  const slotOf = (key: string, adGroup: DesiredObject, parentKey: string): AdGroupSlot => ({
+    key,
+    adGroup,
+    ads: childrenOf(parentKey, 'ad'),
+    keywords: childrenOf(parentKey, 'keyword'),
+  });
   return desired.objects
     .filter((object: DesiredObject): boolean => object.object === 'campaign')
-    .map((campaign: DesiredObject): CampaignSlot => ({
-      key: campaign.key,
-      campaign,
-      adGroups: childrenOf(campaign.key, 'ad_group').map((adGroup: DesiredObject): AdGroupSlot => ({
-        key: adGroup.key,
-        adGroup,
-        ads: childrenOf(adGroup.key, 'ad'),
-        keywords: childrenOf(adGroup.key, 'keyword'),
-      })),
-    }));
+    .map((campaign: DesiredObject): CampaignSlot => {
+      const own: AdGroupSlot = slotOf(implicitAdGroupKey(campaign.key), campaign, campaign.key);
+      return {
+        key: campaign.key,
+        campaign,
+        adGroups: [
+          ...(own.ads.length + own.keywords.length > 0 ? [own] : []),
+          ...childrenOf(campaign.key, 'ad_group').map((adGroup: DesiredObject): AdGroupSlot =>
+            slotOf(adGroup.key, adGroup, adGroup.key)
+          ),
+        ],
+      };
+    });
 }
 
 /**

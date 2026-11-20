@@ -104,17 +104,20 @@ export const PLATFORM_RULES: Readonly<Record<string, Readonly<Record<string, Pla
       // Finer places — regions, cities, postal codes — come with the place referential of lot 3c.
       targeting: ['country', 'proximity', 'device'],
       creatives: ['search_text:rsa'],
+      // One TargetingGroup, one Google campaign with its one ad group, as multi-search does (D55): Google
+      // sets places on the campaign, so two TargetingGroups never share one. Its budget is its own, or
+      // its share of the AdGroup's.
       projection: {
-        levels: { campaign: null, lever: null, ad_group: 'campaign', targeting_group: 'ad_group', line: 'ad' },
-        budgetLevel: 'ad_group',
+        levels: { campaign: null, lever: null, ad_group: null, targeting_group: 'campaign', line: 'ad' },
+        budgetLevel: 'targeting_group',
       },
       requiresClickThroughUrl: true,
       requiresIabCategories: false,
       minDailyBudgetCents: 0,
       // `maximize_conversions` comes with the conversions of lot 3d; Search never buys per thousand.
       bidStrategies: ['max_cpc', 'maximize_clicks'],
-      // Places and circles are set on the campaign; a device is adjusted on the ad group.
-      sharedTargeting: ['country', 'proximity'],
+      // Every TargetingGroup has its own campaign, so none shares its places with another.
+      sharedTargeting: [],
       maxActiveAds: 3,
       settings: { searchPartners: true, aiMax: false },
       locationIntent: true,

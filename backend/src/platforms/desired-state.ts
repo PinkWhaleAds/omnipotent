@@ -152,7 +152,7 @@ export type DesiredNode = {
  * @property startsOn - First day of delivery
  * @property endsOn - Last day
  * @property dailyBudgetMicros - Its budget today, in micros of the **account's** currency
- * @property bidMicros - Its bid, likewise
+ * @property bidMicros - Its bid, likewise, inherited from the nearest node above that says one
  * @property bidStrategy - How it bids, inherited from the nearest node above that says it; `null`
  *   above the AdGroup
  * @property capping - Its frequency caps
@@ -351,7 +351,10 @@ function delivers(node: DesiredNode, input: DesiredInput, floorMicros: number): 
  */
 export function desiredUnit(input: DesiredInput): { desired: DesiredUnit; hash: string } {
   const projected: ProjectedObject[] = projectObjects(input.projection, structureOf(input.campaign));
-  const nodes = new Map<string, { node: DesiredNode; paused: boolean; bidStrategy: BidStrategy | null }>();
+  const nodes = new Map<
+    string,
+    { node: DesiredNode; paused: boolean; bidStrategy: BidStrategy | null; bidCents: number | null }
+  >();
   const keywords = new Map<string, DesiredKeyword>();
   const floorMicros: number = Math.max(1, input.minDailyBudgetCents * MICROS_PER_CENT);
 
@@ -360,27 +363,34 @@ export function desiredUnit(input: DesiredInput): { desired: DesiredUnit; hash: 
    *
    * @param node - The node
    * @param paused - Whether an ancestor is paused
-   * @param inherited - The strategy of the nearest ancestor that says one
+   * @param inherited - The strategy and the amount of the nearest ancestors that say them
+   * @param inherited.strategy - How it bids
+   * @param inherited.cents - Its amount, in cents of the campaign currency
    * @returns Nothing
    */
-  const index: (node: DesiredNode, paused: boolean, inherited: BidStrategy | null) => void = (
+  const index: (
     node: DesiredNode,
     paused: boolean,
-    inherited: BidStrategy | null
+    inherited: { strategy: BidStrategy | null; cents: number | null }
+  ) => void = (
+    node: DesiredNode,
+    paused: boolean,
+    inherited: { strategy: BidStrategy | null; cents: number | null }
   ): void => {
     const own: boolean = paused || node.status === 'paused' || !delivers(node, input, floorMicros);
-    const bidStrategy: BidStrategy | null = node.bidStrategy ?? inherited;
-    nodes.set(node.id, { node, paused: own, bidStrategy });
+    const bid = { strategy: node.bidStrategy ?? inherited.strategy, cents: node.bidAmountCents ?? inherited.cents };
+    nodes.set(node.id, { node, paused: own, bidStrategy: bid.strategy, bidCents: bid.cents });
     for (const keyword of node.keywords) keywords.set(keyword.id, keyword);
-    for (const child of node.children) index(child, own, bidStrategy);
+    for (const child of node.children) index(child, own, bid);
   };
-  index(input.campaign, !input.live || !input.started, null);
+  index(input.campaign, !input.live || !input.started, { strategy: null, cents: null });
   const objects: DesiredObject[] = projected.map((object: ProjectedObject): DesiredObject => {
     // Every projected object comes from a node of this very tree, so both lookups are total.
-    const { node, paused, bidStrategy } = nodes.get(object.nodeId) as {
+    const { node, paused, bidStrategy, bidCents } = nodes.get(object.nodeId) as {
       node: DesiredNode;
       paused: boolean;
       bidStrategy: BidStrategy | null;
+      bidCents: number | null;
     };
 
     // A keyword is not a node: it carries only itself, and the node it hangs from gives it its status.
@@ -413,7 +423,8 @@ export function desiredUnit(input: DesiredInput): { desired: DesiredUnit; hash: 
       startsOn: node.startsOn,
       endsOn: node.endsOn,
       dailyBudgetMicros: holdsBudget ? (paused ? Math.max(floorMicros, averageMicros) : todayMicros) : null,
-      bidMicros: node.bidAmountCents === null ? null : toMicros(node.bidAmountCents, input.fxRate),
+      // A node with no bid of its own bids its nearest ancestor's: the platform needs the amount there.
+      bidMicros: bidCents === null ? null : toMicros(bidCents, input.fxRate),
       bidStrategy,
       capping: node.capping,
       targeting: node.targeting,

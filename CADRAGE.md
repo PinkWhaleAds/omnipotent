@@ -204,6 +204,8 @@ Les colonnes Google, Microsoft, OpenAI et Thrad sont **prouvées** : c'est ce qu
 
 **Gain par rapport à multi-search** : MS doit faire « 1 AdGroup = 1 campagne Google + 1 ad group » parce qu'il n'a qu'un niveau entre la campagne et l'annonce. Avec le TargetingGroup, on peut avoir **plusieurs ad groups Google sous un même budget**, ce qui est la façon dont Google fonctionne réellement.
 
+**Amendé pour Google par D55 (2026-11-20)** : Google pose les lieux sur la campagne, pas sur l'ad group, donc deux TargetingGroups d'un même AdGroup ne pourraient pas y viser deux villes différentes. Chez Google, **un TargetingGroup devient une campagne et son ad group**, comme multi-search ; son budget est le sien, ou sa part de l'AdGroup par division. L'éclatement n'y a plus lieu, et ajouter un budget à un TargetingGroup ne change plus la projection Google.
+
 ### Budget à un niveau que la plateforme ne porte pas : l'éclatement
 
 Google ne tient un budget que sur la campagne. Un budget explicite sur un TargetingGroup n'a donc pas d'objet où se poser. La règle retenue est **l'éclatement** : ce TargetingGroup devient **sa propre campagne Google**, et la preview l'annonce (« 3 campagnes Google au lieu d'une »).
@@ -592,6 +594,7 @@ Quatre pièces s'ajoutent à ça, et deux d'entre elles sont des pannes classiqu
 | D52 | Nom d'hôte de production **`omnipotent.pinkwhale.co`** et port local **3002** (§ 19) : le nom d'hôte porte le produit, parce que multi-search occupe la même zone, et `localhost:3000` appartient à multi-search et à omnipass. L'identifiant d'une API MCP Auth0 doit être **l'URL exacte** du `/mcp` servi — il en faut donc une par environnement. _Amendée le 2026-11-14_ : le domaine était `omnilor.com`, le groupe est passé à `pinkwhale.co` |
 | D53 | La **publicité politique est déclarée par l'utilisateur**, jamais déduite : la campagne porte un champ **obligatoire** à la création (règlement UE 2024/900, que chaque plateforme répercute). Déclarer « oui » est **refusé par la preview** avec un code stable, tant qu'aucune plateforme du périmètre ne l'accepte et que les déclarations de commanditaire ne sont pas modélisées |
 | D54 | La **parité Search** : une campagne Google ou Microsoft d'Omnipotent fait tout ce que fait une campagne de multi-search **tel qu'il est le 2026-11-20** (`~/PinkWhale/multi-search`, commit `0aac705`, sa phase 39c) — tranché par Lorin ce jour-là. Ce que multi-search gagne ensuite va dans une phase à part, sans rouvrir les phases 10 et 11. Amende D30 : multi-search n'est pas gelé, la cible de la parité l'est |
+| D55 | **Google : un TargetingGroup = une campagne Google** et son ad group, comme multi-search — Lorin, 2026-11-20. Google pose les lieux sur la campagne : deux TargetingGroups d'un même AdGroup ne pourraient pas viser deux villes dans une seule. Le budget de chaque TargetingGroup est le sien, ou **sa part de l'AdGroup** par division, sans rien à saisir. Amende § 7 pour Google ; Microsoft se décide au lot B de la phase 11 |
 | L1→L24 | Les leviers : voir `backend/docs/leviers.md`, validées le 2026-10-25 |
 | R1→R14 | Le reporting : voir `backend/docs/reporting.md`. **R9 (nos propres conversions) est reporté en V2** |
 | T1 | La tenancy vit dans un service séparé, `omnipass` |

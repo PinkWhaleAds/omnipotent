@@ -224,7 +224,7 @@ export class GoogleUnitSync {
       });
     }
     await this.applyBrand(context, slots, state, kept);
-    return { refs: kept, appliedStatus: await this.appliedStatus(context, desired, kept) };
+    return { refs: kept, appliedStatus: await this.appliedStatus(context, slots, kept) };
   }
 
   /**
@@ -401,8 +401,7 @@ export class GoogleUnitSync {
     const name: string = taggedName(`${desired.campaignName} — ${object.name}`, nameTag(desired.unitId, slot.key));
     // An object of the budget level always holds one: the desired state gives it today's, or its floor.
     const budgetMicros = String(roundMicros(object.dailyBudgetMicros as number, desired.currency));
-    // A node with no bid of its own bids its AdGroup's: the state carries each node's own amount.
-    const bidMicros: number | null = object.bidMicros ?? adGroupBidOf(desired);
+    const bidMicros: number | null = object.bidMicros;
     const bidding: Pick<GoogleCampaign, 'manualCpc' | 'targetSpend'> = campaignBidding(
       object.bidStrategy,
       bidMicros,
@@ -467,7 +466,12 @@ export class GoogleUnitSync {
     }
 
     const current: GoogleCampaignCriterion[] = existing === undefined ? [] : (state.criteria.get(existing) ?? []);
-    const wanted: GoogleCampaignCriterion[] = campaignCriteria(slot.adGroups[0]?.adGroup.targeting ?? null, campaign);
+    // The campaign's own node targets when it is a TargetingGroup; else its first ad group does, and
+    // its siblings ask the same (`sharedTargeting`).
+    const wanted: GoogleCampaignCriterion[] = campaignCriteria(
+      object.targeting ?? slot.adGroups[0]?.adGroup.targeting ?? null,
+      campaign
+    );
     this.planSet(
       plan,
       current,
@@ -986,39 +990,26 @@ export class GoogleUnitSync {
   }
 
   /**
-   * The status Google shows for the unit, read back: its AdGroup's own campaign.
+   * The status Google shows for the unit, read back: `active` when one of its campaigns serves.
    *
    * @param context - The account
-   * @param desired - The desired state
+   * @param slots - Its campaigns
    * @param refs - What exists
-   * @returns `active` when that campaign serves, `paused` otherwise, `null` when it has none
+   * @returns `active` or `paused`, `null` when it holds no campaign
    * @throws PlatformError
    */
   private async appliedStatus(
     context: PlatformContext,
-    desired: DesiredUnit,
+    slots: readonly CampaignSlot[],
     refs: Record<string, string>
   ): Promise<string | null> {
-    const campaign: string | undefined = refs[`ad_group:${desired.adGroupId}`];
-    if (campaign === undefined) return null;
+    const campaigns: string[] = slots.map((slot: CampaignSlot): string => refs[slot.key]);
+    if (campaigns.length === 0) return null;
     const rows: GoogleAdsRow[] = await this.client.search(
       context.adAccountId,
       context.externalId,
-      `SELECT campaign.status FROM campaign WHERE campaign.resource_name = '${campaign}'`
+      `SELECT campaign.status FROM campaign WHERE campaign.resource_name IN (${quoted(campaigns)})`
     );
-    return rows[0]?.campaign?.status === 'ENABLED' ? 'active' : 'paused';
+    return rows.some((row: GoogleAdsRow): boolean => row.campaign?.status === 'ENABLED') ? 'active' : 'paused';
   }
-}
-
-/**
- * The bid of the unit's AdGroup, which every node under it bids unless it says its own.
- *
- * @param desired - The desired state
- * @returns Its amount in micros, `null` when it names none
- */
-function adGroupBidOf(desired: DesiredUnit): number | null {
-  return (
-    desired.objects.find((object: DesiredObject): boolean => object.key === `ad_group:${desired.adGroupId}`)
-      ?.bidMicros ?? null
-  );
 }
