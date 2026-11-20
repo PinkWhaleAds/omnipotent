@@ -24,6 +24,7 @@
     "migration:run": "pnpm typeorm migration:run",
     "migration:revert": "pnpm typeorm migration:revert",
     "secrets:seed": "bash ./scripts/seed-local-secrets.sh",
+    "google:connect": "tsx --env-file-if-exists=.env ./src/scripts/google-connect.ts",
     "setup:dev": "bash ./scripts/setup-dev.sh",
     "lint": "eslint . --fix",
     "lint:check": "eslint .",

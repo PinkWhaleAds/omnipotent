@@ -1,14 +1,23 @@
 /**
  * @module platforms/google/google.auth
  *
- * The access tokens of **our** Google Cloud service account: one token for every account under our
- * manager account (`docs/phase-10.md` § 3). Transcribed from multi-search
- * (`src/platforms/google/google.auth.ts`), on `fetch`.
+ * The access tokens of **our** credentials (`docs/phase-10.md` § 3), transcribed from multi-search
+ * (`src/platforms/google/google.auth.ts`), on `fetch`:
+ *
+ * - our Google Cloud **service account**, for every call but two;
+ * - our **inviter**, a human admin of our MCC, for the two Google refuses a service account: sending
+ *   and withdrawing a manager link invitation.
  */
 import { createSign } from 'node:crypto';
 
 import { PlatformError } from '@src/platforms/platform-adapter';
-import { GOOGLE_ADS_API, GoogleServiceAccountKey, GoogleTokenErrorBody, GoogleTokenResponse } from './google.types';
+import {
+  GOOGLE_ADS_API,
+  GoogleInviterSecret,
+  GoogleServiceAccountKey,
+  GoogleTokenErrorBody,
+  GoogleTokenResponse,
+} from './google.types';
 
 /**
  * Base64url, as JWS writes it: base64 with `-` and `_`, without padding.
@@ -193,6 +202,173 @@ export class GoogleServiceAccountAuth {
       throw credentialsError('the token endpoint returned no access token', response.status, null);
     }
     const lifetime: number = body.expires_in ?? GOOGLE_ADS_API.assertionLifetimeSeconds;
+    this.token = body.access_token;
+    this.expiresAt = this.now() + Math.max(0, lifetime - GOOGLE_ADS_API.tokenExpirySkewSeconds) * 1000;
+    return this.token;
+  }
+}
+
+/**
+ * The inviter's credentials in a secret.
+ *
+ * @param json - The secret, as `pnpm google:connect` wrote it
+ * @returns Its fields
+ * @throws Error with a fixed message when it is not JSON or a field is missing
+ */
+export function parseInviterSecret(json: string): GoogleInviterSecret {
+  let secret: Partial<GoogleInviterSecret> | null;
+  try {
+    secret = JSON.parse(json) as Partial<GoogleInviterSecret> | null;
+  } catch {
+    throw new Error('the inviter secret is not JSON');
+  }
+  for (const field of ['clientId', 'clientSecret', 'refreshToken'] as const) {
+    if (typeof secret?.[field] !== 'string' || secret[field] === '')
+      throw new Error(`the inviter secret has no ${field}`);
+  }
+  return secret as GoogleInviterSecret;
+}
+
+/**
+ * A failure of our inviter's credentials: never the client's fault, nor Google's.
+ *
+ * @param message - What went wrong
+ * @param statusCode - Status of the token endpoint, `null` without response
+ * @param code - The OAuth error (`invalid_grant`…), or ours
+ * @param retryable - Whether trying again later can succeed
+ * @returns The error
+ */
+function inviterCredentialsError(
+  message: string,
+  statusCode: number | null,
+  code: string,
+  retryable: boolean
+): PlatformError {
+  return new PlatformError('google_ads', `Google Ads inviter authentication failed: ${message}`, {
+    statusCode,
+    retryable,
+    invalidCredentials: false,
+    ownCredentials: true,
+    requestId: null,
+    code,
+  });
+}
+
+/**
+ * The access tokens of our inviter: its refresh token, from `pnpm google:connect`, exchanged for an
+ * access token kept until shortly before it expires.
+ *
+ * Google lets only a human admin of the MCC send and withdraw a manager link invitation — a service
+ * account gets `INVALID_CHANGE` (multi-search, tested on 2026-10-18). Concurrent callers share one
+ * exchange, and the secret is read **fresh** at each exchange, so a new consent is picked up without a
+ * restart.
+ */
+export class GoogleInviterAuth {
+  /** The token kept, `null` before the first exchange or once dropped. */
+  private token: string | null = null;
+
+  /** When the token kept must be renewed, epoch milliseconds. */
+  private expiresAt = 0;
+
+  /** The exchange under way, shared by whoever asks meanwhile. */
+  private pending: Promise<string> | null = null;
+
+  /**
+   * @param loadSecret - Reads the inviter secret, from the secret store
+   * @param fetchFn - What sends the exchange; a fake one in the tests
+   * @param now - The clock, epoch milliseconds
+   */
+  constructor(
+    private readonly loadSecret: () => Promise<string>,
+    private readonly fetchFn: typeof fetch = fetch,
+    private readonly now: () => number = Date.now
+  ) {}
+
+  /**
+   * A valid access token of the inviter, renewed when the one kept is about to expire.
+   *
+   * @returns The token
+   * @throws PlatformError, always `ownCredentials`, when the secret cannot be read or Google refuses it
+   */
+  public async accessToken(): Promise<string> {
+    if (this.token !== null && this.now() < this.expiresAt) return this.token;
+    this.pending ??= this.exchange().finally((): void => {
+      this.pending = null;
+    });
+    return this.pending;
+  }
+
+  /** Forget the token kept, so that the next call gets a new one: Google refused it. */
+  public invalidate(): void {
+    this.token = null;
+    this.expiresAt = 0;
+  }
+
+  /**
+   * Exchange the refresh token for an access token.
+   *
+   * @returns The token
+   */
+  private async exchange(): Promise<string> {
+    let secret: GoogleInviterSecret;
+    try {
+      secret = parseInviterSecret(await this.loadSecret());
+    } catch (error: unknown) {
+      throw inviterCredentialsError(
+        `the inviter secret cannot be used (${reasonOf(error)}): run pnpm google:connect`,
+        null,
+        'inviter_secret',
+        false
+      );
+    }
+
+    let response: Response;
+    try {
+      response = await this.fetchFn(GOOGLE_ADS_API.tokenUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          client_id: secret.clientId,
+          client_secret: secret.clientSecret,
+          refresh_token: secret.refreshToken,
+        }).toString(),
+        signal: AbortSignal.timeout(GOOGLE_ADS_API.tokenTimeoutMs),
+      });
+    } catch (error: unknown) {
+      throw inviterCredentialsError(reasonOf(error), null, 'token_endpoint', true);
+    }
+
+    const parsed: unknown = await response.json().catch((): unknown => null);
+    const body: GoogleTokenResponse & GoogleTokenErrorBody = (parsed ?? {}) as GoogleTokenResponse &
+      GoogleTokenErrorBody;
+    if (!response.ok) {
+      const detail: string = body.error_description ?? body.error ?? `HTTP ${response.status}`;
+      if (body.error === 'invalid_grant') {
+        // The consent was withdrawn, or the admin's password changed: only a new consent mends it.
+        throw inviterCredentialsError(
+          `Google refused the inviter's consent (${detail}): run pnpm google:connect`,
+          response.status,
+          'invalid_grant',
+          false
+        );
+      }
+      throw inviterCredentialsError(
+        detail,
+        response.status,
+        body.error ?? 'token_endpoint',
+        response.status === 429 || response.status >= 500
+      );
+    }
+    if (!body.access_token) {
+      throw inviterCredentialsError(
+        'the token endpoint returned no access token',
+        response.status,
+        'token_endpoint',
+        true
+      );
+    }
+    const lifetime: number = body.expires_in ?? GOOGLE_ADS_API.userTokenLifetimeSeconds;
     this.token = body.access_token;
     this.expiresAt = this.now() + Math.max(0, lifetime - GOOGLE_ADS_API.tokenExpirySkewSeconds) * 1000;
     return this.token;

@@ -1,4 +1,4 @@
-import { describeGoogleAdsError, GoogleAdsClient } from '@src/platforms/google/google.client';
+import { describeGoogleAdsError, GoogleAdsClient, inviterFailure } from '@src/platforms/google/google.client';
 import { PlatformError } from '@src/platforms/platform-adapter';
 import { PlatformErrorDescription, PlatformFailure, PlatformHttp } from '@src/platforms/platform-http';
 
@@ -157,15 +157,96 @@ describe('Unit::Platforms::Google::Client', () => {
     });
   });
 
+  describe('inviterFailure', () => {
+    it.each([401, 403])(
+      'should blame our own credentials when Google refuses our inviter with a %i',
+      (statusCode: number): void => {
+        const marked = inviterFailure(
+          new PlatformError('google_ads', 'Denied', {
+            statusCode,
+            retryable: true,
+            invalidCredentials: true,
+            requestId: 'r-1',
+            code: 'USER_PERMISSION_DENIED',
+          })
+        ) as PlatformError;
+
+        expect(marked.message).toBe('Google Ads refused our inviter: Denied');
+        // The inviter may not act on our MCC: the client's account is not lost, and retrying is vain.
+        expect(marked.options).toMatchObject({
+          ownCredentials: true,
+          invalidCredentials: false,
+          retryable: false,
+          requestId: 'r-1',
+          code: 'USER_PERMISSION_DENIED',
+        });
+      }
+    );
+
+    it('should leave any other failure as it is', (): void => {
+      const other: PlatformError = refused(400);
+      const broken = new Error('bug');
+
+      expect(inviterFailure(other)).toBe(other);
+      expect(inviterFailure(broken)).toBe(broken);
+    });
+  });
+
   describe('GoogleAdsClient', () => {
     let http: { request: jest.Mock };
+    let inviterHttp: { request: jest.Mock };
     let onUnauthenticated: jest.Mock;
+    let onInviterUnauthenticated: jest.Mock;
     let client: GoogleAdsClient;
 
     beforeEach((): void => {
       http = { request: jest.fn() };
+      inviterHttp = { request: jest.fn().mockResolvedValue({ result: {} }) };
       onUnauthenticated = jest.fn();
-      client = new GoogleAdsClient(http as unknown as PlatformHttp, '7719345054', onUnauthenticated);
+      onInviterUnauthenticated = jest.fn();
+      client = new GoogleAdsClient(http as unknown as PlatformHttp, '7719345054', onUnauthenticated, {
+        http: inviterHttp as unknown as PlatformHttp,
+        onUnauthenticated: onInviterUnauthenticated,
+      });
+    });
+
+    it('should invite a client account as our inviter, never as our service account', async (): Promise<void> => {
+      await client.createClientLink('9725630707');
+
+      expect(inviterHttp.request).toHaveBeenCalledWith(null, {
+        method: 'POST',
+        path: '/customers/7719345054/customerClientLinks:mutate',
+        body: { operation: { create: { clientCustomer: 'customers/9725630707', status: 'PENDING' } } },
+        headers: { 'login-customer-id': '7719345054' },
+      });
+      expect(http.request).not.toHaveBeenCalled();
+    });
+
+    it('should withdraw an invitation as our inviter', async (): Promise<void> => {
+      await client.cancelClientLink('customers/7719345054/customerClientLinks/9725630707~42');
+
+      expect(inviterHttp.request).toHaveBeenCalledWith(
+        null,
+        expect.objectContaining({
+          body: {
+            operation: {
+              update: { resourceName: 'customers/7719345054/customerClientLinks/9725630707~42', status: 'CANCELED' },
+              updateMask: 'status',
+            },
+          },
+        })
+      );
+    });
+
+    it("should drop the inviter's token once refused, and mark a second refusal as ours", async (): Promise<void> => {
+      inviterHttp.request.mockRejectedValue(refused(401));
+
+      await expect(client.createClientLink('9725630707')).rejects.toMatchObject({
+        options: { ownCredentials: true, retryable: false },
+      });
+      expect(onInviterUnauthenticated).toHaveBeenCalledTimes(1);
+      expect(onUnauthenticated).not.toHaveBeenCalled();
+      expect(inviterHttp.request).toHaveBeenCalledTimes(2);
     });
 
     it('should read every page of a search, through our manager account, the first page alone costing', async (): Promise<void> => {

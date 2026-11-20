@@ -19,6 +19,7 @@ import {
   GoogleAdsFailure,
   GoogleAdsRow,
   GoogleAdsSearchResponse,
+  GoogleClientLinkRequest,
 } from './google.types';
 
 /** gRPC statuses after which trying again later can succeed. */
@@ -166,21 +167,56 @@ export function describeGoogleAdsError(failure: PlatformFailure): PlatformErrorD
 }
 
 /**
+ * The HTTP client authenticated as our inviter, the human admin of our MCC.
+ *
+ * @property http - HTTP client of the API, with the inviter's token
+ * @property onUnauthenticated - Drops that token, when Google refuses it (401), before the one retry
+ */
+export type GoogleInviterHttp = { http: PlatformHttp; onUnauthenticated: () => void };
+
+/**
+ * A failure of our inviter's own access — Google refused its token even after a new one (401), or the
+ * inviter may not act on our MCC (403). Never the client's fault: an operator runs `pnpm google:connect`
+ * again, with an admin of our MCC.
+ *
+ * @param error - What the call threw
+ * @returns The same failure marked as our own credentials, or the error itself otherwise
+ */
+export function inviterFailure(error: unknown): unknown {
+  if (!(error instanceof PlatformError) || (error.options.statusCode !== 401 && error.options.statusCode !== 403)) {
+    return error;
+  }
+  return new PlatformError('google_ads', `Google Ads refused our inviter: ${error.message}`, {
+    ...error.options,
+    retryable: false,
+    invalidCredentials: false,
+    ownCredentials: true,
+  });
+}
+
+/**
  * The calls of the Google Ads API, every one through our manager account (`login-customer-id`).
  *
  * No logic beyond paging and one retry: one method per endpoint. Each call tells the journal what it
- * costs against the project's daily quota, as Google counts it — one per search, its next pages free.
+ * costs against the project's daily quota, as Google counts it — one per search, its next pages free,
+ * one per change of a link.
+ *
+ * The changes of a link — inviting, withdrawing — go **as our inviter**: Google answers `INVALID_CHANGE`
+ * to a service account there. Without inviter they fail on our own credentials, never falling back on
+ * the service account.
  */
 export class GoogleAdsClient {
   /**
    * @param http - HTTP client of the API, with our service account's token
    * @param managerId - Our manager account, ten digits
    * @param onUnauthenticated - Drops the token kept, when Google refuses it (401), before the one retry
+   * @param inviter - HTTP client authenticated as our inviter
    */
   constructor(
     private readonly http: PlatformHttp,
     public readonly managerId: string,
-    private readonly onUnauthenticated: () => void
+    private readonly onUnauthenticated: () => void,
+    private readonly inviter: GoogleInviterHttp
   ) {}
 
   /**
@@ -209,8 +245,49 @@ export class GoogleAdsClient {
   }
 
   /**
-   * Send a request through our manager account. A token Google refuses (401) is dropped and the
-   * request sent once more with a new one: a 401 that survives it is our credentials failing.
+   * Invite a client account under our MCC, as our inviter: `PENDING` until an admin of it accepts.
+   *
+   * @param clientId - The client account, ten digits
+   * @returns A promise that resolves once invited
+   * @throws PlatformError, on our own credentials when the inviter cannot act
+   */
+  public async createClientLink(clientId: string): Promise<void> {
+    await this.changeClientLink({
+      operation: { create: { clientCustomer: `customers/${clientId}`, status: 'PENDING' } },
+    });
+  }
+
+  /**
+   * Withdraw a pending invitation of our MCC, as our inviter.
+   *
+   * @param resourceName - The link, `customers/<MCC>/customerClientLinks/<client>~<managerLinkId>`
+   * @returns A promise that resolves once withdrawn
+   * @throws PlatformError, on our own credentials when the inviter cannot act
+   */
+  public async cancelClientLink(resourceName: string): Promise<void> {
+    await this.changeClientLink({ operation: { update: { resourceName, status: 'CANCELED' }, updateMask: 'status' } });
+  }
+
+  /**
+   * Change a link of our MCC as our inviter, a failure of its own access marked as ours.
+   *
+   * @param body - The operation
+   * @returns A promise that resolves once changed
+   */
+  private async changeClientLink(body: GoogleClientLinkRequest): Promise<void> {
+    try {
+      await this.sendWith(this.inviter.http, this.inviter.onUnauthenticated, null, {
+        method: 'POST',
+        path: `/customers/${this.managerId}/customerClientLinks:mutate`,
+        body,
+      });
+    } catch (error: unknown) {
+      throw inviterFailure(error);
+    }
+  }
+
+  /**
+   * Send a request through our manager account, as our service account.
    *
    * @typeParam T - Shape of the answer
    * @param adAccountId - Our account, for the journal
@@ -218,16 +295,37 @@ export class GoogleAdsClient {
    * @returns The answer
    */
   private async send<T>(adAccountId: string | null, request: PlatformRequest): Promise<T> {
+    return this.sendWith<T>(this.http, this.onUnauthenticated, adAccountId, request);
+  }
+
+  /**
+   * Send a request through our manager account, with some credentials. A token Google refuses (401) is
+   * dropped and the request sent once more with a new one: a 401 that survives it is our credentials
+   * failing.
+   *
+   * @typeParam T - Shape of the answer
+   * @param http - HTTP client of the credentials
+   * @param onUnauthenticated - Drops their token
+   * @param adAccountId - Our account, for the journal
+   * @param request - The request
+   * @returns The answer
+   */
+  private async sendWith<T>(
+    http: PlatformHttp,
+    onUnauthenticated: () => void,
+    adAccountId: string | null,
+    request: PlatformRequest
+  ): Promise<T> {
     const withManager: PlatformRequest = {
       ...request,
       headers: { [GOOGLE_ADS_API.loginCustomerHeader]: this.managerId },
     };
     try {
-      return await this.http.request<T>(adAccountId, withManager);
+      return await http.request<T>(adAccountId, withManager);
     } catch (error: unknown) {
       if (!(error instanceof PlatformError) || error.options.statusCode !== 401) throw error;
-      this.onUnauthenticated();
-      return this.http.request<T>(adAccountId, withManager);
+      onUnauthenticated();
+      return http.request<T>(adAccountId, withManager);
     }
   }
 }

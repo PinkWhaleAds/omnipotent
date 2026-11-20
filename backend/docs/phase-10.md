@@ -242,7 +242,12 @@ le compte n'a pas de `linkRef` s'arrête sur `sync_account_not_linked`, définit
   dit que seul un admin humain du MCC peut inviter, et qu'il faut d'abord lancer `pnpm google:connect`
   (code de la plateforme `inviter_missing`) ;
 - **2b — inviter.** Le jeton de l'inviteur, l'envoi et le retrait d'une invitation, et la commande de
-  consentement.
+  consentement `pnpm google:connect` (`src/platforms/google/google-connect.ts`, et son point d'entrée
+  `src/scripts/google-connect.ts`), dont les gestes sont dans `../../docs/runbook-acces.md` B8. Le
+  secret de l'inviteur est lu **frais** à chaque échange de jeton : un consentement donné est pris en
+  compte sans redémarrer l'API. Un refus de Google garde le code qui dit pourquoi (`TOO_MANY_MANAGERS`
+  plutôt que le `INVALID_CHANGE` qui le précède), et c'est lui que l'appelant lit dans
+  `ad_account_link_refused`.
 
 Deux écarts avec multi-search, sans effet sur ce qu'on obtient : le client HTTP est écrit sur le
 `fetch` de Node, pas sur `axios`, qu'Omnipotent n'a pas — une dépendance de moins ; et l'adapter lit

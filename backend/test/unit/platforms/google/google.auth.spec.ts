@@ -2,7 +2,9 @@ import { createVerify, generateKeyPairSync } from 'node:crypto';
 
 import {
   base64Url,
+  GoogleInviterAuth,
   GoogleServiceAccountAuth,
+  parseInviterSecret,
   parseServiceAccountKey,
   signedAssertion,
 } from '@src/platforms/google/google.auth';
@@ -294,6 +296,178 @@ describe('Unit::Platforms::Google::Auth', () => {
 
       await expect(new GoogleServiceAccountAuth(loadKey).accessToken()).resolves.toBe('ya29.global');
       expect(spy).toHaveBeenCalledTimes(1);
+      spy.mockRestore();
+    });
+  });
+  describe('parseInviterSecret', () => {
+    const SECRET = { clientId: 'c-1', clientSecret: 's-1', refreshToken: 'r-1' };
+
+    it('should read the three fields pnpm google:connect writes', (): void => {
+      expect(parseInviterSecret(JSON.stringify(SECRET))).toEqual(SECRET);
+    });
+
+    it.each([
+      ['text that is not JSON', 'oops', 'the inviter secret is not JSON'],
+      ['a JSON null', 'null', 'the inviter secret has no clientId'],
+      [
+        'the OAuth client alone, before any consent',
+        JSON.stringify({ clientId: 'c', clientSecret: 's' }),
+        'has no refreshToken',
+      ],
+      ['an empty field', JSON.stringify({ ...SECRET, clientSecret: '' }), 'has no clientSecret'],
+    ])('should refuse %s', (_label: string, json: string, message: string): void => {
+      expect(() => parseInviterSecret(json)).toThrow(message);
+    });
+  });
+
+  describe('GoogleInviterAuth', () => {
+    const SECRET_JSON: string = JSON.stringify({ clientId: 'c-1', clientSecret: 's-1', refreshToken: 'r-1' });
+    let fetchFn: jest.Mock;
+    let loadSecret: jest.Mock;
+    let now: number;
+
+    /**
+     * The inviter's token provider, with a fake network and clock.
+     *
+     * @returns It
+     */
+    function auth(): GoogleInviterAuth {
+      return new GoogleInviterAuth(loadSecret, fetchFn as unknown as typeof fetch, (): number => now);
+    }
+
+    /**
+     * The failure a token request ends on.
+     *
+     * @param provider - The token provider
+     * @returns The error it threw
+     */
+    async function failureOf(provider: GoogleInviterAuth): Promise<PlatformError> {
+      return (await provider.accessToken().catch((thrown: unknown): unknown => thrown)) as PlatformError;
+    }
+
+    beforeEach((): void => {
+      now = NOW;
+      loadSecret = jest.fn().mockResolvedValue(SECRET_JSON);
+      fetchFn = jest.fn(async (): Promise<Response> =>
+        tokenResponse({ access_token: 'ya29.inviter', expires_in: 3_600 })
+      );
+    });
+
+    it("should exchange the inviter's refresh token for an access token", async (): Promise<void> => {
+      await expect(auth().accessToken()).resolves.toBe('ya29.inviter');
+
+      const [url, init] = fetchFn.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe(GOOGLE_ADS_API.tokenUrl);
+      expect(Object.fromEntries(new URLSearchParams(init.body as string))).toEqual({
+        grant_type: 'refresh_token',
+        client_id: 'c-1',
+        client_secret: 's-1',
+        refresh_token: 'r-1',
+      });
+    });
+
+    it('should keep the token, share one exchange, and exchange again once dropped', async (): Promise<void> => {
+      const provider: GoogleInviterAuth = auth();
+
+      await Promise.all([provider.accessToken(), provider.accessToken()]);
+      await provider.accessToken();
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+
+      provider.invalidate();
+      await provider.accessToken();
+      expect(fetchFn).toHaveBeenCalledTimes(2);
+    });
+
+    it('should assume an hour when Google does not say how long the token lives', async (): Promise<void> => {
+      fetchFn.mockImplementation(async (): Promise<Response> => tokenResponse({ access_token: 'ya29.inviter' }));
+      const provider: GoogleInviterAuth = auth();
+
+      await provider.accessToken();
+      now = NOW + 3_000 * 1000;
+      await provider.accessToken();
+
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      [
+        'a secret that cannot be read',
+        (): void => void loadSecret.mockRejectedValue(new Error('secret missing')),
+        'secret missing',
+      ],
+      ['a store that answers oddly', (): void => void loadSecret.mockRejectedValue('gone'), 'gone'],
+      [
+        'a secret without consent yet',
+        (): void => void loadSecret.mockResolvedValue('{"clientId":"c","clientSecret":"s"}'),
+        'has no refreshToken',
+      ],
+    ])(
+      'should send to pnpm google:connect for %s',
+      async (_label: string, arrange: () => void, reason: string): Promise<void> => {
+        arrange();
+
+        const error: PlatformError = await failureOf(auth());
+
+        expect(error.message).toContain(reason);
+        expect(error.message).toContain('run pnpm google:connect');
+        expect(error.options).toMatchObject({ ownCredentials: true, retryable: false, code: 'inviter_secret' });
+        expect(fetchFn).not.toHaveBeenCalled();
+      }
+    );
+
+    it('should allow a retry when the endpoint does not answer', async (): Promise<void> => {
+      fetchFn.mockRejectedValue(new TypeError('fetch failed'));
+
+      await expect(failureOf(auth())).resolves.toMatchObject({
+        options: { ownCredentials: true, retryable: true, statusCode: null, code: 'token_endpoint' },
+      });
+    });
+
+    it('should say only a new consent mends a refused one', async (): Promise<void> => {
+      fetchFn.mockImplementation(async (): Promise<Response> =>
+        tokenResponse({ error: 'invalid_grant', error_description: 'Token has been expired or revoked.' }, 400)
+      );
+
+      await expect(failureOf(auth())).resolves.toMatchObject({
+        message: expect.stringContaining('run pnpm google:connect'),
+        options: { ownCredentials: true, retryable: false, statusCode: 400, code: 'invalid_grant' },
+      });
+    });
+
+    it.each([
+      ['a rate limit', { error: 'rate_limited' }, 429, 'rate_limited', true],
+      ['an outage', 'oops', 503, 'token_endpoint', true],
+      [
+        'a client refused',
+        { error: 'invalid_client', error_description: 'Unauthorized' },
+        401,
+        'invalid_client',
+        false,
+      ],
+    ])(
+      'should word %s, retrying only what can pass later',
+      async (_label: string, body: unknown, status: number, code: string, retryable: boolean): Promise<void> => {
+        fetchFn.mockImplementation(async (): Promise<Response> => tokenResponse(body, status));
+
+        await expect(failureOf(auth())).resolves.toMatchObject({ options: { statusCode: status, code, retryable } });
+      }
+    );
+
+    it('should refuse an answer that carries no token, and allow a retry', async (): Promise<void> => {
+      fetchFn.mockImplementation(async (): Promise<Response> => tokenResponse({}));
+
+      await expect(failureOf(auth())).resolves.toMatchObject({
+        message: expect.stringContaining('no access token'),
+        options: { code: 'token_endpoint', retryable: true },
+      });
+    });
+
+    it("should go through Node's own fetch and clock when none is given", async (): Promise<void> => {
+      const spy: jest.SpyInstance = jest
+        .spyOn(global, 'fetch')
+        .mockResolvedValue(tokenResponse({ access_token: 'ya29.global' }));
+
+      await expect(new GoogleInviterAuth(loadSecret).accessToken()).resolves.toBe('ya29.global');
       spy.mockRestore();
     });
   });

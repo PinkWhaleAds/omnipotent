@@ -117,6 +117,7 @@
   },
   "GoogleAds": {
     "managerId": "GOOGLE_ADS_MANAGER_ID",
-    "serviceAccountSecret": "GOOGLE_ADS_SERVICE_ACCOUNT_SECRET"
+    "serviceAccountSecret": "GOOGLE_ADS_SERVICE_ACCOUNT_SECRET",
+    "inviterSecret": "GOOGLE_ADS_INVITER_SECRET"
   }
 }

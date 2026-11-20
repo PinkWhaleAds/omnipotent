@@ -12,7 +12,11 @@ describe('Unit::Configs::GoogleAds', () => {
     await jest.isolateModulesAsync(async (): Promise<void> => {
       const { googleAdsConfig } = await import('@configs/google-ads.config');
 
-      expect(googleAdsConfig).toEqual({ managerId: '', serviceAccountSecret: 'google-ads/service-account' });
+      expect(googleAdsConfig).toEqual({
+        managerId: '',
+        serviceAccountSecret: 'google-ads/service-account',
+        inviterSecret: 'google-ads/inviter',
+      });
     });
   });
 
@@ -20,6 +24,7 @@ describe('Unit::Configs::GoogleAds', () => {
     const values: Record<string, unknown> = {
       'GoogleAds.managerId': '771-934-5054',
       'GoogleAds.serviceAccountSecret': 'google-ads/other',
+      'GoogleAds.inviterSecret': 'google-ads/other-inviter',
     };
     jest.spyOn(config, 'has').mockImplementation((): boolean => true);
     jest.spyOn(config, 'get').mockImplementation((key: string): unknown => values[key]);
@@ -27,7 +32,11 @@ describe('Unit::Configs::GoogleAds', () => {
     await jest.isolateModulesAsync(async (): Promise<void> => {
       const { googleAdsConfig } = await import('@configs/google-ads.config');
 
-      expect(googleAdsConfig).toEqual({ managerId: '771-934-5054', serviceAccountSecret: 'google-ads/other' });
+      expect(googleAdsConfig).toEqual({
+        managerId: '771-934-5054',
+        serviceAccountSecret: 'google-ads/other',
+        inviterSecret: 'google-ads/other-inviter',
+      });
     });
   });
 });

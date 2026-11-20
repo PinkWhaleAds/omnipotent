@@ -12,18 +12,34 @@ import { googleAdsConfig, GoogleAdsConfig } from '@configs';
 import type { CallJournal } from '@src/services/platform-call.service';
 import type { SecretStore } from '@src/services/secret-store.service';
 import { Logger, LoggerBuilder } from '@utils';
-import { createGoogleAdsAdapter } from './google/google.adapter';
+import { createGoogleAdsAdapter, GoogleAdsSetup } from './google/google.adapter';
 import { registerAdapter } from './platform-adapter';
 
 /** Says at startup which platforms this process talks to. */
 const logger: Logger = LoggerBuilder.getChildLogger('PlatformAdapters');
 
 /**
+ * What the Google Ads adapter is built with: our MCC, and the reading of our two credentials.
+ *
+ * @param secrets - Where our credentials live
+ * @param google - The Google Ads settings
+ * @returns The setup
+ */
+export function googleAdsSetup(secrets: SecretStore, google: GoogleAdsConfig): GoogleAdsSetup {
+  return {
+    managerId: google.managerId,
+    loadServiceAccountKey: (): Promise<string> => secrets.get(google.serviceAccountSecret),
+    loadInviterSecret: (): Promise<string> => secrets.get(google.inviterSecret, { fresh: true }),
+  };
+}
+
+/**
  * Register the adapter of every platform whose settings are there.
  *
- * Google Ads joins when our manager account is configured; its service account's key is read from the
- * secret store **at each token exchange**, never at startup, so a missing key fails its first call
- * with our own credentials named rather than the boot.
+ * Google Ads joins when our manager account is configured; its two credentials are read from the
+ * secret store **at each token exchange**, never at startup, so a missing one fails its first call
+ * with our own credentials named rather than the boot. The inviter's is read **fresh**: a consent
+ * given by `pnpm google:connect` is picked up at once, not after the store's cache expires.
  *
  * @param secrets - Where our credentials live
  * @param journal - Where every call is recorded
@@ -37,15 +53,7 @@ export function registerPlatformAdapters(
 ): string[] {
   const registered: string[] = [];
   if (google.managerId) {
-    registerAdapter(
-      createGoogleAdsAdapter(
-        {
-          managerId: google.managerId,
-          loadServiceAccountKey: (): Promise<string> => secrets.get(google.serviceAccountSecret),
-        },
-        journal
-      )
-    );
+    registerAdapter(createGoogleAdsAdapter(googleAdsSetup(secrets, google), journal));
     registered.push('google_ads');
   }
   logger.info('Platform adapters registered', { platforms: registered });

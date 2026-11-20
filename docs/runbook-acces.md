@@ -667,16 +667,35 @@ appels du Keyword Planner, qui a sa propre limite d'une requête par seconde et 
 1. dans le MCC de production → **Comptes** → **+** → **Créer un compte** ;
 2. **note son customer id**, non secret.
 
-### B8. Le consentement de l'humain inviteur — _5 minutes, mais après le code_
+### B8. Le consentement de l'humain inviteur — _5 minutes ; la commande existe depuis le 2026-11-20_
 
 Google **refuse les invitations de lien manager venant d'un compte de service**. Il faut donc qu'un
-humain administrateur du MCC consente une fois, et nous gardons son `refresh_token`.
+humain administrateur du MCC consente une fois, et nous gardons son `refresh_token`. Sans lui, un
+compte que notre MCC gère déjà se connecte quand même ; seul un compte à **inviter** est refusé, avec
+`platform_credentials_failed`.
 
-Cette étape passe par une commande que je dois d'abord transcrire depuis multi-search
-(`pnpm google:connect`) : elle ouvre une page de consentement Google, tu te connectes **avec le compte
-admin du MCC**, et elle écrit le secret dans Secrets Manager sans qu'il passe par le chat. Elle lit le
-client OAuth de B5b dans le secret `google-ads/inviter`, et y ajoute le jeton. **Rien à faire
-maintenant** : je te préviendrai quand la commande existera.
+**Les gestes**, depuis `backend/`, la base et le magasin local démarrés (`pnpm setup:dev` le fait) :
+
+1. `pnpm google:connect`. La commande lit le client OAuth de B5b dans le secret `google-ads/inviter`,
+   donc elle ne te demande rien, et elle affiche une longue adresse qui commence par
+   `https://accounts.google.com/` ;
+2. ouvre cette adresse (Ctrl + clic dans le terminal de VS Code) et connecte-toi avec
+   **`admin@pinkwhale.co`**, l'admin du MCC. Si Google dit que l'application n'est pas vérifiée, c'est
+   normal pour un client « Application de bureau » à nous : **Paramètres avancés**, puis **Accéder
+   à … (non sécurisé)** ;
+3. coche l'accès à **Google Ads** s'il est proposé en case, puis **Continuer**. Le navigateur arrive sur
+   une page `127.0.0.1` qui dit « Omnipotent can now send Google Ads invitations », et la commande
+   s'arrête d'elle-même ;
+4. `pnpm secrets:seed` : le jeton est écrit sur le poste, et c'est la synchronisation qui l'envoie sur
+   AWS, la valeur la plus récente gagnant.
+
+**Ce qui ne passe jamais par le chat** : ni le client secret, ni le jeton. La commande n'affiche que des
+noms et l'adresse de la page de Google. **Si le navigateur ne trouve pas la page `127.0.0.1`** — le
+poste est sous WSL, et la page tourne dedans —, dis-le-moi avant de recommencer : la commande attend
+dix minutes, puis abandonne sans rien écrire.
+
+À refaire **seulement** si Google refuse un jour le jeton (`invalid_grant`, par exemple après un
+changement du mot de passe de l'admin) : la même commande, les mêmes gestes.
 
 ### B9. Relever les limites du compte — _10 minutes, après B4_
 

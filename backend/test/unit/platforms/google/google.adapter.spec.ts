@@ -6,6 +6,7 @@ import {
   GoogleAdsAdapter,
   normalizeCustomerId,
 } from '@src/platforms/google/google.adapter';
+import { GoogleAdsClient } from '@src/platforms/google/google.client';
 import { GOOGLE_ADS_API, GoogleAdsRow } from '@src/platforms/google/google.types';
 import { LinkStatus, PlatformError } from '@src/platforms/platform-adapter';
 
@@ -22,6 +23,9 @@ const KEY_JSON: string = JSON.stringify({
   client_email: 'ads@project.iam.gserviceaccount.com',
   private_key: privateKey,
 });
+
+/** The consent of our inviter, as pnpm google:connect writes it. */
+const INVITER_JSON: string = JSON.stringify({ clientId: 'c-1', clientSecret: 's-1', refreshToken: 'r-1' });
 
 /** Our manager account, and a client account under it. */
 const MCC = '7719345054';
@@ -40,6 +44,27 @@ function link(clientId: string, status: string, managerLinkId?: string): GoogleA
 }
 
 /**
+ * The body of a refusal of Google Ads, listing its errors.
+ *
+ * @param codes - The codes of the errors, in order
+ * @returns The body
+ */
+function refusal(...codes: string[]): object {
+  return {
+    error: {
+      code: 400,
+      status: 'INVALID_ARGUMENT',
+      details: [
+        {
+          '@type': 'type.googleapis.com/google.ads.googleads.v25.errors.GoogleAdsFailure',
+          errors: codes.map((code: string): object => ({ errorCode: { managerLinkError: code }, message: code })),
+        },
+      ],
+    },
+  };
+}
+
+/**
  * A JSON response.
  *
  * @param body - Its body
@@ -53,6 +78,8 @@ function json(body: unknown, status = 200): Response {
 describe('Unit::Platforms::Google::Adapter', () => {
   let links: GoogleAdsRow[];
   let customers: GoogleAdsRow[];
+  let inviterSecret: string;
+  let mutate: () => Response;
   let fetchFn: jest.Mock;
   let journal: { record: jest.Mock };
   let adapter: GoogleAdsAdapter;
@@ -64,7 +91,7 @@ describe('Unit::Platforms::Google::Adapter', () => {
    */
   function searches(): [string, string][] {
     return fetchFn.mock.calls
-      .filter(([url]: [string]): boolean => url.startsWith(GOOGLE_ADS_API.baseUrl))
+      .filter(([url]: [string]): boolean => url.endsWith('googleAds:search'))
       .map(([url, init]: [string, RequestInit]): [string, string] => [
         url.slice(GOOGLE_ADS_API.baseUrl.length),
         (JSON.parse(init.body as string) as { query: string }).query,
@@ -86,17 +113,43 @@ describe('Unit::Platforms::Google::Adapter', () => {
     );
   }
 
+  /**
+   * The changes of links Google was sent, with the token each went with.
+   *
+   * @returns One `[authorization, body]` per change
+   */
+  function linkChanges(): [string, unknown][] {
+    return fetchFn.mock.calls
+      .filter(([url]: [string]): boolean => url.endsWith('customerClientLinks:mutate'))
+      .map(([, init]: [string, RequestInit]): [string, unknown] => [
+        (init.headers as Record<string, string>).Authorization,
+        JSON.parse(init.body as string) as unknown,
+      ]);
+  }
+
   beforeEach((): void => {
     links = [];
     customers = [];
+    inviterSecret = INVITER_JSON;
+    mutate = (): Response => json({ result: {} });
     journal = { record: jest.fn() };
     fetchFn = jest.fn(async (url: string, init: RequestInit): Promise<Response> => {
-      if (url === GOOGLE_ADS_API.tokenUrl) return json({ access_token: 'ya29.token', expires_in: 3_600 });
+      if (url === GOOGLE_ADS_API.tokenUrl) {
+        // The inviter exchanges its refresh token; the service account, a signed assertion.
+        const grant: string | null = new URLSearchParams(init.body as string).get('grant_type');
+        return json({ access_token: grant === 'refresh_token' ? 'ya29.inviter' : 'ya29.token', expires_in: 3_600 });
+      }
+      if (url.endsWith('customerClientLinks:mutate')) return mutate();
       const { query } = JSON.parse(init.body as string) as { query: string };
       return json({ results: query.includes('FROM customer_client_link') ? links : customers });
     });
     adapter = createGoogleAdsAdapter(
-      { managerId: '771-934-5054', loadServiceAccountKey: (): Promise<string> => Promise.resolve(KEY_JSON), fetchFn },
+      {
+        managerId: '771-934-5054',
+        loadServiceAccountKey: (): Promise<string> => Promise.resolve(KEY_JSON),
+        loadInviterSecret: (): Promise<string> => Promise.resolve(inviterSecret),
+        fetchFn,
+      },
       journal
     );
   });
@@ -116,9 +169,12 @@ describe('Unit::Platforms::Google::Adapter', () => {
 
   describe('createGoogleAdsAdapter', () => {
     it('should refuse a manager account that is not a customer id', (): void => {
-      expect(() => createGoogleAdsAdapter({ managerId: 'mcc', loadServiceAccountKey: jest.fn() }, journal)).toThrow(
-        'The Google Ads manager account mcc is not a customer id'
-      );
+      expect(() =>
+        createGoogleAdsAdapter(
+          { managerId: 'mcc', loadServiceAccountKey: jest.fn(), loadInviterSecret: jest.fn() },
+          journal
+        )
+      ).toThrow('The Google Ads manager account mcc is not a customer id');
     });
 
     it('should be a platform whose accounts link to our manager account', (): void => {
@@ -159,21 +215,87 @@ describe('Unit::Platforms::Google::Adapter', () => {
         [link(CLIENT, 'ACTIVE', '1'), link(CLIENT, 'CANCELED', '2')],
       ],
     ])(
-      'should say an invitation needs our inviter, for an account with %s',
+      'should invite, as our inviter, an account with %s',
       async (_label: string, rows: GoogleAdsRow[]): Promise<void> => {
         links = rows;
 
-        const error: PlatformError = await failureOf(adapter.requestLink(CLIENT));
+        await expect(adapter.requestLink(CLIENT)).resolves.toBe('pending');
 
-        expect(error.message).toContain('run pnpm google:connect first');
-        expect(error.message).toContain('972-563-0707');
-        expect(error.options).toMatchObject({
-          ownCredentials: true,
-          invalidCredentials: false,
-          code: 'inviter_missing',
-        });
+        expect(linkChanges()).toEqual([
+          [
+            'Bearer ya29.inviter',
+            { operation: { create: { clientCustomer: `customers/${CLIENT}`, status: 'PENDING' } } },
+          ],
+        ]);
       }
     );
+
+    it.each([
+      ['manages it already, read too late', 'ALREADY_MANAGED_BY_THIS_MANAGER', 'active'],
+      ['invited it already', 'ALREADY_INVITED_BY_THIS_MANAGER', 'pending'],
+      ['invited it already, in other words', 'CLIENT_ALREADY_INVITED_BY_THIS_MANAGER', 'pending'],
+    ])(
+      'should take as an answer that our MCC %s',
+      async (_label: string, code: string, answer: string): Promise<void> => {
+        mutate = (): Response => json(refusal('INVALID_CHANGE', code), 400);
+
+        await expect(adapter.requestLink(CLIENT)).resolves.toBe(answer);
+      }
+    );
+
+    it('should keep the code that says why Google refused, not the vaguer one before it', async (): Promise<void> => {
+      mutate = (): Response => json(refusal('INVALID_CHANGE', 'TOO_MANY_MANAGERS'), 400);
+
+      await expect(failureOf(adapter.requestLink(CLIENT))).resolves.toMatchObject({
+        message: expect.stringContaining('TOO_MANY_MANAGERS'),
+        options: { code: 'TOO_MANY_MANAGERS', retryable: false, ownCredentials: false },
+      });
+    });
+
+    it('should let a refusal that says nothing more through as Google gave it', async (): Promise<void> => {
+      mutate = (): Response => json(refusal('CUSTOMER_NOT_FOUND'), 400);
+
+      await expect(failureOf(adapter.requestLink(CLIENT))).resolves.toMatchObject({
+        options: { code: 'CUSTOMER_NOT_FOUND' },
+      });
+    });
+
+    it('should blame our own credentials when the inviter never consented', async (): Promise<void> => {
+      inviterSecret = JSON.stringify({ clientId: 'c-1', clientSecret: 's-1' });
+
+      const error: PlatformError = await failureOf(adapter.requestLink(CLIENT));
+
+      expect(error.message).toContain('run pnpm google:connect');
+      expect(error.options).toMatchObject({ ownCredentials: true, code: 'inviter_secret' });
+      expect(linkChanges()).toEqual([]);
+    });
+
+    it('should let through, as it is, a refusal that carries no code at all', async (): Promise<void> => {
+      const bare = new PlatformError('google_ads', 'Refused', {
+        statusCode: 400,
+        retryable: false,
+        invalidCredentials: false,
+        requestId: null,
+      });
+      const client = {
+        managerId: MCC,
+        search: jest.fn().mockResolvedValue([]),
+        createClientLink: jest.fn().mockRejectedValue(bare),
+      };
+
+      await expect(new GoogleAdsAdapter(client as unknown as GoogleAdsClient).requestLink(CLIENT)).rejects.toBe(bare);
+    });
+
+    it('should let through a failure that is not the platform', async (): Promise<void> => {
+      const broken = new Error('bug');
+      const client = {
+        managerId: MCC,
+        search: jest.fn().mockResolvedValue([]),
+        createClientLink: jest.fn().mockRejectedValue(broken),
+      };
+
+      await expect(new GoogleAdsAdapter(client as unknown as GoogleAdsClient).requestLink(CLIENT)).rejects.toBe(broken);
+    });
   });
 
   describe('linkStatuses', () => {
@@ -216,13 +338,37 @@ describe('Unit::Platforms::Google::Adapter', () => {
       await expect(adapter.cancelLink(CLIENT)).resolves.toBeUndefined();
     });
 
-    it('should say withdrawing a pending invitation needs our inviter', async (): Promise<void> => {
-      links = [link(CLIENT, 'PENDING', '1')];
+    it.each([
+      [
+        'the resource name Google gave',
+        {
+          customerClientLink: {
+            ...link(CLIENT, 'PENDING', '7').customerClientLink,
+            resourceName: 'customers/x/customerClientLinks/y~7',
+          },
+        },
+        'customers/x/customerClientLinks/y~7',
+      ],
+      [
+        'a resource name rebuilt from its parts',
+        link(CLIENT, 'PENDING', '7'),
+        `customers/${MCC}/customerClientLinks/${CLIENT}~7`,
+      ],
+    ])(
+      'should withdraw a pending invitation as our inviter, by %s',
+      async (_label: string, row: GoogleAdsRow, resourceName: string): Promise<void> => {
+        links = [row];
 
-      await expect(failureOf(adapter.cancelLink(CLIENT))).resolves.toMatchObject({
-        options: { ownCredentials: true, code: 'inviter_missing' },
-      });
-    });
+        await adapter.cancelLink(CLIENT);
+
+        expect(linkChanges()).toEqual([
+          [
+            'Bearer ya29.inviter',
+            { operation: { update: { resourceName, status: 'CANCELED' }, updateMask: 'status' } },
+          ],
+        ]);
+      }
+    );
   });
 
   describe('readLinkedAccount', () => {

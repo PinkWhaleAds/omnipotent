@@ -8,10 +8,13 @@ import config from 'config';
  *   never pushed to (`docs/phase-10.md` § 5). Not a secret: every call names it in a header
  * @property serviceAccountSecret - Where the JSON key of our service account lives in the secret
  *   store, relative to its prefix
+ * @property inviterSecret - Where the OAuth credentials of our inviter live — the human admin of our MCC
+ *   who sends the invitations, written by `pnpm google:connect`
  */
 export type GoogleAdsConfig = {
   managerId: string;
   serviceAccountSecret: string;
+  inviterSecret: string;
 };
 
 /** The configuration key used to look up the Google Ads settings in the config store. */
@@ -41,4 +44,5 @@ function optional<T>(key: string, fallback: T): T {
 export const googleAdsConfig: GoogleAdsConfig = {
   managerId: optional('managerId', ''),
   serviceAccountSecret: optional('serviceAccountSecret', 'google-ads/service-account'),
+  inviterSecret: optional('inviterSecret', 'google-ads/inviter'),
 };

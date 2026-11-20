@@ -4,7 +4,7 @@ import fastifyPlugin from 'fastify-plugin';
 import { googleAdsConfig } from '@configs';
 import { GoogleAdsAdapter } from '@src/platforms/google/google.adapter';
 import { ADAPTERS, PlatformAdapter } from '@src/platforms/platform-adapter';
-import PlatformAdaptersPlugin, { registerPlatformAdapters } from '@src/platforms/registry';
+import PlatformAdaptersPlugin, { googleAdsSetup, registerPlatformAdapters } from '@src/platforms/registry';
 import { Platform } from '@src/types';
 
 describe('Unit::Platforms::Registry', () => {
@@ -27,6 +27,7 @@ describe('Unit::Platforms::Registry', () => {
     const registered: string[] = registerPlatformAdapters(secrets as never, journal, {
       managerId: '771-934-5054',
       serviceAccountSecret: 'google-ads/service-account',
+      inviterSecret: 'google-ads/inviter',
     });
 
     expect(registered).toEqual(['google_ads']);
@@ -39,6 +40,7 @@ describe('Unit::Platforms::Registry', () => {
     registerPlatformAdapters(secrets as never, journal, {
       managerId: '7719345054',
       serviceAccountSecret: 'google-ads/service-account',
+      inviterSecret: 'google-ads/inviter',
     });
 
     // The key read is not one, so the exchange stops there, on our own credentials.
@@ -48,11 +50,26 @@ describe('Unit::Platforms::Registry', () => {
     expect(secrets.get).toHaveBeenCalledWith('google-ads/service-account');
   });
 
+  it("should read the inviter's consent fresh, so that a new one is picked up at once", async (): Promise<void> => {
+    const setup = googleAdsSetup(secrets as never, {
+      managerId: '7719345054',
+      serviceAccountSecret: 'google-ads/service-account',
+      inviterSecret: 'google-ads/inviter',
+    });
+
+    await setup.loadInviterSecret();
+    await setup.loadServiceAccountKey();
+
+    expect(secrets.get).toHaveBeenNthCalledWith(1, 'google-ads/inviter', { fresh: true });
+    expect(secrets.get).toHaveBeenNthCalledWith(2, 'google-ads/service-account');
+  });
+
   it('should leave Google Ads without an adapter when no manager account is configured', (): void => {
     expect(
       registerPlatformAdapters(secrets as never, journal, {
         managerId: '',
         serviceAccountSecret: 'google-ads/service-account',
+        inviterSecret: 'google-ads/inviter',
       })
     ).toEqual([]);
     expect(registry.google_ads).toBeUndefined();

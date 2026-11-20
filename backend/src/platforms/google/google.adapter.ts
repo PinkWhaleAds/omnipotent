@@ -2,14 +2,12 @@
  * @module platforms/google/google.adapter
  *
  * The adapter of Google Ads: a `manager_link` platform, whose accounts our manager account (the MCC)
- * manages once their client accepts, with **our** service account's credentials
- * (`docs/phase-10.md` §§ 3 and 4). Transcribed from multi-search
- * (`src/platforms/google/google.adapter.ts`).
+ * manages once their client accepts, with **our** credentials (`docs/phase-10.md` §§ 3 and 4).
+ * Transcribed from multi-search (`src/platforms/google/google.adapter.ts`).
  *
- * What lot 2a carries: reading the links of our MCC and reading a client account — enough to connect
- * an account our MCC already manages. Sending an invitation, and withdrawing one, take the OAuth
- * credentials of a human admin of the MCC, which Google demands instead of a service account's:
- * they arrive in lot 2b with `pnpm google:connect`. The campaigns arrive in lot 3.
+ * Two credentials, both ours: the **service account** reads everything, and the **inviter** — a human
+ * admin of the MCC, whose consent `pnpm google:connect` keeps — sends and withdraws the invitations,
+ * which Google refuses a service account. The campaigns arrive in lot 3.
  */
 import type { CallJournal } from '@src/services/platform-call.service';
 import { httpError } from '@utils';
@@ -25,7 +23,7 @@ import {
   UnitRefs,
 } from '../platform-adapter';
 import { PlatformHttp } from '../platform-http';
-import { GoogleServiceAccountAuth } from './google.auth';
+import { GoogleInviterAuth, GoogleServiceAccountAuth } from './google.auth';
 import { describeGoogleAdsError, GoogleAdsClient } from './google.client';
 import { GOOGLE_ADS_API, GoogleAdsRow, GoogleClientLinkStatus } from './google.types';
 
@@ -111,39 +109,41 @@ function latestStatusOf(rows: GoogleAdsRow[]): GoogleClientLinkStatus | undefine
   return latestOf(rows)?.customerClientLink?.status;
 }
 
+/** Codes of an invitation meaning our MCC already manages the account: a race with the read before. */
+const ALREADY_MANAGED: ReadonlySet<string> = new Set(['ALREADY_MANAGED_BY_THIS_MANAGER']);
+
+/** Codes of an invitation meaning the account was already invited and has not answered. */
+const ALREADY_INVITED: ReadonlySet<string> = new Set([
+  'ALREADY_INVITED_BY_THIS_MANAGER',
+  'CLIENT_ALREADY_INVITED_BY_THIS_MANAGER',
+]);
+
 /**
- * The refusal of a call that needs our inviter, the human admin of our MCC, before
- * `pnpm google:connect` has run: our credentials, never the client's.
- *
- * @param action - What it was asked to do
- * @returns The error
+ * The codes that tell **why** Google refused an invitation, Google listing them after a vaguer one
+ * (`INVALID_CHANGE`): the one kept as the reason the caller reads (`ad_account_link_refused`).
  */
-function inviterMissing(action: string): PlatformError {
-  return new PlatformError(
-    'google_ads',
-    `Google Ads lets only a human admin of our manager account ${action}: run pnpm google:connect first`,
-    {
-      statusCode: null,
-      retryable: false,
-      invalidCredentials: false,
-      ownCredentials: true,
-      requestId: null,
-      code: 'inviter_missing',
-    }
-  );
-}
+const LINK_REFUSAL_REASONS: readonly string[] = [
+  'ALREADY_MANAGED_IN_HIERARCHY',
+  'DUPLICATE_CHILD_FOUND',
+  'TOO_MANY_MANAGERS',
+  'MAX_DEPTH_EXCEEDED',
+  'TOO_MANY_INVITES',
+  'ACCOUNTS_NOT_COMPATIBLE_FOR_LINKING',
+];
 
 /**
  * What the Google Ads adapter is built with.
  *
  * @property managerId - Our manager account, with or without its dashes
  * @property loadServiceAccountKey - Reads the JSON key of our service account, from the secret store
+ * @property loadInviterSecret - Reads the OAuth credentials of our inviter, from the secret store
  * @property fetchFn - What sends the requests; a fake one in the tests
  * @property now - The clock; a fixed one in the tests
  */
 export type GoogleAdsSetup = {
   managerId: string;
   loadServiceAccountKey: () => Promise<string>;
+  loadInviterSecret: () => Promise<string>;
   fetchFn?: typeof fetch;
   now?: () => number;
 };
@@ -172,15 +172,28 @@ export class GoogleAdsAdapter implements PlatformAdapter {
    * Link a client account to our MCC — nothing to send when our MCC already manages it, or already
    * invited it (`docs/phase-10.md` § 7, point 10).
    *
+   * Otherwise the invitation leaves, as our inviter, and Google's refusals keep the code that says
+   * why — `TOO_MANY_MANAGERS` rather than the vaguer `INVALID_CHANGE` listed before it.
+   *
    * @param reference - Its customer id, ten digits
    * @returns `active` when our MCC manages it, `pending` when an invitation waits
-   * @throws PlatformError: `inviter_missing` when an invitation must leave, until lot 2b
+   * @throws PlatformError: our own credentials when the inviter cannot act, Google's refusal otherwise
    */
   public async requestLink(reference: string): Promise<'pending' | 'active'> {
-    const status: GoogleClientLinkStatus | undefined = await this.statusOfClient(reference);
+    const status: GoogleClientLinkStatus | undefined = (await this.latestLinkOf(reference))?.status;
     if (status === 'ACTIVE') return 'active';
     if (status === 'PENDING') return 'pending';
-    throw inviterMissing(`invite the account ${formatCustomerId(reference)}`);
+    try {
+      await this.client.createClientLink(reference);
+      return 'pending';
+    } catch (error: unknown) {
+      if (!(error instanceof PlatformError)) throw error;
+      const codes: string[] = [error.options.code ?? '', ...(error.options.codes ?? [])];
+      if (codes.some((code: string): boolean => ALREADY_MANAGED.has(code))) return 'active';
+      if (codes.some((code: string): boolean => ALREADY_INVITED.has(code))) return 'pending';
+      const reason: string | undefined = LINK_REFUSAL_REASONS.find((code: string): boolean => codes.includes(code));
+      throw reason ? new PlatformError('google_ads', error.message, { ...error.options, code: reason }) : error;
+    }
   }
 
   /** @inheritdoc */
@@ -205,11 +218,16 @@ export class GoogleAdsAdapter implements PlatformAdapter {
    *
    * @param reference - Its customer id
    * @returns A promise that resolves once no invitation is pending
-   * @throws PlatformError: `inviter_missing` when one is pending, until lot 2b
+   * @throws PlatformError, on our own credentials when the inviter cannot act
    */
   public async cancelLink(reference: string): Promise<void> {
-    if ((await this.statusOfClient(reference)) !== 'PENDING') return;
-    throw inviterMissing(`withdraw the invitation of ${formatCustomerId(reference)}`);
+    const latest = await this.latestLinkOf(reference);
+    if (latest?.status !== 'PENDING') return;
+    // Google gives the link's resource name with its row; rebuilt from its parts otherwise.
+    await this.client.cancelClientLink(
+      latest.resourceName ??
+        `customers/${this.client.managerId}/customerClientLinks/${reference}~${String(latest.managerLinkId)}`
+    );
   }
 
   /** @inheritdoc */
@@ -254,42 +272,61 @@ export class GoogleAdsAdapter implements PlatformAdapter {
   }
 
   /**
-   * Where the latest link of our MCC to a client account stands.
+   * The latest link of our MCC to a client account.
    *
    * @param clientId - Its customer id
-   * @returns Google's status of it, `undefined` without any link
+   * @returns The link, `undefined` without any
    */
-  private async statusOfClient(clientId: string): Promise<GoogleClientLinkStatus | undefined> {
-    return latestStatusOf(await this.client.search(null, this.client.managerId, GAQL.clientLinksOf(clientId)));
+  private async latestLinkOf(clientId: string): Promise<GoogleAdsRow['customerClientLink']> {
+    return latestOf(await this.client.search(null, this.client.managerId, GAQL.clientLinksOf(clientId)))
+      ?.customerClientLink;
   }
 }
 
 /**
  * Build the adapter of Google Ads, with what reads our credentials.
  *
- * @param setup - Our MCC and the reading of our service account's key
+ * @param setup - Our MCC, and the reading of our two credentials
  * @param journal - Where every call is recorded
  * @returns The adapter
  * @throws Error when the configured MCC is not a customer id
  *
  * @example
  * ```typescript
- * registerAdapter(createGoogleAdsAdapter({ managerId: '771-934-5054', loadServiceAccountKey }, journal));
+ * registerAdapter(createGoogleAdsAdapter({ managerId: '771-934-5054', loadServiceAccountKey, loadInviterSecret }, journal));
  * ```
  */
 export function createGoogleAdsAdapter(setup: GoogleAdsSetup, journal: CallJournal): GoogleAdsAdapter {
   const managerId: string | null = normalizeCustomerId(setup.managerId);
   if (managerId === null) throw new Error(`The Google Ads manager account ${setup.managerId} is not a customer id`);
   const auth = new GoogleServiceAccountAuth(setup.loadServiceAccountKey, setup.fetchFn, setup.now);
-  const http = new PlatformHttp({
-    platform: 'google_ads',
-    baseUrl: GOOGLE_ADS_API.baseUrl,
-    timeoutMs: GOOGLE_ADS_API.timeoutMs,
-    requestIdHeader: GOOGLE_ADS_API.requestIdHeader,
-    journal,
-    authorization: async (): Promise<string> => `Bearer ${await auth.accessToken()}`,
-    describeError: describeGoogleAdsError,
-    fetchFn: setup.fetchFn,
-  });
-  return new GoogleAdsAdapter(new GoogleAdsClient(http, managerId, (): void => auth.invalidate()));
+  const inviter = new GoogleInviterAuth(setup.loadInviterSecret, setup.fetchFn, setup.now);
+  /**
+   * An HTTP client of the API, with one of our tokens.
+   *
+   * @param token - Gives the token
+   * @returns The client
+   */
+  const httpWith = (token: () => Promise<string>): PlatformHttp =>
+    new PlatformHttp({
+      platform: 'google_ads',
+      baseUrl: GOOGLE_ADS_API.baseUrl,
+      timeoutMs: GOOGLE_ADS_API.timeoutMs,
+      requestIdHeader: GOOGLE_ADS_API.requestIdHeader,
+      journal,
+      authorization: async (): Promise<string> => `Bearer ${await token()}`,
+      describeError: describeGoogleAdsError,
+      fetchFn: setup.fetchFn,
+    });
+  return new GoogleAdsAdapter(
+    new GoogleAdsClient(
+      httpWith((): Promise<string> => auth.accessToken()),
+      managerId,
+      (): void => auth.invalidate(),
+      {
+        http: httpWith((): Promise<string> => inviter.accessToken()),
+        onUnauthenticated: (): void => inviter.invalidate(),
+      }
+    )
+  );
 }
