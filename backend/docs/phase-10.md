@@ -672,8 +672,8 @@ large que celui de multi-search, oblige à choisir :
 **Ce que 3b livre** :
 
 - le verdict de chaque annonce chez chaque plateforme, gardé sur son unité à côté de son identifiant :
-  une colonne `reviews`, par clé d'objet comme `refs` (`line:<id>`), qui vaut
-  `{ status, reasons, reviewedAt }` ;
+  une colonne `reviews`, par clé d'objet comme `refs` (`line:<id>`), qui vaut `{ status, reasons }`,
+  et l'heure de leur dernière lecture (`reviewsReadAt`) ;
 - une méthode d'adapter en lecture seule, qui lit les verdicts de plusieurs unités d'un compte en une
   requête, et sa version Google ;
 - le job `review.poll`, toutes les 10 minutes (`plan.md`) ;
@@ -708,3 +708,12 @@ large que celui de multi-search, oblige à choisir :
 **La preuve** (§ 8.1) : le verdict des annonces de la campagne de test en pause, lu par `review.poll`
 et visible dans son statut de plateforme. Si elles restent en attente plus d'un jour, Google
 n'examinant pas une annonce en pause, la question revient à Lorin (§ 1).
+
+**Où en est 3b**, sur la branche `phase-10-lot-3b` :
+
+1. ✅ le verdict gardé sur chaque unité (migration `AdReviews1793307000000`), la méthode d'adapter
+   `readReviews` et sa version Google, le job `review.poll`, une annonce envoyée remise en attente, et
+   le verdict dans `GET /campaigns/:id/platform-status`. Les unités à relire sont choisies en SQL, ce
+   qu'un test d'intégration prouve sur un vrai PostgreSQL ;
+2. ✅ `GET /creatives/:id/lines` et l'outil `list-creative-lines` ;
+3. **à faire** : la preuve, par Lorin, avec `../../scenarios/campagne-google-verdicts.mjs`.

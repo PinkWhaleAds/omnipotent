@@ -6,6 +6,7 @@ import {
   CreativeEntity,
   LeverEntity,
   LineEntity,
+  PlatformUnitEntity,
   TargetingGroupEntity,
 } from '@src/database/entities';
 import LabelServicePlugin, { LabelService } from '@src/services/label.service';
@@ -13,7 +14,7 @@ import LineServicePlugin, { LineService, toLine } from '@src/services/line.servi
 import { Paginated } from '@src/types/api.types';
 import { BulkResult, DeletionResult } from '@src/types/crud.types';
 import { LabelSummary } from '@src/types/label.types';
-import { Line, ListLinesQuery } from '@src/types/line.types';
+import { CreativeLine, Line, ListLinesQuery } from '@src/types/line.types';
 import { BudgetBlock } from '@src/types/tree.types';
 import { AccessServiceMock, buildServiceApp, createAccessMock } from '@test/unit/mocks/access.mock';
 import { IDS, JANE, NOW } from '@test/unit/mocks/auth.fixtures';
@@ -246,6 +247,103 @@ describe('Unit::Services::LineService', () => {
       await expect(service.list(JANE, IDS.organization, TARGETING_GROUP_ID, DEFAULT_QUERY)).rejects.toMatchObject({
         statusCode: 404,
         errorCode: 'targeting_group_not_found',
+      });
+    });
+  });
+
+  describe('listByCreative', () => {
+    const CREATIVE_ID = 'fe000000-0000-4000-8000-000000000001';
+    const OTHER_TARGETING_GROUP_ID = 'f4000000-0000-4000-8000-000000000002';
+
+    /**
+     * Seed the units of the AdGroups, and the AdGroup each TargetingGroup hangs from.
+     *
+     * @param units - The units
+     * @returns Nothing
+     */
+    function seedUnits(units: Partial<PlatformUnitEntity>[]): void {
+      const above = db.manager.find.getMockImplementation() as (entity: unknown, options?: unknown) => unknown;
+      db.manager.find.mockImplementation(
+        async (entity: unknown, options?: { select?: { adGroupId?: boolean } }): Promise<unknown> => {
+          if (entity === PlatformUnitEntity) return units;
+          if (entity === TargetingGroupEntity && options?.select?.adGroupId) {
+            return [{ id: TARGETING_GROUP_ID, adGroupId: AD_GROUP_ID }];
+          }
+          return above(entity, options);
+        }
+      );
+    }
+
+    it('should list the Lines of a creative, each with what every platform made of its ad', async (): Promise<void> => {
+      const builder: QueryBuilderMock = db.builder('line');
+      builder.getManyAndCount.mockResolvedValue([
+        [
+          lineRow({ creativeId: CREATIVE_ID }),
+          lineRow({ id: OTHER_LINE_ID, targetingGroupId: OTHER_TARGETING_GROUP_ID, creativeId: CREATIVE_ID }),
+        ],
+        2,
+      ]);
+      seedUnits([
+        {
+          platform: 'google_ads',
+          adGroupId: AD_GROUP_ID,
+          reviews: { [`line:${LINE_ID}`]: { status: 'rejected', reasons: ['ALCOHOL'] } },
+        },
+        { platform: 'microsoft', adGroupId: AD_GROUP_ID, reviews: {} },
+        {
+          platform: 'google_ads',
+          adGroupId: 'f3000000-0000-4000-8000-000000000009',
+          reviews: { [`line:${LINE_ID}`]: { status: 'approved', reasons: [] } },
+        },
+      ]);
+
+      const page: Paginated<CreativeLine> = await service.listByCreative(
+        JANE,
+        IDS.organization,
+        CREATIVE_ID,
+        DEFAULT_QUERY
+      );
+
+      expect(access.assertOrganizationRole).toHaveBeenCalledWith(JANE, IDS.organization, 'viewer');
+      expect(builder.andWhere).toHaveBeenCalledWith('line.creative_id = :creativeId', { creativeId: CREATIVE_ID });
+      expect(page.total).toBe(2);
+      // A verdict is the one of the Line's own AdGroup, at each platform that read it.
+      expect(page.items[0]).toMatchObject({
+        id: LINE_ID,
+        creativeId: CREATIVE_ID,
+        reviews: [{ platform: 'google_ads', status: 'rejected', reasons: ['ALCOHOL'] }],
+      });
+      expect(page.items[1]).toMatchObject({ id: OTHER_LINE_ID, reviews: [] });
+      expect(db.manager.find).toHaveBeenCalledWith(
+        PlatformUnitEntity,
+        expect.objectContaining({ order: { platform: 'ASC' } })
+      );
+    });
+
+    it('should read no unit for a creative no Line delivers', async (): Promise<void> => {
+      seedUnits([]);
+
+      const page: Paginated<CreativeLine> = await service.listByCreative(
+        JANE,
+        IDS.organization,
+        CREATIVE_ID,
+        DEFAULT_QUERY
+      );
+
+      expect(page).toEqual({ items: [], total: 0, page: 1, limit: 50 });
+      expect(db.manager.find).not.toHaveBeenCalledWith(PlatformUnitEntity, expect.anything());
+    });
+
+    it('should answer 404 for a creative of another Organization', async (): Promise<void> => {
+      db.manager.findOne.mockResolvedValue(null);
+
+      await expect(service.listByCreative(JANE, IDS.organization, CREATIVE_ID, DEFAULT_QUERY)).rejects.toMatchObject({
+        statusCode: 404,
+        errorCode: 'creative_not_found',
+      });
+      expect(db.manager.findOne).toHaveBeenCalledWith(CreativeEntity, {
+        where: { id: CREATIVE_ID, organizationId: IDS.organization },
+        withDeleted: true,
       });
     });
   });

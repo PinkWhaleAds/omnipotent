@@ -61,3 +61,22 @@ node scenarios/campagne-google-preuves.mjs
 Chaque preuve affiche les appels faits à Google pendant sa synchro, lus dans le journal
 (`GET /ad-accounts/:id/platform-calls`), le numéro du compte masqué. Tout reste en pause chez Google.
 Reste à relever à la main les limites d'objets du compte Google (`A-FAIRE.md` § 5).
+
+## `campagne-google-verdicts.mjs` — ce que Google a fait des annonces
+
+La preuve du lot 3b (`backend/docs/phase-10.md` § 8.8), sur une campagne que `campagne-google.mjs` a
+lancée. Elle ne change rien : elle lit le verdict de chaque annonce — **en examen**, **approuvée**,
+**limitée** (approuvée, montrée à moins de monde) ou **refusée**, avec les raisons de Google telles
+qu'il les écrit — de deux façons :
+
+1. dans le statut de plateforme de la campagne (`GET /campaigns/:id/platform-status`), avec l'heure de
+   la dernière lecture ;
+2. créa par créa (`GET /creatives/:id/lines`), chaque Line avec son verdict par plateforme.
+
+```sh
+node scenarios/campagne-google-verdicts.mjs
+```
+
+Les verdicts sont lus par le job `review.poll`, **toutes les dix minutes, dans un worker** : sans
+worker, aucun n'est jamais lu. Une annonce d'une campagne en pause reste peut-être en examen : si elle
+l'est encore le lendemain, c'est que Google n'examine pas une annonce en pause.

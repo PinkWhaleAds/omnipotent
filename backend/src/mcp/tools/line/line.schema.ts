@@ -6,6 +6,7 @@ import {
   bulkDeletionResultSchema,
   bulkIdsBodySchema,
   bulkUpdateLinesBodySchema,
+  creativeLinePageSchema,
   linePageSchema,
   lineSchema,
   createLineBodySchema,
@@ -30,6 +31,15 @@ export const listLinesInputSchema = listLinesQuerySchema.extend({
 
 /** TypeScript type inferred from {@link listLinesInputSchema}, after defaults apply. */
 export type ListLinesInput = z.infer<typeof listLinesInputSchema>;
+
+/** Input of `list-creative-lines`. */
+export const listCreativeLinesInputSchema = listLinesQuerySchema.extend({
+  organizationId: organizationArgSchema,
+  creativeId: z.uuid().describe('Creative id (from list-creatives)'),
+});
+
+/** TypeScript type inferred from {@link listCreativeLinesInputSchema}, after defaults apply. */
+export type ListCreativeLinesInput = z.infer<typeof listCreativeLinesInputSchema>;
 
 /** Input of `get-line`, `delete-line` and `restore-line`. */
 export const lineInputSchema = z.strictObject({
@@ -97,6 +107,18 @@ export const listLinesSchema = {
     'List the lines of a targetingGroup, filtered by name (search) or by labels (labelIds); includeDeleted also lists the deleted ones',
   inputSchema: listLinesInputSchema,
   outputSchema: linePageSchema,
+  annotations: { readOnlyHint: true },
+};
+
+/** MCP tool schema for `list-creative-lines`. */
+export const listCreativeLinesSchema = {
+  title: 'List the lines of a creative',
+  description:
+    'List the lines that deliver a creative, whichever targetingGroups they hang from, each with what every ' +
+    'platform made of its ad (reviews): pending (not reviewed yet, or again after a change), approved, limited ' +
+    "(approved, shown to fewer people) or rejected, with the platform's reasons as it words them",
+  inputSchema: listCreativeLinesInputSchema,
+  outputSchema: creativeLinePageSchema,
   annotations: { readOnlyHint: true },
 };
 

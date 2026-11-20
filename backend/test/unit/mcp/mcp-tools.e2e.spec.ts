@@ -760,6 +760,14 @@ const LIBRARY_CASES: ToolCase[] = [
     expected: [PARENT_ID, CREATIVE_QUERY],
   },
   {
+    tool: 'list-creative-lines',
+    args: { creativeId: CREATIVE.id },
+    service: 'lineService',
+    method: 'listByCreative',
+    answer: { items: [], total: 0, page: 1, limit: 50 },
+    expected: [CREATIVE.id, expect.objectContaining({ page: 1, limit: 50 })],
+  },
+  {
     tool: 'get-creative',
     args: { creativeId: CREATIVE.id },
     service: 'creativeService',
@@ -1490,7 +1498,7 @@ function fakeServices(): FakeServices {
     leverService: crud(),
     adGroupService: crud(),
     targetingGroupService: crud(),
-    lineService: crud(),
+    lineService: { ...crud(), listByCreative: jest.fn() },
     budgetCurveService: {
       get: jest.fn(),
       update: jest.fn(),

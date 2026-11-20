@@ -53,6 +53,9 @@ export const MCP_INSTRUCTIONS: string = [
   'exists on each platform and where each unit stands — read it to answer « has my change gone live »,',
   'and read the code of a unit in error rather than retrying blindly. sync-campaign is only for when',
   'something was changed by hand on a platform; retry-platform-unit is for a failure that was fixed.',
+  'Each platform reviews the ads: get-campaign-platform-status and list-creative-lines give the verdict of',
+  "each — pending, approved, limited (approved, shown to fewer people) or rejected, with the platform's",
+  'reasons —, read every ten minutes; a rejected ad delivers nowhere until it changes.',
   'Org-scoped tools take an organizationId; ask the user which Organization to use when there are several.',
   'Roles: viewer reads, manager edits, admin also manages members.',
 ].join(' ');

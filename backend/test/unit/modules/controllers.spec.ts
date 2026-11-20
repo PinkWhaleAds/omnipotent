@@ -125,6 +125,8 @@ const API_ROUTES: RouteKey[] = [
   ...nestedCrudRoutes('/levers/:id', 'ad-groups'),
   ...nestedCrudRoutes('/ad-groups/:id', 'targeting-groups'),
   ...nestedCrudRoutes('/targeting-groups/:id', 'lines'),
+  // Phase 10: the Lines a creative became, with the verdicts of their ads.
+  { method: 'GET', url: '/creatives/:id/lines' },
   // Phase 5: the registry of dimensions, the targeting of a TargetingGroup, its keywords, and the
   // reusable lists of the Organization.
   { method: 'GET', url: '/targeting-dimensions' },

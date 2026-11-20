@@ -6,6 +6,7 @@ import {
   bulkDeletionResultSchema,
   bulkIdsBodySchema,
   bulkUpdateLinesBodySchema,
+  creativeLinePageSchema,
   linePageSchema,
   lineSchema,
   createLineBodySchema,
@@ -35,6 +36,18 @@ export const listLinesSchema: FastifySchema = {
   params,
   querystring: toJsonSchema(listLinesQuerySchema, 'input'),
   response: { 200: toJsonSchema(linePageSchema), ...errorResponses(400, 401, 403, 404) },
+};
+
+/** Fastify schema for `GET /creatives/:id/lines`. */
+export const listCreativeLinesSchema: FastifySchema = {
+  tags: TAGS,
+  description:
+    'List the Lines that deliver a creative, deleted or not, each with what every platform made of its ad: ' +
+    'pending, approved, limited or rejected, and why (viewer)',
+  headers,
+  params,
+  querystring: toJsonSchema(listLinesQuerySchema, 'input'),
+  response: { 200: toJsonSchema(creativeLinePageSchema), ...errorResponses(400, 401, 403, 404) },
 };
 
 /** Fastify schema for `POST /targeting-groups/:id/lines`. */

@@ -4,6 +4,8 @@ import { paginatedSchema } from './api.types';
 import { bulkBodySchema, bulkResultSchema, listQuerySchema } from './crud.types';
 import { labelSummarySchema } from './label.types';
 import { cappingSchema, leverSchema } from './lever.types';
+import { platformSchema } from './platform.types';
+import { adReviewSchema } from './sync.types';
 import { budgetBlockSchema, nodeStatusSchema, nodeWriteFieldsWithoutVolume } from './tree.types';
 
 /** Fields a Line list may be sorted on; the first is the default. */
@@ -64,6 +66,31 @@ export type Line = z.infer<typeof lineSchema>;
 
 /** Zod schema of a page of Lines. */
 export const linePageSchema = paginatedSchema(lineSchema);
+
+/**
+ * Zod schema of what one platform made of a Line's ad.
+ *
+ * @property platform - The platform
+ * @property status - Its verdict (`docs/phase-10.md` § 8.8)
+ * @property reasons - Why it is limited or rejected, as the platform's own codes
+ */
+export const lineReviewSchema = adReviewSchema.extend({ platform: platformSchema });
+
+/** TypeScript type inferred from {@link lineReviewSchema}. */
+export type LineReview = z.infer<typeof lineReviewSchema>;
+
+/**
+ * Zod schema of a Line that delivers a creative, with the verdict of its ad at each platform.
+ *
+ * @property reviews - One per platform that read its ad, sorted by platform; empty before any did
+ */
+export const creativeLineSchema = lineSchema.extend({ reviews: z.array(lineReviewSchema) });
+
+/** TypeScript type inferred from {@link creativeLineSchema}. */
+export type CreativeLine = z.infer<typeof creativeLineSchema>;
+
+/** Zod schema of a page of the Lines of a creative. */
+export const creativeLinePageSchema = paginatedSchema(creativeLineSchema);
 
 /** Zod schema of the querystring listing the Lines of a TargetingGroup. */
 export const listLinesQuerySchema = listQuerySchema(LINE_SORTABLE_FIELDS);

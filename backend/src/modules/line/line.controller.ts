@@ -8,6 +8,7 @@ import {
   createLine,
   deleteLine,
   getLine,
+  listCreativeLines,
   listLines,
   restoreLine,
   setLineLabels,
@@ -21,6 +22,7 @@ import {
   createLineSchema,
   deleteLineSchema,
   getLineSchema,
+  listCreativeLinesSchema,
   listLinesSchema,
   restoreLineSchema,
   setLineLabelsSchema,
@@ -43,6 +45,13 @@ export default async function LineController(fastify: FastifyInstance): Promise<
     url: '/targeting-groups/:id/lines',
     schema: listLinesSchema,
     handler: listLines,
+  });
+  // The Lines of a creative, whichever TargetingGroups they hang from: the ads a creative became.
+  fastify.route({
+    method: 'GET',
+    url: '/creatives/:id/lines',
+    schema: listCreativeLinesSchema,
+    handler: listCreativeLines,
   });
   fastify.route({
     method: 'POST',

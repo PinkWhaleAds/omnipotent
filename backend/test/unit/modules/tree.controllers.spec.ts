@@ -443,3 +443,45 @@ describe.each(LEVELS)('Unit::Modules::$name Controller', (level: Level) => {
     });
   }
 });
+
+describe('Unit::Modules::Line Controller, the Lines of a creative', () => {
+  let app: FastifyInstance;
+  let service: ServiceMock;
+
+  beforeEach(async (): Promise<void> => {
+    jest.clearAllMocks();
+    const line: Level = LEVELS.find((level: Level): boolean => level.name === 'Line') as Level;
+    service = {
+      listByCreative: jest.fn().mockResolvedValue({
+        items: [{ ...line.resource, reviews: [{ platform: 'google_ads', status: 'rejected', reasons: ['ALCOHOL'] }] }],
+        total: 1,
+        page: 1,
+        limit: 50,
+      }),
+    };
+    app = await setupRouteAppForTest(LineController, { lineService: service }, JANE);
+  });
+
+  afterEach(async (): Promise<void> => {
+    await closeTestApp(app);
+  });
+
+  it('should hand the service the creative and the page, and answer each verdict', async (): Promise<void> => {
+    const response: LightMyRequestResponse = await app.inject({
+      method: 'GET',
+      url: `/creatives/${ID}/lines`,
+      headers: HEADERS,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(service.listByCreative).toHaveBeenCalledWith(
+      JANE,
+      IDS.organization,
+      ID,
+      expect.objectContaining({ page: 1, limit: 50 })
+    );
+    expect(response.json<{ items: { reviews: unknown[] }[] }>().items[0].reviews).toEqual([
+      { platform: 'google_ads', status: 'rejected', reasons: ['ALCOHOL'] },
+    ]);
+  });
+});

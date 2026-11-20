@@ -30,6 +30,23 @@ export async function listLines(
 }
 
 /**
+ * Handler for `GET /creatives/:id/lines`.
+ *
+ * @param request - The request, with the creative id and the page
+ * @param reply - The reply, sent with a page of Lines and their verdicts
+ * @returns A promise that resolves once the response has been sent
+ */
+export async function listCreativeLines(
+  this: FastifyInstance,
+  request: FastifyRequest<{ Params: IdParam; Querystring: ListLinesQuery }>,
+  reply: FastifyReply
+): Promise<void> {
+  reply.send(
+    await this.lineService.listByCreative(actorOf(request), organizationIdOf(request), request.params.id, request.query)
+  );
+}
+
+/**
  * Handler for `POST /targeting-groups/:id/lines`.
  *
  * @param request - The request, with the TargetingGroup id and the Line to create

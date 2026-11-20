@@ -71,6 +71,7 @@ export const EXPECTED_TOOLS: string[] = [
   'bulk-delete-targeting-groups',
   'bulk-restore-targeting-groups',
   'list-lines',
+  'list-creative-lines',
   'get-line',
   'create-line',
   'update-line',

@@ -210,8 +210,27 @@ export async function chooseAdvertiser(call, config, { create = false } = {}) {
   return advertiser;
 }
 
+/** What each verdict of a platform reads as, in French. */
+const VERDICTS = {
+  pending: '\x1b[33men examen\x1b[0m',
+  approved: '\x1b[32mapprouvée\x1b[0m',
+  limited: '\x1b[33mlimitée\x1b[0m (approuvée, montrée à moins de monde)',
+  rejected: '\x1b[31mrefusée\x1b[0m',
+};
+
 /**
- * Print where each unit of a campaign stands at its platforms.
+ * A verdict of a platform on an ad, in French, with its reasons as the platform words them.
+ *
+ * @param {{ status: string, reasons: string[] } | null} review - The verdict, `null` before any was read
+ * @returns {string} The text
+ */
+export function verdictText(review) {
+  if (!review) return 'verdict pas encore lu';
+  return `${VERDICTS[review.status] ?? review.status}${review.reasons.length > 0 ? ` — ${review.reasons.join(', ')}` : ''}`;
+}
+
+/**
+ * Print where each unit of a campaign stands at its platforms, and the verdict of each ad.
  *
  * @param {object[]} units - The units, as `GET /campaigns/:id/platform-status` answers them
  */
@@ -222,7 +241,10 @@ export function printUnits(units) {
         (unit.errorCode || unit.errorMessage ? ` — erreur ${unit.errorCode ?? ''} ${unit.errorMessage ?? ''}` : '')
     );
     for (const object of unit.objects ?? []) {
-      say(`   ${object.object} ${object.key} → ${object.externalId ?? 'pas encore créé'}`);
+      say(
+        `   ${object.object} ${object.key} → ${object.externalId ?? 'pas encore créé'}` +
+          (object.level === 'line' ? ` — ${verdictText(object.review)}` : '')
+      );
     }
   }
 }

@@ -285,8 +285,9 @@ vient après. L'ordre :
    donc en quatre temps (`backend/docs/phase-10.md` § 8) : pousser, avec les petits manques ajoutés
    (3a) ; les verdicts (3b) ; le ciblage fin, avancé de la phase 21 (3c) ; les conversions, avancées
    de la phase 18 (3d). Le lot B de Microsoft suit le même chemin. **Où en est 3a** : `phase-10.md`
-   § 8.5 bis — le modèle est prêt (cinq pas, PR n°7) ; reste le code Google lui-même, puis les
-   preuves de Lorin. Les tests ne tournent **qu'en CI** : jest en local a fait planter le poste de
+   § 8.5 bis — le code est sur `main`, une vraie campagne de test est chez Google, en pause ; restent
+   des preuves à rejouer par Lorin. **Où en est 3b** : `phase-10.md` § 8.8 — les verdicts sont lus et
+   montrés ; reste leur preuve. Les tests ne tournent **qu'en CI** : jest en local a fait planter le poste de
    Lorin, on ne le lance pas sans son accord.
 
 Côté multi-search, le Google à transcrire fait environ 5 800 lignes (client, auth, mapping, adapter,

@@ -343,6 +343,7 @@ export async function restoreNode(
  * @param scope - The Organization, and the parent whose children are listed
  * @param scope.organizationId - The Organization every row must belong to
  * @param scope.parentId - The parent, left out at the root
+ * @param scope.creativeId - The creative the rows deliver, for the Lines of a creative
  * @param query - Page, sort, search, label filter, and whether the deleted ones are listed
  * @param searchColumn - The column a text search applies to, `null` for a level with no name
  * @returns The rows of the page, and how many there are in all
@@ -355,7 +356,7 @@ export async function restoreNode(
 export async function listNodes(
   dataSource: DataSource,
   level: TreeLevel,
-  scope: { organizationId: string; parentId?: string },
+  scope: { organizationId: string; parentId?: string; creativeId?: string },
   query: ListQuery,
   searchColumn: string | null
 ): Promise<[TreeNodeRow[], number]> {
@@ -368,6 +369,9 @@ export async function listNodes(
 
   if (scope.parentId !== undefined) {
     builder.andWhere(`${level}.${descriptor.parentColumnSql} = :parentId`, { parentId: scope.parentId });
+  }
+  if (scope.creativeId !== undefined) {
+    builder.andWhere(`${level}.creative_id = :creativeId`, { creativeId: scope.creativeId });
   }
   if (!query.includeDeleted) builder.andWhere(`${level}.deleted_at IS NULL`);
   if (query.search && searchColumn) {

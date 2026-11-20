@@ -1,8 +1,14 @@
 import { FastifyInstance } from 'fastify';
 import fastifyPlugin from 'fastify-plugin';
-import { DataSource, EntityManager, IsNull, ObjectLiteral } from 'typeorm';
+import { DataSource, EntityManager, In, IsNull, ObjectLiteral } from 'typeorm';
 
-import { CampaignEntity, CreativeEntity, LineEntity } from '@src/database/entities';
+import {
+  CampaignEntity,
+  CreativeEntity,
+  LineEntity,
+  PlatformUnitEntity,
+  TargetingGroupEntity,
+} from '@src/database/entities';
 import { Paginated } from '@src/types/api.types';
 import { AuthContext } from '@src/types/auth.types';
 import { BulkIdsBody, BulkResult, DeletionResult, SetLabelsBody } from '@src/types/crud.types';
@@ -12,7 +18,9 @@ import {
   BulkCreateLinesBody,
   BulkUpdateLinesBody,
   CreateLineBody,
+  CreativeLine,
   Line,
+  LineReview,
   ListLinesQuery,
   UpdateLineBody,
 } from '@src/types/line.types';
@@ -107,6 +115,48 @@ export class LineService {
       'name'
     );
     return toPage(await this.toApi(this.dataSource.manager, rows as LineEntity[]), total, query);
+  }
+
+  /**
+   * List the Lines that deliver a creative, each with what every platform made of its ad
+   * (`docs/phase-10.md` § 8.8) — the Ads of a creative, at multi-search.
+   *
+   * @param actor - The caller
+   * @param organizationId - The Organization
+   * @param creativeId - The creative, deleted or not
+   * @param query - Page, sort, search, label filter, and whether the deleted Lines are listed
+   * @returns A page of Lines, with their verdicts
+   * @throws Error with status 404 coded `creative_not_found` when the caller cannot see the creative
+   */
+  public async listByCreative(
+    actor: AuthContext,
+    organizationId: string,
+    creativeId: string,
+    query: ListLinesQuery
+  ): Promise<Paginated<CreativeLine>> {
+    await this.access.assertOrganizationRole(actor, organizationId, 'viewer');
+    const manager: EntityManager = this.dataSource.manager;
+    const creative: CreativeEntity | null = await manager.findOne(CreativeEntity, {
+      where: { id: creativeId, organizationId },
+      withDeleted: true,
+    });
+    if (!creative) throw httpError(404, 'This creative does not exist', { code: 'creative_not_found' });
+
+    const [rows, total]: [TreeNodeRow[], number] = await listNodes(
+      this.dataSource,
+      LEVEL,
+      { organizationId, creativeId },
+      query,
+      'name'
+    );
+    const lines: LineEntity[] = rows as LineEntity[];
+    const reviews: Map<string, LineReview[]> = await this.reviewsOf(manager, lines);
+    const page: Line[] = await this.toApi(manager, lines);
+    return toPage(
+      page.map((line: Line): CreativeLine => ({ ...line, reviews: reviews.get(line.id) as LineReview[] })),
+      total,
+      query
+    );
   }
 
   /**
@@ -453,6 +503,41 @@ export class LineService {
         params: { line: taken.name },
       });
     }
+  }
+
+  /**
+   * What each platform made of the ads of some Lines, read on the units of their AdGroups.
+   *
+   * @param manager - Where to read
+   * @param lines - The Lines
+   * @returns The verdicts of each, by Line, sorted by platform
+   */
+  private async reviewsOf(manager: EntityManager, lines: LineEntity[]): Promise<Map<string, LineReview[]>> {
+    const reviews = new Map<string, LineReview[]>();
+    if (lines.length === 0) return reviews;
+    const nodes: TargetingGroupEntity[] = await manager.find(TargetingGroupEntity, {
+      where: { id: In(lines.map((line: LineEntity): string => line.targetingGroupId)) },
+      select: { id: true, adGroupId: true },
+      withDeleted: true,
+    });
+    const adGroupOf = new Map<string, string>(
+      nodes.map((node: TargetingGroupEntity): [string, string] => [node.id, node.adGroupId])
+    );
+    const units: PlatformUnitEntity[] = await manager.find(PlatformUnitEntity, {
+      where: { adGroupId: In([...new Set(adGroupOf.values())]) },
+      order: { platform: 'ASC' },
+    });
+    for (const line of lines) {
+      const verdicts: LineReview[] = [];
+      for (const unit of units) {
+        const review = unit.reviews[`${LEVEL}:${line.id}`];
+        if (unit.adGroupId === adGroupOf.get(line.targetingGroupId) && review !== undefined) {
+          verdicts.push({ platform: unit.platform, ...review });
+        }
+      }
+      reviews.set(line.id, verdicts);
+    }
+    return reviews;
   }
 
   /**

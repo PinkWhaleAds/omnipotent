@@ -8,6 +8,7 @@ import {
   BulkUpdateLinesInput,
   LineInput,
   CreateLineInput,
+  ListCreativeLinesInput,
   ListLinesInput,
   SetLineLabelsInput,
   UpdateLineInput,
@@ -29,6 +30,25 @@ export async function listLines(
   const { organizationId, targetingGroupId, ...query } = args;
   return runTool(async () =>
     service.list(context.auth, resolveOrganizationId(context, organizationId), targetingGroupId, query)
+  );
+}
+
+/**
+ * Handler for `list-creative-lines`.
+ *
+ * @param service - Line service
+ * @param context - MCP context of the call
+ * @param args - Organization, creative, page, sort, search and Label filter
+ * @returns A page of lines, with the verdicts of their ads
+ */
+export async function listCreativeLines(
+  service: LineService,
+  context: McpContext,
+  args: ListCreativeLinesInput
+): Promise<McpToolResult> {
+  const { organizationId, creativeId, ...query } = args;
+  return runTool(async () =>
+    service.listByCreative(context.auth, resolveOrganizationId(context, organizationId), creativeId, query)
   );
 }
 

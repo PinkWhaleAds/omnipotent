@@ -10,6 +10,7 @@ import {
   createLine,
   deleteLine,
   getLine,
+  listCreativeLines,
   listLines,
   restoreLine,
   setLineLabels,
@@ -23,6 +24,7 @@ import {
   createLineSchema,
   deleteLineSchema,
   getLineSchema,
+  listCreativeLinesSchema,
   listLinesSchema,
   restoreLineSchema,
   setLineLabelsSchema,
@@ -40,6 +42,9 @@ import {
  */
 export default function LineToolsController(server: McpServer, fastify: FastifyInstance, context: McpContext): void {
   server.registerTool('list-lines', listLinesSchema, async (args) => listLines(fastify.lineService, context, args));
+  server.registerTool('list-creative-lines', listCreativeLinesSchema, async (args) =>
+    listCreativeLines(fastify.lineService, context, args)
+  );
   server.registerTool('get-line', getLineSchema, async (args) => getLine(fastify.lineService, context, args));
   server.registerTool('create-line', createLineSchema, async (args) => createLine(fastify.lineService, context, args));
   server.registerTool('update-line', updateLineSchema, async (args) => updateLine(fastify.lineService, context, args));
