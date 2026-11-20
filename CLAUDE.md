@@ -16,9 +16,11 @@ than guessing.
 
 The reference projects it draws from:
 
-- **`~/OmniAd/multi-search`** — **ours**, and therefore freely reusable. It has 36 phases of hardened
-  conventions; this repository's socle is a transcription of its own. Its front and back are frozen
-  (D30).
+- **`~/PinkWhale/multi-search`** — **ours**, and therefore freely reusable. Its conventions were
+  hardened phase after phase; this repository's socle is a transcription of its own. Its front and back
+  are frozen (D30). It is also the **measure of the Search**: a Google or Microsoft campaign of
+  Omnipotent does everything a multi-search one does (Lorin, 2026-11-20). An older clone may sit at
+  `~/OmniAd/multi-search`: it stopped on 2026-10-20, so never read it.
 - **`~/PinkWhale/omnipass`** — the identity and tenancy service, built in parallel (T1). It owns
   `User`, `Seat`, `Organization` and the memberships; **nothing here does**. Its repository is
   `PinkWhaleAds/omnipass`, under the GitHub account the group moved to on 2026-11-17, which a separate
@@ -105,7 +107,7 @@ Three rules that bind every later phase:
 
 ## The conventions, without discussion
 
-They come from `CADRAGE.md` §19 and from `~/OmniAd/multi-search/backend/CLAUDE.md`, which
+They come from `CADRAGE.md` §19 and from `~/PinkWhale/multi-search/backend/CLAUDE.md`, which
 `backend/CLAUDE.md` transcribes. The short version:
 
 - **Zod is the single source of truth** of every request and response shape, in

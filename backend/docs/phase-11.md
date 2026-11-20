@@ -14,10 +14,10 @@ Entrées validées : `phase-10.md` §§ 3 à 7 (la connexion par lien, la règle
 
 ## 1. La phase en deux lots
 
-| Lot                        | Ce qu'il livre                                                                                                                                              | Ce qui le clôt                                                                                 |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| **A. Connecter un compte** | Le jeton de notre utilisateur de service, le client de l'API, l'invitation, la lecture d'un compte, et la commande de consentement `pnpm microsoft:connect` | Un vrai compte connecté : son nom, sa devise et son fuseau lus chez Microsoft                  |
-| **B. Les campagnes**       | Le mapping, `apply`, les verdicts de validation — après le lot 3 de la phase 10, qu'il suit                                                                 | Le scénario de `plan.md`, sur le vrai compte connecté, aux règles de test de `phase-10.md` § 1 |
+| Lot                        | Ce qu'il livre                                                                                                                                                                           | Ce qui le clôt                                                                                 |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| **A. Connecter un compte** | Le jeton de notre utilisateur de service, le client de l'API, l'invitation, la lecture d'un compte, et la commande de consentement `pnpm microsoft:connect`                              | Un vrai compte connecté : son nom, sa devise et son fuseau lus chez Microsoft                  |
+| **B. Les campagnes**       | Le mapping, `apply`, les verdicts, le ciblage fin et les conversions, à parité avec multi-search — après le lot 3 de la phase 10, qu'il suit dans ses quatre temps (`phase-10.md` § 8.1) | Le scénario de `plan.md`, sur le vrai compte connecté, aux règles de test de `phase-10.md` § 1 |
 
 Le lot B sera détaillé ici avant d'être commencé.
 
@@ -26,7 +26,7 @@ Le lot B sera détaillé ici avant d'être commencé.
 Le chemin est le même : le client ne donne aucune clé, nous l'invitons sous notre compte gestionnaire,
 un **Super Admin** de son compte accepte (Outils → Tous les comptes → Demandes → Reçues), et le job
 `account.links` le voit. Ce qui diffère, et tout vient de multi-search, qui le fait tourner contre la
-vraie API (`~/OmniAd/multi-search/backend/src/platforms/microsoft/`) :
+vraie API (`~/PinkWhale/multi-search/backend/src/platforms/microsoft/`) :
 
 - **deux numéros pour inviter.** Microsoft demande le **numéro du compte** (`F123ABCD`) **et** le
   **numéro du client** qui le possède ; sans le second, il répond un 400 vide (multi-search,

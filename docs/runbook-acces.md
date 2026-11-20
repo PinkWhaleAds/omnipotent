@@ -723,7 +723,7 @@ septembre 2026. Et l'authentification est celle d'un **utilisateur**, pas d'un c
 jeton OAuth Entra ID avec la portée `https://ads.microsoft.com/msads.manage` et `offline_access`.
 
 Tout ce qui suit est tiré de l'étude sourcée de multi-search
-(`~/OmniAd/multi-search/backend/docs/platforms/microsoft-ads.md`), où chaque affirmation porte sa
+(`~/PinkWhale/multi-search/backend/docs/platforms/microsoft-ads.md`), où chaque affirmation porte sa
 référence.
 
 ### C0. Ce que tu me donnes, et par quel chemin

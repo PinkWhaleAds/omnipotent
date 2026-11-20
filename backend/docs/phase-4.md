@@ -8,7 +8,7 @@ pacing parce qu'il ne doit **jamais** devenir une seconde source de vérité.
 Prérequis : la phase 3 (l'algèbre du budget, dont celle-ci est le prolongement dans le temps).
 
 Entrées validées : `../../CADRAGE.md` § 4 (D8, D9, D22), `leviers.md` L10, et
-`~/OmniAd/multi-search/backend/src/services/budget-curve.helpers.ts`, qui porte l'algorithme durci
+`~/PinkWhale/multi-search/backend/src/services/budget-curve.helpers.ts`, qui porte l'algorithme durci
 par trente-six phases — **c'est notre code, il se transcrit** (D1).
 
 ---

@@ -123,7 +123,7 @@ Les documents citent les autres dépôts **par leur chemin** : garde les mêmes.
 mkdir -p ~/PinkWhale ~/OmniAd
 git clone git@github-pinkwhale:PinkWhaleAds/omnipotent.git ~/PinkWhale/omnipotent
 git clone git@github-pinkwhale:PinkWhaleAds/omnipass.git   ~/PinkWhale/omnipass
-git clone git@github.com:MultiSearchAd/multi-search.git     ~/OmniAd/multi-search
+git clone git@github.com:MultiSearchAd/multi-search.git     ~/PinkWhale/multi-search
 ```
 
 **multi-search est indispensable** : les adapters Google et Microsoft se transcrivent de son code. Les

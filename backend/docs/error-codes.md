@@ -10,7 +10,7 @@ Ce document est relevé dans le code (`src/`). Il ne contient aujourd'hui que le
 | --------------- | ------------------------ | --------------------------- |
 | Erreur de l'API | Toute réponse 4xx ou 5xx | `code`, `params`, `message` |
 
-Les autres sortes de messages codés — problèmes d'une prévisualisation, conformité d'une créa, tâches à traiter, état d'un objet chez une plateforme — arrivent dans des réponses **réussies** et viennent avec leurs phases. Le modèle est celui de multi-search (`~/OmniAd/multi-search/backend/docs/error-codes.md`) : une ligne par sorte de message, avec les champs qui portent le code.
+Les autres sortes de messages codés — problèmes d'une prévisualisation, conformité d'une créa, tâches à traiter, état d'un objet chez une plateforme — arrivent dans des réponses **réussies** et viennent avec leurs phases. Le modèle est celui de multi-search (`~/PinkWhale/multi-search/backend/docs/error-codes.md`) : une ligne par sorte de message, avec les champs qui portent le code.
 
 Règles communes :
 

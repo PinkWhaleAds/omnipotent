@@ -46,8 +46,8 @@ Où regarder, précisément :
 ~/OmniAd/mbp/meta-dsp-lib/src/dsp/<dsp>/        le client HTTP réel de chaque plateforme
 ~/OmniAd/mbp/mbp-api/packages/core/src/services/lever-eligibility.ts   la matrice levier × DSP, commentée
 
-~/OmniAd/multi-search/backend/src/platforms/    google, microsoft, openai, thrad : clients, mapping, adapters
-~/OmniAd/multi-search/backend/src/platforms/platform-rules.ts   le registre de capacités, forme à reprendre
+~/PinkWhale/multi-search/backend/src/platforms/    google, microsoft, openai, thrad : clients, mapping, adapters
+~/PinkWhale/multi-search/backend/src/platforms/platform-rules.ts   le registre de capacités, forme à reprendre
 ```
 
 ## 2. Le delta réel — trois zones, et rien d'autre

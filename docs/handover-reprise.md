@@ -279,7 +279,12 @@ vient après. L'ordre :
    notre propre client Microsoft est connecté actif sans invitation (point 9 de son § 5). Reste, comme
    chez Google, à prouver l'invitation sur un compte qui n'est pas le nôtre.
 5. **Puis les campagnes** : le reste des phases 10 et 11 — mapping, adapter, projection, éclatement,
-   idempotence — et les huit preuves de chaque phase, qui la **closent**.
+   idempotence — et les preuves de chaque phase, qui la **closent**. **Revu le 2026-11-20** : Lorin
+   veut qu'une campagne Search d'Omnipotent fasse **tout ce que fait celle de multi-search**
+   (`~/PinkWhale/multi-search`, pas l'ancienne copie de `~/OmniAd`). Le lot 3 de la phase 10 se fait
+   donc en quatre temps (`backend/docs/phase-10.md` § 8) : pousser, avec les petits manques ajoutés
+   (3a) ; les verdicts (3b) ; le ciblage fin, avancé de la phase 21 (3c) ; les conversions, avancées
+   de la phase 18 (3d). Le lot B de Microsoft suit le même chemin.
 
 Côté multi-search, le Google à transcrire fait environ 5 800 lignes (client, auth, mapping, adapter,
 types, et le client HTTP commun). **`CADRAGE.md` § 14 tient tout** : aucun test n'appelle une

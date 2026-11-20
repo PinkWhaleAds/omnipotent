@@ -30,7 +30,7 @@ Dans un second temps, le back de multi-search est **remplacé** par Omnipotent :
 | Projet | Chemin | Rôle pour Omnipotent |
 | --- | --- | --- |
 | `fastify-boilerplate` | `~/OmniAd/fastify-boilerplate` | Socle Fastify + Zod + MCP + OTel dont MS est déjà dérivé |
-| `multi-search` | `~/OmniAd/multi-search` | **Modèle à suivre** : conventions, modèle de données Search, adapters, infra |
+| `multi-search` | `~/PinkWhale/multi-search` | **Modèle à suivre** : conventions, modèle de données Search, adapters, infra |
 | `mbp-api` | `~/OmniAd/mbp/mbp-api` | **Référence de lecture** : ce qu'une plateforme multi-DSP doit savoir faire |
 | `meta-dsp-lib` | `~/OmniAd/mbp/meta-dsp-lib` | **Référence de lecture** : SDK multi-DSP d'Azerion |
 

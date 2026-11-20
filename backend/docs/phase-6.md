@@ -7,7 +7,7 @@ plateforme reçoit un message, et porte ses versions.
 Prérequis : la phase 3 (l'arbre, dont la `Line` choisit une créa).
 
 Entrées validées : `../../CADRAGE.md` § 9 (dont D37), `leviers.md` L18, L19, L20 et G5, et
-`~/OmniAd/multi-search/backend/src/services/asset.service.ts`, **notre code** (D1) dont l'inspection
+`~/PinkWhale/multi-search/backend/src/services/asset.service.ts`, **notre code** (D1) dont l'inspection
 d'image et la clé de stockage se transcrivent.
 
 ---

@@ -28,7 +28,7 @@
 Dans multi-search (notre code, réutilisable) :
 
 ```
-~/OmniAd/multi-search/backend/src/
+~/PinkWhale/multi-search/backend/src/
 ├── database/entities/stats-daily.entity.ts        la table de faits actuelle
 ├── database/entities/platform-campaign.entity.ts  statsReadAt, la fraîcheur par unité
 ├── database/entities/fx-rate.entity.ts            les taux BCE

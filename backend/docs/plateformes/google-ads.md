@@ -5,7 +5,7 @@
 
 ## À lire avant celui-ci
 
-**`~/OmniAd/multi-search/backend/docs/platforms/google-ads.md`** — l'étude de multi-search, sourcée
+**`~/PinkWhale/multi-search/backend/docs/platforms/google-ads.md`** — l'étude de multi-search, sourcée
 page par page sur la documentation de Google : versions et dates d'arrêt, en-têtes, niveaux d'accès,
 GAQL, `mutate`, ressources d'une campagne Search, validation, Keyword Planner, et une liste de risques
 et d'incohérences relevées dans la documentation. Elle est **à nous** et elle fait référence.
@@ -15,7 +15,7 @@ cinq niveaux, l'éclatement, ce que notre carte d'identifiants garde, le capping
 cela force. Pour le protocole, c'est l'autre qu'il faut ouvrir.
 
 **Provenance de chaque affirmation**, marquée partout : **[MS]** transcrit de multi-search, qui le fait
-tourner en production (`~/OmniAd/multi-search/backend/src/platforms/google/`, le client, le mapping et
+tourner en production (`~/PinkWhale/multi-search/backend/src/platforms/google/`, le client, le mapping et
 l'adapter) ; **[DOC]** d'après la documentation de Google ; **[À VOIR]** à constater sur notre compte,
 que nous n'avons pas encore.
 
