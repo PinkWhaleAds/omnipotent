@@ -377,6 +377,23 @@ describe('Unit::Services::TrackingService', () => {
       });
     });
 
+    it('should say pending for an account with nothing set up yet', async (): Promise<void> => {
+      seed({ goals: [] });
+
+      await expect(service.get(JANE, IDS.organization, IDS.advertiser)).resolves.toMatchObject({
+        platforms: [
+          {
+            adAccountId: ACCOUNT_ID,
+            status: 'pending',
+            message: null,
+            messageCode: null,
+            messageParams: null,
+            goals: [],
+          },
+        ],
+      });
+    });
+
     it('should answer an Advertiser without account nor goal, never seen', async (): Promise<void> => {
       seed({ links: [], goals: [] });
 
