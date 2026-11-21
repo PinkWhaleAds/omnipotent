@@ -11,9 +11,6 @@
   "Docs": {
     "enabled": false
   },
-  "Access": {
-    "provider": "omnipass"
-  },
   "Storage": {
     "endpoint": "",
     "accessKeyId": "",

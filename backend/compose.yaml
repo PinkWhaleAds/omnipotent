@@ -73,11 +73,10 @@ services:
       context: .
     command: ['node', './dist/database/migrate.js']
     environment: &app-environment
-      # The production settings, but locally — except the tenancy, which production refuses to serve
-      # without omnipass (D43): ACCESS_PROVIDER stays the local implementation, so NODE_ENV cannot be
-      # `prod` here. `dev` with the production log level and no Swagger is as close as it gets.
+      # `dev`, not `prod`: a server error keeps its real message, which a local run wants, and the API
+      # does not trust the two proxy hops production has in front of it and this stack has not. The
+      # caller is resolved through omnipass all the same, here as everywhere (D43).
       NODE_ENV: dev
-      ACCESS_PROVIDER: local
       APP_LOG_LEVEL: info
       # The Swagger UI and /documentation/json stay served, to read the contract of the API locally.
       APP_DOCS_ENABLED: true
