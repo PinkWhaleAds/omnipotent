@@ -286,9 +286,13 @@ vient après. L'ordre :
    (3a) ; les verdicts (3b) ; le ciblage fin, avancé de la phase 21 (3c) ; les conversions, avancées
    de la phase 18 (3d). Le lot B de Microsoft suit le même chemin. **Où en est 3a** : `phase-10.md`
    § 8.5 bis — le code est sur `main`, une vraie campagne de test est chez Google, en pause ; restent
-   des preuves à rejouer par Lorin. **Où en est 3b** : `phase-10.md` § 8.8 — les verdicts sont lus et
-   montrés ; reste leur preuve. Les tests ne tournent **qu'en CI** : jest en local a fait planter le poste de
-   Lorin, on ne le lance pas sans son accord.
+   des preuves à rejouer par Lorin. **Où en est 3b** : `phase-10.md` § 8.8 — livré sur `main`, sa
+   preuve faite le 2026-11-21 : Google examine une annonce en pause. **Où en est 3c** : `phase-10.md`
+   § 8.9 et D57 — le référentiel des lieux de Google, `location` et les rayons qui remplacent leur pays,
+   le géocodage, sur la branche `phase-10-lot-3c` (PR n°13) ; restent l'`apply` Terraform par Lorin et la
+   preuve, `scenarios/campagne-google-lieux.mjs`. Ce qu'un front doit en savoir est dans
+   `backend/docs/error-codes.md`, « Le ciblage géographique ». Les tests ne tournent **qu'en CI** : jest
+   en local a fait planter le poste de Lorin, on ne le lance pas sans son accord.
 
 Côté multi-search, le Google à transcrire fait environ 5 800 lignes (client, auth, mapping, adapter,
 types, et le client HTTP commun). **`CADRAGE.md` § 14 tient tout** : aucun test n'appelle une

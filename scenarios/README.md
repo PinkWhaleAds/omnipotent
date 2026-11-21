@@ -80,3 +80,24 @@ node scenarios/campagne-google-verdicts.mjs
 Les verdicts sont lus par le job `review.poll`, **toutes les dix minutes, dans un worker** : sans
 worker, aucun n'est jamais lu. Une annonce d'une campagne en pause reste peut-être en examen : si elle
 l'est encore le lendemain, c'est que Google n'examine pas une annonce en pause.
+
+## `campagne-google-lieux.mjs` — une ville et un code postal chez Google
+
+La preuve du lot 3c (`backend/docs/phase-10.md` § 8.9), sur une campagne que `campagne-google.mjs` a
+lancée :
+
+1. il cherche une ville et un code postal dans le référentiel des lieux (`GET /geo/locations`) —
+   `Paris` et `75001` par défaut, à changer dans `config.local.mjs` (`city`, `postalCode`, `country`) ;
+2. il réenregistre le rayon du TargetingGroup avec son pays, que D57 exige ;
+3. il pose la ville et le code postal dans `location`, par leur seul identifiant, et affiche ce que
+   l'API en a complété ;
+4. il lit la preview, puis attend la synchro et affiche les appels faits à Google.
+
+```sh
+node scenarios/campagne-google-lieux.mjs
+```
+
+Le référentiel est importé **par le worker, à son démarrage, quand il est vide** : la première fois,
+relance le worker et attends une minute — le fichier de Google pèse quelques dizaines de mégaoctets.
+Puis vérifie dans Google Ads, dans les paramètres de la campagne, ses zones géographiques : la ville,
+le code postal et le rayon, et plus la France entière.

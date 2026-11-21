@@ -301,8 +301,8 @@ describe('Unit::Services::TargetingService', () => {
 
       await expect(
         service.setDimension(JANE, IDS.organization, NODE_ID, 'location', {
-          include: [{ id: '1006094' }, { id: '42' }],
-          exclude: [{ id: '43' }, { id: '42' }],
+          include: [{ id: '1006094' }, { id: '42' }, { id: '42' }],
+          exclude: [{ id: '43' }],
         })
       ).rejects.toMatchObject({
         statusCode: 400,
