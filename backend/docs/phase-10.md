@@ -851,7 +851,7 @@ front doit en savoir est dans `error-codes.md`, « Le ciblage géographique » :
    Omnipotent n'a aucun rôle au-dessus des Organizations, les rôles étant à omnipass. Le job
    mensuel et l'import au démarrage d'un worker sur une table vide suffisent.
 
-**Où en est 3c**, sur la branche `phase-10-lot-3c` :
+**Où en est 3c** : livré sur `main` (PR n°13), sa preuve faite le 2026-11-21.
 
 1. ✅ le référentiel : la table `geo_locations` (migration `GeoLocations1793308000000`), l'import du
    fichier de Google et le job `geo.import`, la recherche (`GET /geo/locations`,
@@ -873,7 +873,12 @@ front doit en savoir est dans `error-codes.md`, « Le ciblage géographique » :
    multi-search (D21). La carte n'a pas d'outil : c'est une image pour une personne, dont un modèle n'a
    que faire. Le rôle IAM des tâches gagne les trois actions d'Amazon Location, et l'API l'allume en
    production (`GEO_ENABLED`) : **à appliquer par Lorin** (`terraform apply`) ;
-4. **à faire** : la preuve.
+4. ✅ la preuve, faite le 2026-11-21 : le TargetingGroup « Île-de-France » de la campagne de test cible
+   Paris et 75001, trouvés par la recherche, et son rayon réenregistré avec la France. La synchro a
+   fait un seul changement de trois opérations : la France retirée, Paris et 75001 ajoutés. Le rayon
+   est resté le même cercle. Lorin a vu dans l'interface de Google que les zones de la campagne sont
+   Paris, 75001 et le rayon, sans la France. Chaque TargetingGroup est une campagne chez Google : le
+   scénario nomme celle à ouvrir, celle du TargetingGroup qu'il modifie.
 
 **La preuve** (§ 8.1) : la campagne de test, son rayon réenregistré avec son pays, puis un
 TargetingGroup ciblé sur une ville et un code postal trouvés par la recherche, poussés chez Google et

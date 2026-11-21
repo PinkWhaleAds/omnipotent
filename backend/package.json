@@ -17,7 +17,7 @@
     "build": "tsc -p tsconfig.build.json && tsc-alias -p tsconfig.build.json",
     "start": "tsx --env-file-if-exists=.env ./src/index.ts",
     "start:dev": "tsx watch --env-file-if-exists=.env ./src/index.ts",
-    "start:worker": "APP_MODE=worker tsx watch --env-file-if-exists=.env ./src/index.ts",
+    "start:worker": "APP_MODE=worker APP_PORT=3003 tsx watch --env-file-if-exists=.env ./src/index.ts",
     "start:instrumented": "tsx --env-file-if-exists=.env --import ./src/instrumentation.ts ./src/index.ts",
     "typeorm": "tsx --env-file-if-exists=.env ./node_modules/typeorm/cli.js -d ./src/database/cli-data-source.ts",
     "migration:generate": "pnpm typeorm migration:generate",

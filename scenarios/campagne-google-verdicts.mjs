@@ -73,7 +73,7 @@ for (const unit of units) {
 if (units.every((unit) => !unit.reviewsReadAt)) {
   console.log(
     '\n\x1b[33m⚠ Aucun verdict n’a encore été lu : le job review.poll passe toutes les dix minutes, dans un' +
-      ' worker. Dans backend/ :\n  APP_PORT=3012 pnpm start:worker\nPuis relance ce scénario.\x1b[0m'
+      ' worker. Dans backend/ :\n  pnpm start:worker\nPuis relance ce scénario.\x1b[0m'
   );
 }
 

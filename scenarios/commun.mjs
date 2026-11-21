@@ -271,7 +271,7 @@ export async function settled(call, campaignId, seconds = 120) {
   if (units.some((unit) => unit.state === 'pending' && unit.attempts === 0)) {
     console.log(
       '\n\x1b[33m⚠ La synchro n’a jamais été tentée : aucun worker ne traite les jobs. Dans backend/ :' +
-        '\n  APP_PORT=3012 pnpm start:worker\nElle part alors toute seule, dans la minute.\x1b[0m'
+        '\n  pnpm start:worker\nElle part alors toute seule, dans la minute.\x1b[0m'
     );
   }
   return units;

@@ -10,8 +10,9 @@ Ils ne sont pas des tests : ils parlent à la vraie API, et à travers elle aux 
 
 1. L'API tourne en local : `pnpm start:dev` dans `backend/`, les migrations passées
    (`pnpm migration:run`). **Et un worker à côté**, qui traite les jobs — la synchronisation vers les
-   plateformes en est un : `APP_PORT=3012 pnpm start:worker`, dans `backend/` aussi. L'API ne fait que
-   les mettre en file ; sans worker, une campagne lancée reste « pending » et rien ne part.
+   plateformes en est un : `pnpm start:worker`, dans `backend/` aussi, dans un second terminal (il
+   écoute sur 3003, pour ses sondes). L'API ne fait que les mettre en file ; sans worker, une campagne
+   lancée reste « pending » et rien ne part.
 2. **Tes réglages vont dans `scenarios/config.local.mjs`**, que git ignore : ton Organization, et si tu
    veux ton jeton. **Jamais dans le script lui-même** : il est commité, et le dépôt est public. Ce que
    tu laisses vide est demandé au lancement, le jeton sans s'afficher.

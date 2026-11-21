@@ -37,7 +37,7 @@ Ce que le socle livre :
 ```sh
 pnpm setup:dev   # secrets, dépendances, .env, conteneurs (5442, 9012, 9022) et schéma, en une fois
 pnpm start:dev   # API sur http://localhost:3002 (Swagger : /documentation)
-pnpm start:worker # optionnel : le worker de jobs, dans un autre terminal
+pnpm start:worker # le worker de jobs, sur 3003, dans un autre terminal : sans lui aucun job ne tourne
 ```
 
 `pnpm setup:dev` ne demande que le **profil AWS `omnilor`** : c'est sur AWS, dans Secrets Manager sous

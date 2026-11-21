@@ -289,8 +289,8 @@ vient après. L'ordre :
    des preuves à rejouer par Lorin. **Où en est 3b** : `phase-10.md` § 8.8 — livré sur `main`, sa
    preuve faite le 2026-11-21 : Google examine une annonce en pause. **Où en est 3c** : `phase-10.md`
    § 8.9 et D57 — le référentiel des lieux de Google, `location` et les rayons qui remplacent leur pays,
-   le géocodage, sur la branche `phase-10-lot-3c` (PR n°13) ; restent l'`apply` Terraform par Lorin et la
-   preuve, `scenarios/campagne-google-lieux.mjs`. Ce qu'un front doit en savoir est dans
+   le géocodage, livré sur `main` (PR n°13), sa preuve faite le 2026-11-21 ; reste l'`apply` Terraform
+   par Lorin, qui allume le géocodage en production. Ce qu'un front doit en savoir est dans
    `backend/docs/error-codes.md`, « Le ciblage géographique ». Les tests ne tournent **qu'en CI** : jest
    en local a fait planter le poste de Lorin, on ne le lance pas sans son accord.
 

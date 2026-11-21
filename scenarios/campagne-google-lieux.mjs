@@ -129,13 +129,21 @@ const geo = [...preview.errors, ...preview.warnings].filter((finding) => finding
 say(geo.length === 0 ? '\x1b[32mRien à redire des lieux.\x1b[0m' : geo.map((finding) => `${finding.code} ${JSON.stringify(finding.params)}`).join('\n'));
 
 title('La synchro');
-printUnits(await settled(call, campaign.id));
+const synced = await settled(call, campaign.id);
+printUnits(synced);
 printCalls(
   (await call('GET', `/ad-accounts/${accountId}/platform-calls?since=${encodeURIComponent(since)}&limit=200`)).items
 );
 
+// One Google campaign per TargetingGroup: the one to open is this TargetingGroup's, not the others'.
+const googleCampaign = synced
+  .flatMap((unit) => unit.objects ?? [])
+  .find((object) => object.key === `targeting_group:${node.id}`)
+  ?.externalId?.split('/')
+  .pop();
 console.log(
-  '\nÀ vérifier dans Google Ads : la campagne, Paramètres, Zones géographiques. On doit y lire ' +
+  `\nÀ vérifier dans Google Ads : la campagne ${googleCampaign ?? '(pas encore créée)'}, celle du ciblage ` +
+    `« ${node.name} » — Paramètres, Zones géographiques. On doit y lire ` +
     `${city.name}, ${postalCode.name}${points.length > 0 ? ' et le rayon' : ''} — et plus la France entière.`
 );
 closeTerminal();
