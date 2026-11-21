@@ -30,6 +30,7 @@ import {
   Platform,
   Targeting,
   Tracker,
+  TrackingRefStatus,
   TreeLevel,
 } from '@src/types';
 import { PlatformProjection } from './platform-rules';
@@ -179,6 +180,23 @@ export type DesiredObject = ProjectedObject & {
 };
 
 /**
+ * The conversion goal the campaigns of a unit optimize, under `maximize_conversions`, as the unit's
+ * account holds it (D58, `docs/phase-10.md` § 8.10).
+ *
+ * @property id - Our goal
+ * @property name - Its name
+ * @property status - Where it stands on the account: `pending` when never set up there, `paused` once
+ *   archived
+ * @property refs - Its ids there (Google: `{ conversionAction, sendTo, customGoal }`)
+ */
+export type DesiredGoal = {
+  id: string;
+  name: string;
+  status: TrackingRefStatus;
+  refs: Readonly<Record<string, string | null>>;
+};
+
+/**
  * What one unit must be at its platform.
  *
  * @property unitId - Our unit, which an adapter tags its objects with to find them again
@@ -197,6 +215,8 @@ export type DesiredObject = ProjectedObject & {
  * @property locationIntent - Who the places of the AdGroup reach
  * @property currency - The **account's** currency, which every amount here is in
  * @property timezone - The timezone the platform counts its days in
+ * @property conversionGoal - The goal its campaigns optimize under `maximize_conversions`, `null` under
+ *   another strategy or without a goal named
  * @property objects - Everything it must hold, parents first
  */
 export type DesiredUnit = {
@@ -214,6 +234,7 @@ export type DesiredUnit = {
   locationIntent: LocationIntent;
   currency: string;
   timezone: string;
+  conversionGoal: DesiredGoal | null;
   objects: readonly DesiredObject[];
 };
 
@@ -242,6 +263,8 @@ export type DesiredUnit = {
  * @property minDailyBudgetCents - The platform's floor, in the account's currency: a platform refuses
  *   a budget below it **even on a paused object**, so a paused one sends the larger of this and the
  *   planned average
+ * @property conversionGoal - The goal the AdGroup optimizes under `maximize_conversions`, on the unit's
+ *   account
  */
 export type DesiredInput = {
   unitId: string;
@@ -262,6 +285,7 @@ export type DesiredInput = {
   started: boolean;
   today: string;
   minDailyBudgetCents: number;
+  conversionGoal: DesiredGoal | null;
 };
 
 /**
@@ -450,6 +474,7 @@ export function desiredUnit(input: DesiredInput): { desired: DesiredUnit; hash: 
     locationIntent: input.locationIntent,
     currency: input.currency,
     timezone: input.timezone,
+    conversionGoal: input.conversionGoal,
     objects,
   };
   return { desired, hash: fingerprint(desired) };

@@ -43,6 +43,7 @@ describe('Unit::Platforms::PlatformRules', () => {
       locationIntent: false,
       extensions: false,
       geo: { levels: [], excludedLevels: [], maxRadii: null },
+      ignoredBidAmounts: [],
       ...overrides,
     };
   }
@@ -62,7 +63,6 @@ describe('Unit::Platforms::PlatformRules', () => {
         budgetLevel: 'targeting_group',
       },
       requiresClickThroughUrl: true,
-      bidStrategies: ['max_cpc', 'maximize_clicks'],
       sharedTargeting: [],
       maxActiveAds: 3,
       settings: { searchPartners: true, aiMax: false },
@@ -75,6 +75,9 @@ describe('Unit::Platforms::PlatformRules', () => {
         excludedLevels: ['region', 'department', 'city', 'postal_code'],
         maxRadii: 500,
       },
+      // Maximize conversions bids on the goal of its AdGroup, without a target cost (D58).
+      bidStrategies: ['max_cpc', 'maximize_clicks', 'maximize_conversions'],
+      ignoredBidAmounts: ['maximize_conversions'],
     });
   });
 

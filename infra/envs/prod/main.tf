@@ -141,6 +141,10 @@ locals {
     # (backend/docs/phase-10.md § 8.9). Off by default in the backend, so local development reaches no AWS.
     GEO_ENABLED = "true"
     GEO_REGION  = var.region
+
+    # Where the sites of the Advertisers load their tracking script: the API itself, at /t/<key>.js
+    # (backend/docs/phase-10.md § 8.10). A neutral domain is still to choose (A-FAIRE.md).
+    TRACKING_SCRIPT_BASE_URL = local.api_url
   })
 
   # Read by the ECS agent at task start: the RDS-managed master password (key "password" of its JSON), for the

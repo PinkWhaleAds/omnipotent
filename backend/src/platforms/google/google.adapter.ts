@@ -15,16 +15,20 @@ import type { DesiredUnit } from '../desired-state';
 import {
   AccountContext,
   ApplyResult,
+  GoalSpec,
   LinkedAccountInfo,
   LinkStatus,
   PlatformAdapter,
   PlatformConnection,
   PlatformContext,
   PlatformError,
+  TrackingRefs,
+  TrackingSetup,
   UnitRefs,
 } from '../platform-adapter';
 import { PlatformHttp } from '../platform-http';
 import { GoogleInviterAuth, GoogleServiceAccountAuth } from './google.auth';
+import { GoogleConversions } from './google-conversions';
 import { GoogleUnitSync, quoted } from './google.apply';
 import { describeGoogleAdsError, GoogleAdsClient } from './google.client';
 import { reviewOf } from './google.mapping';
@@ -172,6 +176,9 @@ export class GoogleAdsAdapter implements PlatformAdapter {
   /** What pushes the campaigns. */
   private readonly units: GoogleUnitSync;
 
+  /** What sets the conversions up. */
+  private readonly conversions: GoogleConversions;
+
   /**
    * @param client - The calls of the API, through our manager account
    * @param now - The clock, which decides whether a start or an end is still to come
@@ -180,7 +187,38 @@ export class GoogleAdsAdapter implements PlatformAdapter {
     private readonly client: GoogleAdsClient,
     now: () => number = Date.now
   ) {
-    this.units = new GoogleUnitSync(client, now);
+    this.conversions = new GoogleConversions(client);
+    this.units = new GoogleUnitSync(client, now, this.conversions);
+  }
+
+  /**
+   * Where the conversions of an account are tracked, and its Google tag (`docs/phase-10.md` § 8.10).
+   *
+   * @param account - The account
+   * @returns Its tracking code
+   * @throws PlatformError
+   */
+  public async setupTracking(account: AccountContext): Promise<TrackingSetup> {
+    return this.conversions.setupTracking(account, formatCustomerId(account.externalId));
+  }
+
+  /**
+   * The conversion action and the custom goal of a goal on an account (`docs/phase-10.md` § 8.10).
+   *
+   * @param account - The account
+   * @param goal - The goal
+   * @param _tracking - The account's Google tag, which a conversion action does not need
+   * @param existing - Refs recorded at the last setup
+   * @returns Where the goal stands there
+   * @throws PlatformError
+   */
+  public async setupGoal(
+    account: AccountContext,
+    goal: GoalSpec,
+    _tracking: TrackingRefs,
+    existing: TrackingRefs | null
+  ): Promise<TrackingSetup> {
+    return this.conversions.setupGoal(account, goal, existing);
   }
 
   /**

@@ -138,5 +138,8 @@
       "__format": "json"
     },
     "mapStyle": "GEO_MAP_STYLE"
+  },
+  "Tracking": {
+    "scriptBaseUrl": "TRACKING_SCRIPT_BASE_URL"
   }
 }

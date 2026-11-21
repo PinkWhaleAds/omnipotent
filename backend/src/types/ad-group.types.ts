@@ -27,6 +27,8 @@ const adGroupNameSchema = z.string().trim().min(1).max(255);
  * @property objective - What it runs for, immutable once launched (L4)
  * @property bidStrategy - How it bids (L3)
  * @property bidAmountCents - Its bid amount, `null` when the strategy names none
+ * @property conversionGoalId - The conversion goal `maximize_conversions` optimizes, an id of the
+ *   Advertiser's goals; ignored by the other strategies
  * @property platformShares - Its own distribution key, `null` to keep its lever's
  * @property locationIntent - Who its places reach, on a lever that says it; `null` is the people in
  *   them
@@ -50,6 +52,7 @@ export const adGroupSchema = z.object({
   objective: objectiveSchema,
   bidStrategy: bidStrategySchema,
   bidAmountCents: z.number().int().nullable(),
+  conversionGoalId: z.uuid().nullable(),
   platformShares: z.array(platformShareSchema).nullable(),
   locationIntent: locationIntentSchema.nullable(),
   budget: budgetBlockSchema,
@@ -84,6 +87,8 @@ export type ListAdGroupsQuery = z.infer<typeof listAdGroupsQuerySchema>;
  * @property objective - What it runs for, among those its lever permits
  * @property bidStrategy - How it bids, among those its lever permits
  * @property bidAmountCents - Its bid amount, which a volume entry converts through
+ * @property conversionGoalId - The conversion goal `maximize_conversions` optimizes, an active goal of
+ *   the Advertiser (D58)
  * @property platformShares - Its own distribution key, left out to keep its lever's
  * @property locationIntent - Who its places reach: the people in them (`presence`, the default) or
  *   also those interested in them; only the Search says it
@@ -94,6 +99,7 @@ export const createAdGroupBodySchema = z.strictObject({
   objective: objectiveSchema.optional(),
   bidStrategy: bidStrategySchema.optional(),
   bidAmountCents: z.number().int().min(0).nullable().optional(),
+  conversionGoalId: z.uuid().nullable().optional(),
   platformShares: z.array(platformShareSchema).min(1).optional(),
   locationIntent: locationIntentSchema.nullable().optional(),
   labelIds: z.array(z.uuid()).optional(),
@@ -103,12 +109,16 @@ export const createAdGroupBodySchema = z.strictObject({
 /** TypeScript type inferred from {@link createAdGroupBodySchema}. */
 export type CreateAdGroupBody = z.infer<typeof createAdGroupBodySchema>;
 
-/** Zod schema of the body changing an AdGroup. A field left out is left alone. */
+/**
+ * Zod schema of the body changing an AdGroup. A field left out is left alone; `conversionGoalId: null`
+ * names no goal any more.
+ */
 export const updateAdGroupBodySchema = z.strictObject({
   name: adGroupNameSchema.optional(),
   objective: objectiveSchema.optional(),
   bidStrategy: bidStrategySchema.optional(),
   bidAmountCents: z.number().int().min(0).nullable().optional(),
+  conversionGoalId: z.uuid().nullable().optional(),
   platformShares: z.array(platformShareSchema).min(1).nullable().optional(),
   locationIntent: locationIntentSchema.nullable().optional(),
   ...nodeWriteFields,

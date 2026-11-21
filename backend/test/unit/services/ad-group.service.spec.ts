@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 
-import { AdGroupEntity, CampaignEntity, LeverEntity } from '@src/database/entities';
+import { AdGroupEntity, CampaignEntity, ConversionGoalEntity, LeverEntity } from '@src/database/entities';
 import AdGroupServicePlugin, { AdGroupService, toAdGroup } from '@src/services/ad-group.service';
 import LabelServicePlugin, { LabelService } from '@src/services/label.service';
 import { AdGroup, ListAdGroupsQuery } from '@src/types/ad-group.types';
@@ -142,6 +142,7 @@ const PROSPECTION: AdGroup = {
   objective: 'awareness',
   bidStrategy: 'fixed_cpm',
   bidAmountCents: 450,
+  conversionGoalId: null,
   platformShares: null,
   locationIntent: null,
   budget: BUDGET,
@@ -381,6 +382,74 @@ describe('Unit::Services::AdGroupService', () => {
       await service.update(JANE, IDS.organization, AD_GROUP_ID, { locationIntent: null });
 
       expect(db.manager.save).toHaveBeenCalledWith(AdGroupEntity, expect.objectContaining({ locationIntent: null }));
+    });
+  });
+
+  describe('the conversion goal it optimizes (D58)', () => {
+    /** The goal of these specs. */
+    const GOAL_ID = 'f9000000-0000-4000-8000-000000000001';
+
+    /**
+     * Answer the goal the AdGroup names, and the Advertiser of its campaign.
+     *
+     * @param goal - The goal the lookup finds, `null` for none
+     * @returns Nothing
+     */
+    function seedGoal(goal: object | null): void {
+      const above = db.manager.findOne.getMockImplementation() as (entity: unknown) => Promise<unknown>;
+      db.manager.findOne.mockImplementation(async (entity: unknown): Promise<unknown> => {
+        if (entity === ConversionGoalEntity) return goal;
+        if (entity === CampaignEntity) return { ...((await above(entity)) as object), advertiserId: IDS.advertiser };
+        return above(entity);
+      });
+    }
+
+    it("should name a goal of its campaign's Advertiser on create", async (): Promise<void> => {
+      seedGoal({ id: GOAL_ID, name: 'Achat', status: 'active' });
+
+      await service.create(JANE, IDS.organization, LEVER_ID, { name: 'Prospection', conversionGoalId: GOAL_ID });
+
+      expect(db.manager.findOne).toHaveBeenCalledWith(ConversionGoalEntity, {
+        where: { id: GOAL_ID, organizationId: IDS.organization, advertiserId: IDS.advertiser },
+      });
+      expect(db.manager.create).toHaveBeenCalledWith(
+        AdGroupEntity,
+        expect.objectContaining({ conversionGoalId: GOAL_ID })
+      );
+    });
+
+    it('should refuse a goal of another Advertiser, and an archived one', async (): Promise<void> => {
+      seedGoal(null);
+      await expect(
+        service.create(JANE, IDS.organization, LEVER_ID, { name: 'Prospection', conversionGoalId: GOAL_ID })
+      ).rejects.toMatchObject({ statusCode: 404, errorCode: 'conversion_goal_not_found' });
+
+      seedGoal({ id: GOAL_ID, name: 'Achat', status: 'archived' });
+      await expect(
+        service.update(JANE, IDS.organization, AD_GROUP_ID, { conversionGoalId: GOAL_ID })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        errorCode: 'conversion_goal_archived',
+        errorParams: { goalName: 'Achat' },
+      });
+    });
+
+    it('should check a goal on update only when it changes, and let null name none', async (): Promise<void> => {
+      seedAbove(db, adGroupRow({ conversionGoalId: GOAL_ID }));
+      seedGoal({ id: GOAL_ID, name: 'Achat', status: 'archived' });
+
+      await service.update(JANE, IDS.organization, AD_GROUP_ID, { conversionGoalId: GOAL_ID });
+      await service.update(JANE, IDS.organization, AD_GROUP_ID, { conversionGoalId: null });
+
+      expect(db.manager.findOne).not.toHaveBeenCalledWith(ConversionGoalEntity, expect.anything());
+      expect(db.manager.save).toHaveBeenLastCalledWith(
+        AdGroupEntity,
+        expect.objectContaining({ conversionGoalId: null })
+      );
+    });
+
+    it('should answer the goal it names', (): void => {
+      expect(toAdGroup(adGroupRow({ conversionGoalId: GOAL_ID }), BUDGET).conversionGoalId).toBe(GOAL_ID);
     });
   });
 

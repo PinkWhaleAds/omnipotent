@@ -18,6 +18,7 @@
 import type { FastifyInstance } from 'fastify';
 
 import { GEO_IMPORT_JOB_NAME } from '@src/services/geo-import.service';
+import { CONVERSION_SETUP_JOB_NAME } from '@src/services/tracking.service';
 import type { JobDefinition, JobHandler } from '@src/types/job.types';
 
 /**
@@ -144,6 +145,39 @@ export const GEO_IMPORT_JOB: JobDefinition<GeoImportJob> = {
   },
 };
 
+/**
+ * Set the conversion tracking of one Advertiser up on its accounts (`docs/phase-10.md` § 8.10): its
+ * tracking code, then each of its goals.
+ *
+ * Queued by every change of a goal, every account linked to the Advertiser or activated, a rename of
+ * the Advertiser, and by the sweep. Several sends for the same Advertiser are harmless: a goal
+ * unchanged since it was settled makes no call, and the Advertiser's lock stops two workers from
+ * setting it up at once.
+ */
+export const CONVERSION_SETUP_JOB: JobDefinition<{ advertiserId: string }> = {
+  name: CONVERSION_SETUP_JOB_NAME,
+  policy: { retryLimit: 2, retryDelay: 60, retryBackoff: true, expireInSeconds: 900 },
+  createHandler:
+    (fastify: FastifyInstance): ((data: { advertiserId: string }) => Promise<void>) =>
+    (data: { advertiserId: string }): Promise<void> =>
+      fastify.trackingService.setup(data.advertiserId),
+};
+
+/**
+ * Queue a setup of every Advertiser whose tracking waits for one, every half hour: a goal or a tracking
+ * code failed or waiting for someone, a goal changed since its setup, an account with nothing set up
+ * yet. It does not walk the fleet: an Advertiser whose tracking is settled is not queued.
+ */
+export const CONVERSION_SWEEP_JOB: JobDefinition = {
+  name: 'conversion.sweep',
+  policy: { policy: 'exclusive', retryLimit: 0, expireInSeconds: 1500 },
+  cron: '*/30 * * * *',
+  createHandler:
+    (fastify: FastifyInstance): (() => Promise<void>) =>
+    (): Promise<void> =>
+      fastify.trackingService.sweep(),
+};
+
 /** Job definitions, see {@link JobDefinition}. */
 export const JOB_DEFINITIONS: JobDefinition[] = [
   SYNC_CAMPAIGN_JOB as JobDefinition,
@@ -153,4 +187,6 @@ export const JOB_DEFINITIONS: JobDefinition[] = [
   ACCOUNT_LINKS_JOB,
   REVIEW_POLL_JOB,
   GEO_IMPORT_JOB as JobDefinition,
+  CONVERSION_SETUP_JOB as JobDefinition,
+  CONVERSION_SWEEP_JOB,
 ];

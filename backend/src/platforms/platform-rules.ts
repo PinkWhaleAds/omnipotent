@@ -48,7 +48,8 @@ import type { GeoRules } from './geo-plan';
  *   warns
  * @property geo - What it targets finer than the country: the levels of the places it includes and
  *   excludes, and how many circles it takes. A country holding a place or a circle it cannot target is
- *   served whole there, with a warning (D57, `docs/phase-10.md` § 8.9)
+ *   served whole there, with a warning (D57, `docs/phase-10.md` § 8.9) * @property ignoredBidAmounts - The strategies under which it takes no amount: the preview warns an AdGroup
+ *   that gives one (Google maximizes conversions without a target cost, `docs/phase-10.md` § 8.10)
  */
 export type PlatformRules = {
   label: string;
@@ -65,6 +66,7 @@ export type PlatformRules = {
   locationIntent: boolean;
   extensions: boolean;
   geo: GeoRules;
+  ignoredBidAmounts: readonly BidStrategy[];
 };
 
 /**
@@ -120,8 +122,8 @@ export const PLATFORM_RULES: Readonly<Record<string, Readonly<Record<string, Pla
       requiresClickThroughUrl: true,
       requiresIabCategories: false,
       minDailyBudgetCents: 0,
-      // `maximize_conversions` comes with the conversions of lot 3d; Search never buys per thousand.
-      bidStrategies: ['max_cpc', 'maximize_clicks'],
+      // `maximize_conversions` bids on the goal its AdGroup names (D58); Search never buys per thousand.
+      bidStrategies: ['max_cpc', 'maximize_clicks', 'maximize_conversions'],
       // Every TargetingGroup has its own campaign, so none shares its places with another.
       sharedTargeting: [],
       maxActiveAds: 3,
@@ -134,6 +136,8 @@ export const PLATFORM_RULES: Readonly<Record<string, Readonly<Record<string, Pla
         excludedLevels: ['region', 'department', 'city', 'postal_code'],
         maxRadii: 500,
       },
+      // Google maximizes conversions within the budget, without a target cost per conversion.
+      ignoredBidAmounts: ['maximize_conversions'],
     },
   },
 };

@@ -8,7 +8,17 @@
  * name, and nothing in an adapter decides the structure — the projection does
  * (`platforms/projection.ts`).
  */
-import { AdAccountScope, AdReview, MessageParams, Platform } from '@src/types';
+import {
+  AdAccountScope,
+  AdReview,
+  ConversionCategory,
+  ConversionCounting,
+  ConversionGoalStatus,
+  ConversionValueMode,
+  MessageParams,
+  Platform,
+  TrackingRefStatus,
+} from '@src/types';
 import { httpError } from '@utils';
 import { DesiredUnit } from './desired-state';
 
@@ -114,6 +124,86 @@ export type ApplyResult = {
 };
 
 /**
+ * The ids a platform gives the tracking code of an Advertiser, or a conversion goal, on one account
+ * (`docs/phase-10.md` § 8.10). Google: `{ tagId }` for the tracking, `{ conversionAction, sendTo,
+ * customGoal }` for a goal.
+ */
+export type TrackingRefs = Readonly<Record<string, string | null>>;
+
+/**
+ * Where the tracking code of an Advertiser, or a conversion goal, stands on one account once set up.
+ *
+ * @property status - Where it stands
+ * @property refs - Its ids at the platform
+ * @property message - What to do, or what went wrong, in English; `null` when ready
+ * @property messageCode - Stable code of `message` when we worded it, for its translation
+ * @property messageParams - The values of `message`
+ * @property biddable - For a goal: whether a campaign can bid for it on this platform
+ */
+export type TrackingSetup = {
+  status: TrackingRefStatus;
+  refs: TrackingRefs;
+  message: string | null;
+  messageCode?: string | null;
+  messageParams?: MessageParams | null;
+  biddable: boolean;
+};
+
+/**
+ * The message of a {@link TrackingSetup} as it is recorded: its code and values only with a message we
+ * worded, so a cleared message clears them, and a platform's own text keeps none.
+ *
+ * @param setup - What the adapter said
+ * @returns The message, its code and its values (`{}` when the code has none); both `null` without code
+ */
+export function setupMessage(setup: TrackingSetup): {
+  message: string | null;
+  messageCode: string | null;
+  messageParams: MessageParams | null;
+} {
+  const code: string | null = setup.message === null ? null : (setup.messageCode ?? null);
+  return {
+    message: setup.message,
+    messageCode: code,
+    messageParams: code === null ? null : (setup.messageParams ?? {}),
+  };
+}
+
+/**
+ * A conversion goal as an adapter sets it up on one account.
+ *
+ * @property id - Our id of the goal, in the tag that finds its objects again
+ * @property key - What the site sends
+ * @property name - Its name at the platform: the Advertiser's and the goal's, then its tag
+ * @property category - What the conversion is
+ * @property valueMode - How it is valued
+ * @property defaultValueMicros - Fixed value, or fallback of a dynamic one, in micros of `currency`
+ * @property currency - Currency of the value
+ * @property counting - Which conversions count
+ * @property status - `archived` for a goal no longer measured
+ */
+export type GoalSpec = {
+  id: string;
+  key: string;
+  name: string;
+  category: ConversionCategory;
+  valueMode: ConversionValueMode;
+  defaultValueMicros: number | null;
+  currency: string | null;
+  counting: ConversionCounting;
+  status: ConversionGoalStatus;
+};
+
+/**
+ * The Advertiser whose tracking is set up on an account.
+ *
+ * @property id - Its id
+ * @property name - Its name
+ * @property websiteUrl - Its website, where a platform wants a domain
+ */
+export type TrackingAdvertiser = { id: string; name: string; websiteUrl: string | null };
+
+/**
  * Everything Omnipotent does on one platform.
  *
  * One implementation per platform, each added by its own phase to {@link ADAPTERS}. Pushing is one
@@ -203,6 +293,40 @@ export interface PlatformAdapter {
    * @throws PlatformError
    */
   readReviews?(account: AccountContext, ads: readonly string[]): Promise<Map<string, AdReview>>;
+
+  /**
+   * Find or create the tracking code of an Advertiser on one account — Google's tag of the account —,
+   * reading where the platform says the account's conversions are tracked (`docs/phase-10.md` § 8.10).
+   *
+   * @param account - The account
+   * @param advertiser - The Advertiser
+   * @param existing - Its ids recorded at the last setup, `null` the first time
+   * @returns Where it stands, and its ids
+   * @throws PlatformError — a refusal makes it `failed`, a failure worth retrying leaves it as it was
+   */
+  setupTracking?(
+    account: AccountContext,
+    advertiser: TrackingAdvertiser,
+    existing: TrackingRefs | null
+  ): Promise<TrackingSetup>;
+
+  /**
+   * Create or update a conversion goal on one account — Google's conversion action and its custom
+   * goal —, finding first by its tag what exists. An archived goal is left where it is, `paused` (R5).
+   *
+   * @param account - The account
+   * @param goal - The goal
+   * @param tracking - The ids of the Advertiser's tracking code on the account
+   * @param existing - Its ids recorded at the last setup, `null` the first time
+   * @returns Where it stands, its ids, and whether a campaign can bid for it
+   * @throws PlatformError — a refusal makes it `failed`, a failure worth retrying leaves it as it was
+   */
+  setupGoal?(
+    account: AccountContext,
+    goal: GoalSpec,
+    tracking: TrackingRefs,
+    existing: TrackingRefs | null
+  ): Promise<TrackingSetup>;
 }
 
 /**

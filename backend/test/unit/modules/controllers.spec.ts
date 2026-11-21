@@ -171,6 +171,13 @@ const API_ROUTES: RouteKey[] = [
   { method: 'POST', url: '/advertisers/:id/ad-accounts' },
   { method: 'PATCH', url: '/advertiser-ad-accounts/:id' },
   { method: 'DELETE', url: '/advertiser-ad-accounts/:id' },
+  // Phase 10, lot 3d: the conversion goals, the one code a site installs and the script it loads.
+  { method: 'GET', url: '/advertisers/:id/conversion-goals' },
+  { method: 'POST', url: '/advertisers/:id/conversion-goals' },
+  { method: 'GET', url: '/conversion-goals/:id' },
+  { method: 'PATCH', url: '/conversion-goals/:id' },
+  { method: 'GET', url: '/advertisers/:id/tracking' },
+  { method: 'GET', url: '/t/:key.js' },
   // Phase 8: the preview, the launch and the lifecycle of a campaign.
   { method: 'GET', url: '/campaigns/:id/preview' },
   { method: 'POST', url: '/campaigns/:id/launch' },

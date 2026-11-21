@@ -14,14 +14,16 @@
  *   advertisers only, and its refusal must not stop the rest;
  * - **read the status back** once done.
  */
-import { DesiredAsset, DesiredObject, DesiredUnit } from '@src/platforms/desired-state';
+import { DesiredAsset, DesiredGoal, DesiredObject, DesiredUnit } from '@src/platforms/desired-state';
 import { ApplyResult, PlatformContext, PlatformError, UnitRefs } from '@src/platforms/platform-adapter';
+import { GoogleConversions } from './google-conversions';
 import { GoogleAdsClient } from './google.client';
 import {
   adGroupCpcBid,
   AdGroupSlot,
   adMatches,
   campaignBidding,
+  CampaignBidding,
   campaignCriteria,
   CampaignSlot,
   campaignSlots,
@@ -109,6 +111,12 @@ class Plan {
   public readonly submitted: string[] = [];
 
   /**
+   * The campaigns created paused because they maximize conversions, to activate once they bid on their
+   * goal alone, by refs key.
+   */
+  public readonly activateAfterGoal: string[] = [];
+
+  /**
    * Add a creation whose resource name `refs` keeps.
    *
    * @param operation - The creation
@@ -163,6 +171,38 @@ export function quoted(names: readonly string[]): string {
 }
 
 /**
+ * The goal the campaigns of a unit optimize, checked before anything is sent: a campaign maximizing
+ * conversions bids on its own goal or not at all — on the goals of the client's account, it would bid on
+ * what nobody chose (D58, `docs/phase-10.md` § 8.10). A unit that does not deliver is never held back by
+ * its goal: pausing always goes through, and the goal is applied once it delivers again.
+ *
+ * @param desired - The desired state
+ * @param slots - Its campaigns
+ * @returns The goal, ready on the account; `null` when no campaign maximizes conversions, or when the unit
+ *   is paused without a goal ready
+ * @throws PlatformError coded `google_conversion_goal_missing` without a goal named,
+ *   `google_conversion_goal_not_ready` for a goal not ready on the account (`goalName`, `status`)
+ */
+export function optimizedGoal(desired: DesiredUnit, slots: readonly CampaignSlot[]): DesiredGoal | null {
+  if (!slots.some((slot: CampaignSlot): boolean => slot.campaign.bidStrategy === 'maximize_conversions')) return null;
+  const goal: DesiredGoal | null = desired.conversionGoal;
+  if (goal?.status === 'ready') return goal;
+  if (desired.status === 'paused') return null;
+  if (goal === null) {
+    throw refusal(
+      'An AdGroup maximizing conversions must name the conversion goal it optimizes',
+      'google_conversion_goal_missing'
+    );
+  }
+  throw refusal(
+    `The conversion goal ${goal.name} is not ready on this Google Ads account (${goal.status}): its campaigns ` +
+      'cannot bid on it yet',
+    'google_conversion_goal_not_ready',
+    { goalName: goal.name, status: goal.status }
+  );
+}
+
+/**
  * Makes one unit match its desired state at Google.
  */
 export class GoogleUnitSync {
@@ -172,7 +212,8 @@ export class GoogleUnitSync {
    */
   constructor(
     private readonly client: GoogleAdsClient,
-    private readonly now: () => number
+    private readonly now: () => number,
+    private readonly conversions: GoogleConversions
   ) {}
 
   /**
@@ -187,6 +228,7 @@ export class GoogleUnitSync {
   public async apply(context: PlatformContext, desired: DesiredUnit, refs: UnitRefs): Promise<ApplyResult> {
     const customerId: string = context.externalId;
     const slots: CampaignSlot[] = campaignSlots(desired);
+    const goal: DesiredGoal | null = optimizedGoal(desired, slots);
     const kept: Record<string, string> = { ...refs };
     const found: Map<string, string> = await this.findCampaigns(context, desired, slots, kept);
     const wanted = new Set<string>(found.values());
@@ -226,6 +268,7 @@ export class GoogleUnitSync {
         if (key !== undefined) kept[key] = results[index];
       });
     }
+    if (goal !== null) await this.applyGoal(context, slots, goal, plan, kept);
     await this.applyBrand(context, slots, state, kept);
     return {
       refs: kept,
@@ -411,11 +454,7 @@ export class GoogleUnitSync {
     // An object of the budget level always holds one: the desired state gives it today's, or its floor.
     const budgetMicros = String(roundMicros(object.dailyBudgetMicros as number, desired.currency));
     const bidMicros: number | null = object.bidMicros;
-    const bidding: Pick<GoogleCampaign, 'manualCpc' | 'targetSpend'> = campaignBidding(
-      object.bidStrategy,
-      bidMicros,
-      desired.currency
-    );
+    const bidding: CampaignBidding = campaignBidding(object.bidStrategy, bidMicros, desired.currency);
     const settings: Pick<GoogleCampaign, 'networkSettings' | 'geoTargetTypeSetting' | 'aiMaxSetting'> = {
       networkSettings: networkSettings(desired.settings),
       geoTargetTypeSetting: geoTargetTypeSetting(desired.locationIntent),
@@ -429,6 +468,9 @@ export class GoogleUnitSync {
     if (existing === undefined) {
       const budget: string = ids.next('campaignBudgets');
       campaign = ids.next('campaigns');
+      // Paused until it bids on its goal alone: active at once, it would bid on the account's goals.
+      const deferred: boolean = bidding.maximizeConversions !== undefined && status === 'ENABLED';
+      if (deferred) plan.activateAfterGoal.push(slot.key);
       plan.middle.push({
         campaignBudgetOperation: {
           create: {
@@ -446,7 +488,7 @@ export class GoogleUnitSync {
             create: {
               resourceName: campaign,
               name,
-              status,
+              status: deferred ? 'PAUSED' : status,
               advertisingChannelType: 'SEARCH',
               campaignBudget: budget,
               containsEuPoliticalAdvertising: EU_POLITICAL_ADVERTISING,
@@ -560,7 +602,7 @@ export class GoogleUnitSync {
       name: string;
       status: GoogleStatus;
       budgetMicros: string;
-      bidding: Pick<GoogleCampaign, 'manualCpc' | 'targetSpend'>;
+      bidding: CampaignBidding;
       settings: Pick<GoogleCampaign, 'networkSettings' | 'geoTargetTypeSetting' | 'aiMaxSetting'>;
       start: string | null;
       end: string | null;
@@ -614,6 +656,10 @@ export class GoogleUnitSync {
     ) {
       update.targetSpend = wanted.bidding.targetSpend;
       mask.push('target_spend.cpc_bid_ceiling_micros');
+    }
+    if (wanted.bidding.maximizeConversions && current.biddingStrategyType !== 'MAXIMIZE_CONVERSIONS') {
+      update.maximizeConversions = wanted.bidding.maximizeConversions;
+      mask.push('maximize_conversions.target_cpa_micros');
     }
     // A start moves only while both the old one and the new one are to come.
     if (wanted.start !== null && current.startDateTime !== wanted.start && (current.startDateTime ?? '') > wanted.now) {
@@ -912,6 +958,45 @@ export class GoogleUnitSync {
     resourceName: string
   ): GoogleMutateOperation {
     return { [kind]: { update: { resourceName, status: 'PAUSED' }, updateMask: 'status' } } as GoogleMutateOperation;
+  }
+
+  /**
+   * Make each campaign maximizing conversions bid on its goal alone, then activate those created paused
+   * for that (`docs/phase-10.md` § 8.10). The action is secondary, so that it never joins the goals the
+   * client's other campaigns bid on; the campaign bids on it through the goal's custom conversion goal,
+   * and the category × origin goals it would also bid on are turned off, so that the client's own primary
+   * actions do not steer it.
+   *
+   * @param context - The account
+   * @param slots - The campaigns
+   * @param goal - The goal they optimize, ready on the account
+   * @param plan - What the main request planned, its deferred activations among it
+   * @param refs - What is kept, every campaign in it by now
+   * @returns A promise that resolves once applied
+   * @throws PlatformError
+   */
+  private async applyGoal(
+    context: PlatformContext,
+    slots: readonly CampaignSlot[],
+    goal: DesiredGoal,
+    plan: Plan,
+    refs: Readonly<Record<string, string>>
+  ): Promise<void> {
+    const operations: GoogleMutateOperation[] = [];
+    for (const slot of slots) {
+      operations.push(
+        ...(await this.conversions.goalOperations(context, refs[slot.key], {
+          conversionAction: goal.refs.conversionAction ?? null,
+          customGoal: goal.refs.customGoal ?? null,
+        }))
+      );
+    }
+    for (const key of plan.activateAfterGoal) {
+      operations.push({
+        campaignOperation: { update: { resourceName: refs[key], status: 'ENABLED' }, updateMask: 'status' },
+      });
+    }
+    if (operations.length > 0) await this.client.mutate(context.adAccountId, context.externalId, operations);
   }
 
   /**

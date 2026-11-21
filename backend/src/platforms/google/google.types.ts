@@ -148,6 +148,10 @@ export type GoogleClientLinkStatus = 'ACTIVE' | 'PENDING' | 'REFUSED' | 'CANCELE
  * @property asset - An asset of the account
  * @property customerClientLink - A link of our manager account to a client account
  * @property customer - The account queried
+ * @property conversionAction - A conversion action of the account
+ * @property customConversionGoal - A custom conversion goal of the account
+ * @property conversionGoalCampaignConfig - The goals a campaign bids on
+ * @property campaignConversionGoal - A category × origin goal of a campaign
  */
 export type GoogleAdsRow = {
   campaign?: GoogleCampaign;
@@ -171,7 +175,86 @@ export type GoogleAdsRow = {
     currencyCode?: string;
     timeZone?: string;
     manager?: boolean;
+    conversionTrackingSetting?: GoogleConversionTrackingSetting;
   };
+  conversionAction?: GoogleConversionAction;
+  customConversionGoal?: GoogleCustomConversionGoal;
+  conversionGoalCampaignConfig?: GoogleConversionGoalCampaignConfig;
+  campaignConversionGoal?: GoogleCampaignConversionGoal;
+};
+
+/**
+ * Where the conversions of an account are tracked (`docs/phase-10.md` § 8.10).
+ *
+ * @property conversionTrackingId - The number of the account's Google tag (`AW-<number>`), absent until
+ *   the account tracks conversions
+ * @property conversionTrackingStatus - `NOT_CONVERSION_TRACKED`, `CONVERSION_TRACKING_MANAGED_BY_SELF`,
+ *   `…_BY_THIS_MANAGER` or `…_BY_ANOTHER_MANAGER`
+ * @property googleAdsConversionCustomer - The account that creates and manages the conversions
+ */
+export type GoogleConversionTrackingSetting = {
+  conversionTrackingId?: string;
+  conversionTrackingStatus?: string;
+  googleAdsConversionCustomer?: string;
+};
+
+/**
+ * The value of the conversions of an action.
+ *
+ * @property defaultValue - In units of the currency
+ * @property defaultCurrencyCode - ISO 4217
+ * @property alwaysUseDefaultValue - Whether the value the site sends is ignored
+ */
+export type GoogleValueSettings = {
+  defaultValue?: number;
+  defaultCurrencyCode?: string;
+  alwaysUseDefaultValue?: boolean;
+};
+
+/**
+ * One of the snippets Google gives a conversion action.
+ *
+ * @property type - `WEBPAGE`, `WEBPAGE_ONCLICK`…
+ * @property eventSnippet - The `gtag('event', 'conversion', { send_to: 'AW-…/label' })` call
+ */
+export type GoogleTagSnippet = { type?: string; pageFormat?: string; globalSiteTag?: string; eventSnippet?: string };
+
+/** A conversion action, as created and read. */
+export type GoogleConversionAction = {
+  resourceName?: string;
+  id?: string;
+  name?: string;
+  type?: string;
+  category?: string;
+  status?: string;
+  countingType?: string;
+  valueSettings?: GoogleValueSettings;
+  clickThroughLookbackWindowDays?: string;
+  primaryForGoal?: boolean;
+  tagSnippets?: GoogleTagSnippet[];
+};
+
+/** A custom conversion goal: a list of conversion actions a campaign bids on, secondary ones included. */
+export type GoogleCustomConversionGoal = {
+  resourceName?: string;
+  name?: string;
+  conversionActions?: string[];
+  status?: string;
+};
+
+/** The goals a campaign bids on: the account's, or a custom goal of its own (`CAMPAIGN`). */
+export type GoogleConversionGoalCampaignConfig = {
+  resourceName?: string;
+  customConversionGoal?: string;
+  goalConfigLevel?: string;
+};
+
+/** A category × origin goal of a campaign, and whether the campaign bids on it. */
+export type GoogleCampaignConversionGoal = {
+  resourceName?: string;
+  category?: string;
+  origin?: string;
+  biddable?: boolean;
 };
 
 /**
@@ -239,6 +322,7 @@ export type GoogleCampaign = {
   biddingStrategyType?: string;
   manualCpc?: { enhancedCpcEnabled?: boolean };
   targetSpend?: { cpcBidCeilingMicros?: string };
+  maximizeConversions?: { targetCpaMicros?: string };
 };
 
 /** A circle around a point. */
@@ -354,7 +438,11 @@ export type GoogleMutateOperation =
   | { adGroupAdOperation: GoogleOperation<GoogleAdGroupAd> }
   | { adOperation: GoogleOperation<GoogleAd> }
   | { assetOperation: GoogleOperation<GoogleAsset> }
-  | { campaignAssetOperation: GoogleOperation<GoogleCampaignAsset> };
+  | { campaignAssetOperation: GoogleOperation<GoogleCampaignAsset> }
+  | { conversionActionOperation: GoogleOperation<GoogleConversionAction> }
+  | { customConversionGoalOperation: GoogleOperation<GoogleCustomConversionGoal> }
+  | { conversionGoalCampaignConfigOperation: GoogleOperation<GoogleConversionGoalCampaignConfig> }
+  | { campaignConversionGoalOperation: GoogleOperation<GoogleCampaignConversionGoal> };
 
 /**
  * The answer of a `googleAds:mutate`: one result per operation, in order, each naming what it

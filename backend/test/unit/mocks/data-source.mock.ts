@@ -77,6 +77,7 @@ export type QueryBuilderMock = {
   addOrderBy: jest.Mock;
   skip: jest.Mock;
   take: jest.Mock;
+  limit: jest.Mock;
   getOne: jest.Mock;
   getMany: jest.Mock;
   getManyAndCount: jest.Mock;
@@ -98,7 +99,18 @@ export type DataSourceMock = {
    */
   builder: (alias?: string) => QueryBuilderMock;
   /** Raw jest mocks of the data source itself. */
-  mocks: { getRepository: jest.Mock; transaction: jest.Mock; query: jest.Mock; createQueryBuilder: jest.Mock };
+  mocks: {
+    getRepository: jest.Mock;
+    transaction: jest.Mock;
+    query: jest.Mock;
+    createQueryBuilder: jest.Mock;
+    createQueryRunner: jest.Mock;
+  };
+  /**
+   * The query runner every `createQueryRunner()` hands out: its `query` answers `pg_try_advisory_lock`
+   * with the lock held (D46) — `{ locked: false }` makes a spec act as a second worker — and nothing else.
+   */
+  runner: { connect: jest.Mock; release: jest.Mock; query: jest.Mock };
 };
 
 /**
@@ -132,6 +144,7 @@ export function createQueryBuilderMock(alias = ''): QueryBuilderMock {
     'addOrderBy',
     'skip',
     'take',
+    'limit',
   ];
   for (const clause of clauses) {
     (builder as Record<string, jest.Mock>)[clause] = jest.fn((): Partial<QueryBuilderMock> => builder);
@@ -225,6 +238,14 @@ export function createDataSourceMock(): DataSourceMock {
     getRepository: jest.fn((entity: unknown): RepositoryMock => repository(entity)),
   };
 
+  const runner: DataSourceMock['runner'] = {
+    connect: jest.fn().mockResolvedValue(undefined),
+    release: jest.fn().mockResolvedValue(undefined),
+    query: jest.fn(async (sql: string): Promise<unknown[]> =>
+      sql.includes('pg_try_advisory_lock') ? [{ locked: true }] : []
+    ),
+  };
+
   const mocks: DataSourceMock['mocks'] = {
     getRepository: jest.fn((entity: unknown): RepositoryMock => repository(entity)),
     transaction: jest.fn(async (callback: (manager: EntityManagerMock) => Promise<unknown>): Promise<unknown> =>
@@ -232,8 +253,9 @@ export function createDataSourceMock(): DataSourceMock {
     ),
     query: jest.fn().mockResolvedValue([]),
     createQueryBuilder: jest.fn((_entity?: unknown, alias?: string): QueryBuilderMock => builder(alias)),
+    createQueryRunner: jest.fn(() => runner),
   };
 
   // `dataSource.manager` is what a service reads outside a transaction, as TypeORM's is.
-  return { dataSource: { ...mocks, manager } as unknown as DataSource, repository, manager, builder, mocks };
+  return { dataSource: { ...mocks, manager } as unknown as DataSource, repository, manager, builder, mocks, runner };
 }

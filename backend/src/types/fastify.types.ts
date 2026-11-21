@@ -32,6 +32,8 @@ import type { GeocodingService } from '@src/services/geocoding.service';
 import type { ReviewService } from '@src/services/review.service';
 import type { SyncScheduler, SyncService } from '@src/services/sync.service';
 import type { CallJournal } from '@src/services/platform-call.service';
+import type { ConversionGoalService, TrackingScheduler } from '@src/services/conversion-goal.service';
+import type { TrackingService } from '@src/services/tracking.service';
 
 /**
  * Function type for recording metrics on incoming HTTP requests.
@@ -109,6 +111,12 @@ declare module 'fastify' {
     geoImportService: GeoImportService;
     /** Addresses into circles, and maps of them, by Amazon Location Service. */
     geocodingService: GeocodingService;
+    /** The conversion goals of the Advertisers. */
+    conversionGoalService: ConversionGoalService;
+    /** The tracking script of the Advertisers, and the setup of their goals at the platforms. */
+    trackingService: TrackingService;
+    /** How a setup of an Advertiser's tracking is asked for, without waiting for it. */
+    trackingScheduler: TrackingScheduler;
     /** One line per call to a platform: what a failed sync is debugged with. */
     platformCallJournal: CallJournal;
     assetService: AssetService;

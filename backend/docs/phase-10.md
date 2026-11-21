@@ -883,3 +883,158 @@ front doit en savoir est dans `error-codes.md`, « Le ciblage géographique » :
 **La preuve** (§ 8.1) : la campagne de test, son rayon réenregistré avec son pays, puis un
 TargetingGroup ciblé sur une ville et un code postal trouvés par la recherche, poussés chez Google et
 conformes dans son interface — la France remplacée par eux, et non additionnée.
+
+### 8.10 3d — les conversions
+
+Écrit le 2026-11-21, avant la moindre ligne de code de 3d. multi-search a été relu à son commit
+`0aac705` (D54) : son code, sa `docs/phase-7.md` et son étude `docs/platforms/conversions.md`.
+
+**Ce que fait multi-search**, la mesure :
+
+- **un objectif de conversion appartient à l'Advertiser** (`conversion_goals`). Il a :
+  - une **clé**, ce que le site envoie : une minuscule d'abord, puis 40 caractères au plus parmi les
+    minuscules, les chiffres, `_` et `-`. Elle ne change jamais, et une clé qui ne diffère d'une autre
+    que par `-` et `_` est refusée ;
+  - un nom (80 caractères) ;
+  - une catégorie parmi dix, qui ne change jamais : achat, prospect, inscription, abonnement, essai,
+    rendez-vous, contact, ajout au panier, début de commande, autre ;
+  - une valeur : aucune, fixe, ou envoyée par le site avec une valeur de repli. Elle a une devise dès
+    qu'elle existe ;
+  - un comptage : chaque conversion, ou une seule par clic.
+
+  Un objectif ne se supprime jamais : il s'archive. Son archivage est refusé tant qu'une campagne
+  lancée l'optimise. Le nombre d'objectifs n'est pas limité ;
+
+- **un seul script par Advertiser**, servi par l'API, sans authentification, à `/t/<clé>.js` :
+  - la clé est publique et aléatoire, et le premier `GET /advertisers/:id/tracking` la tire ;
+  - le site colle un extrait de trois lignes qui charge le script et ouvre une file d'attente
+    `msq(…)` ;
+  - le script charge la balise de chaque compte prêt. Le site appelle ensuite
+    `msq('conversion', { goal, value, currency, orderId })`, et le script envoie la conversion à
+    toutes les plateformes, avec le même identifiant d'événement ;
+  - **le consentement est en mode « basique »** : rien ne se charge ni ne part avant
+    `msq('consent', { ads: 'granted' })`. Les conversions attendent jusque-là, 50 au plus, et un refus
+    les efface. Chez Google, le Consent Mode v2 est relayé (`ad_storage`, `ad_user_data`,
+    `ad_personalization`) ;
+  - côté route : un cache de cinq minutes, une limite de 120 appels par minute et par adresse, et un
+    journal qui garde le motif de la route, jamais la clé ;
+  - l'API note au plus une fois par heure que le site a chargé le script (`script_seen_at`) ;
+- **chez Google, par compte et par objectif** (job `conversion.setup`, demandé à chaque écriture d'un
+  objectif ou d'un compte, et repassé toutes les trente minutes par `conversion.sweep`) :
+  - le suivi du compte est lu dans `customer.conversion_tracking_setting`. Un compte suivi par notre
+    MCC ou par un autre gestionnaire est `manual_required`. Un compte sans numéro de suivi est
+    `failed`. Sinon, la balise est `AW-<numéro>` ;
+  - chaque objectif devient une **action de conversion `WEBPAGE` secondaire**
+    (`primaryForGoal: false`), pour que les autres campagnes du client ne se mettent pas à
+    l'optimiser. Elle compte au
+    clic sur 30 jours, l'attribution est celle de Google par défaut, et son nom porte un tag qui la
+    retrouve. Son libellé `AW-…/<label>` est lu dans ses `tag_snippets`. Un **objectif personnalisé**
+    (`CustomConversionGoal`) ne contient qu'elle ;
+  - l'état de chaque objectif sur chaque compte est `pending`, `ready`, `manual_required`, `failed` ou
+    `paused`, avec un message codé. Ce qui a été changé à la main chez Google est rétabli ;
+  - à l'archivage, l'action est **supprimée** chez Google ;
+- **`maximize_conversions`** : la campagne nomme l'objectif qu'elle optimise (`conversionGoalId`).
+  Google reçoit `maximizeConversions: {}`, sans CPA cible, et la campagne pointe sur l'objectif
+  personnalisé (`ConversionGoalCampaignConfig`). Chacun de ses `CampaignConversionGoal` passe à
+  `biddable: false`. La stratégie et l'objectif sont **figés** une fois la campagne lancée ;
+- **la preview** : en erreur, aucun objectif, un objectif archivé, un objectif pas prêt sur le compte
+  de la plateforme. En avertissement, un montant que Google n'utilise pas, et aucune conversion depuis
+  30 jours. Les autres codes ne concernent que OpenAI ou Thrad ;
+- **les outils MCP** : `list-conversion-goals`, `get-conversion-goal`, `create-conversion-goal`,
+  `update-conversion-goal` et `get-tracking` ;
+- hors de son périmètre : l'import de conversions par le serveur, les conversions améliorées, le CPA
+  cible, la capture du `gclid`.
+
+**Ce que le modèle d'Omnipotent change** :
+
+- la stratégie d'enchère vit sur l'**AdGroup**, et chacun de ses TargetingGroups devient une campagne
+  Google (D55). Rien ne fige la stratégie d'une campagne lancée ;
+- un montant se compte en **centimes entiers** ;
+- **R5** : ce qui sort de notre arbre n'est jamais supprimé chez une plateforme ;
+- les rapports (phase 15), la readiness et les tâches n'existent pas encore.
+
+**Ce que 3d livre** :
+
+1. **les objectifs** : la table `conversion_goals`, les routes `GET` et `POST /advertisers/:id/conversion-goals`,
+   `GET` et `PATCH /advertisers/:id/conversion-goals/:goalId`, et leurs quatre outils. Viewer pour
+   lire, manager pour écrire. La valeur se donne en centimes (`defaultValueCents`) ;
+2. **le script** : `tracking_key` et `script_seen_at` sur l'Advertiser, `GET /advertisers/:id/tracking`
+   et `get-tracking`, la route publique `GET /t/:key.js`, et le chargeur transcrit avec sa part Google
+   seule. Microsoft y entre au lot B. L'adresse de base est configurable (`TRACKING_SCRIPT_BASE_URL`),
+   et l'API la sert sur son propre domaine ;
+3. **chez Google** :
+   - les tables `advertiser_trackings` et `conversion_goal_refs` ;
+   - les jobs `conversion.setup` et `conversion.sweep`, sous un verrou par Advertiser ;
+   - la lecture du suivi du compte, l'action secondaire et l'objectif personnalisé de chaque objectif ;
+   - la demande d'un `conversion.setup` quand un compte Google devient actif pour un Advertiser ;
+   - deux méthodes de plus à l'interface des adapters, qui jusqu'ici ne sait que pousser (§ 4.3) ;
+4. **`maximize_conversions`** :
+   - `conversionGoalId` sur l'AdGroup ;
+   - la stratégie ajoutée au couple `(google_ads, search)` du registre, avec ce qu'il sait des
+     conversions : il enchérit sur un objectif, et compte une conversion par clic ;
+   - l'objectif dans l'état voulu, quand il est prêt sur le compte de l'unité ;
+   - chez Google, la stratégie, l'objectif personnalisé de la campagne et les autres objectifs mis à
+     `biddable: false` ;
+   - les unités de cet objectif marquées dès que son état change sur un compte ;
+5. **la preview** :
+   - en erreur, `preview_conversion_goal_missing`, `preview_conversion_goal_archived` et
+     `preview_conversion_goal_not_ready` (`platform`, `goalName`, `status`, `reasonCode`) ;
+   - en avertissement, `preview_bid_amount_ignored` (`platform`, `strategy`) ;
+   - `preview_conversion_bidding_unavailable` (erreur) et `preview_conversion_counting_ignored`
+     (avertissement), lus dans le registre. Ils ne se déclenchent jamais chez Google, mais Microsoft
+     les lira ;
+6. **la documentation** : les codes dans `error-codes.md`, avec ce que le front doit savoir du script
+   et du consentement.
+
+**La preuve** (§ 8.1) :
+
+1. un objectif créé sur la marque de test ;
+2. son état lu jusqu'à `ready` sur le compte Google, et l'action visible dans Google Ads : Objectifs,
+   Conversions, en action secondaire ;
+3. le script posé sur une page de test servie en local par un scénario. Après le consentement, la
+   balise de Google se charge et la conversion part avec le libellé de l'objectif : cela se lit dans
+   l'onglet Réseau du navigateur ;
+4. l'AdGroup de test passé en `maximize_conversions` sur cet objectif. Dans Google Ads, sa campagne
+   enchère en « Maximiser les conversions » sur l'objectif personnalisé seul.
+
+**Les points présentés à Lorin, tous validés le 2026-11-21** — les points 1 à 5 font D58 :
+
+1. **Le modèle de multi-search, transcrit** : l'objectif sur l'Advertiser, sa clé, sa catégorie, sa
+   valeur et son comptage, l'archivage au lieu de la suppression. Un seul script par Advertiser, servi
+   par l'API, au consentement « basique ». Chez Google, une action secondaire par objectif et par
+   compte, et un objectif personnalisé que seule notre campagne optimise.
+2. **L'objectif optimisé se pose sur l'AdGroup** (`conversionGoalId`), à côté de `bidStrategy`. Toutes
+   les campagnes Google de ses TargetingGroups optimisent donc le même objectif. Écarté : sur la
+   campagne, comme multi-search, alors que la stratégie n'y vit pas.
+3. **Rien n'est figé après le lancement.** L'objectif se change comme la stratégie, qu'Omnipotent ne
+   fige pas. Google repointe l'objectif personnalisé de la campagne, et son apprentissage repart : le
+   front devra le dire. multi-search refuse les deux changements en 409. Écarté : figer l'objectif
+   seul, alors que changer la stratégie coûte le même apprentissage.
+4. **Archiver un objectif ne supprime rien chez Google** (R5). L'action reste, mais le script ne
+   l'envoie plus, donc elle ne reçoit plus rien. Réactiver l'objectif la retrouve, avec son libellé et
+   son historique. multi-search la supprime, et à la réactivation en crée une autre du même nom, ce que
+   Google n'accepte peut-être pas (un nom est unique ; non vérifié). Google n'a pas de pause pour une
+   action de conversion. L'archivage reste refusé tant qu'un AdGroup d'une campagne lancée optimise
+   l'objectif.
+5. **La synchro refuse `maximize_conversions` tant que l'objectif n'est pas prêt sur le compte**
+   (`google_conversion_goal_not_ready`), comme elle refuse un lieu hors des pays en 3c : une campagne
+   lancée se modifie sans repasser par la preview. multi-search crée la campagne quand même, et elle
+   enchérit alors sur les objectifs par défaut du compte du client, sans que personne ne le voie.
+   L'unité repart d'elle-même dès que l'objectif est prêt, puisque ses unités sont marquées.
+6. **Un compte que Google n'a jamais suivi** n'a pas encore de numéro de suivi. multi-search le met en
+   `failed` et ne crée jamais l'action, alors que c'est la première action qui allume le suivi :
+   l'objectif ne serait jamais prêt. Omnipotent créerait les actions quand même, et lirait le numéro
+   `AW-…` dans le libellé de la première. C'est une déduction, à constater sur le compte de test
+   pendant la preuve.
+7. **Ce qui attend d'autres phases** :
+   - les conversions par objectif dans les rapports, et l'avertissement « aucune conversion depuis
+     30 jours », qui les lit : phase 15 ;
+   - la readiness et les tâches : leurs phases ;
+   - ce qui ne sert qu'à OpenAI et Thrad : la phase 18, s'ils arrivent ;
+   - Microsoft : le lot B ;
+   - le domaine neutre du script et le consentement des visiteurs : déjà dans `A-FAIRE.md`.
+8. **Deux petits écarts** :
+   - la devise d'un objectif n'est vérifiée que par sa forme, comme celle d'une campagne. Omnipotent
+     n'a pas de référentiel des devises, et Google refuserait une devise qu'il ne connaît pas ;
+   - les noms chez Google portent nos tags `[op:…]`, pas ceux de multi-search. À la bascule (§ 18),
+     les actions que multi-search a créées chez les clients ne seront donc pas reprises d'elles-mêmes.

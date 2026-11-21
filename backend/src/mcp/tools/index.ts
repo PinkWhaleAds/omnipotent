@@ -15,6 +15,7 @@ import AssetToolsController from './asset/asset.controller';
 import BudgetDayToolsController from './budget-day/budget-day.controller';
 import CreativeToolsController from './creative/creative.controller';
 import CampaignToolsController from './campaign/campaign.controller';
+import ConversionGoalToolsController from './conversion-goal/conversion-goal.controller';
 import GeoToolsController from './geo/geo.controller';
 import KeywordToolsController from './keyword/keyword.controller';
 import LabelToolsController from './label/label.controller';
@@ -27,6 +28,7 @@ import MeToolsController from './me/me.controller';
 import StatusToolsController from './status/status.controller';
 import TargetingGroupToolsController from './targeting-group/targeting-group.controller';
 import TargetingToolsController from './targeting/targeting.controller';
+import TrackingToolsController from './tracking/tracking.controller';
 
 /**
  * Register every MCP tool controller on the given MCP server.
@@ -62,6 +64,9 @@ export function registerToolControllers(server: McpServer, fastify: FastifyInsta
   CreativeToolsController(server, fastify, context);
   // The platform accounts and the sub-advertisers; the credentials have no tool, by design.
   AdAccountToolsController(server, fastify, context);
+  // The conversion goals of the Advertisers, and the one code their sites install.
+  ConversionGoalToolsController(server, fastify, context);
+  TrackingToolsController(server, fastify, context);
   // The preview and the lifecycle, which read everything above, and the synchronization that
   // answers « has my change reached the platforms ».
   PreviewToolsController(server, fastify, context);

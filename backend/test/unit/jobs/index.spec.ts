@@ -3,6 +3,8 @@ import { FastifyInstance } from 'fastify';
 import {
   ACCOUNT_LINKS_JOB,
   CAMPAIGN_END_JOB,
+  CONVERSION_SETUP_JOB,
+  CONVERSION_SWEEP_JOB,
   GEO_IMPORT_JOB,
   JOB_DEFINITIONS,
   PACING_REFRESH_JOB,
@@ -20,6 +22,7 @@ describe('Unit::Jobs', () => {
   let accounts: Record<string, jest.Mock>;
   let reviews: Record<string, jest.Mock>;
   let geoImport: Record<string, jest.Mock>;
+  let tracking: Record<string, jest.Mock>;
   let fastify: FastifyInstance;
 
   beforeEach((): void => {
@@ -36,7 +39,9 @@ describe('Unit::Jobs', () => {
       importGoogle: jest.fn().mockResolvedValue(null),
       queueWhenEmpty: jest.fn().mockResolvedValue(true),
     };
+    tracking = { setup: jest.fn().mockResolvedValue(undefined), sweep: jest.fn().mockResolvedValue(undefined) };
     fastify = {
+      trackingService: tracking,
       syncService: sync,
       adAccountService: accounts,
       reviewService: reviews,
@@ -55,6 +60,8 @@ describe('Unit::Jobs', () => {
       'account.links',
       'review.poll',
       'geo.import',
+      'conversion.setup',
+      'conversion.sweep',
     ]);
     expect(new Set(names).size).toBe(names.length);
     for (const name of names) expect(name).toMatch(/^[\w.\-/]+$/);
@@ -153,6 +160,32 @@ describe('Unit::Jobs', () => {
       await GEO_IMPORT_JOB.onWorkerStart?.(fastify);
 
       expect(geoImport.queueWhenEmpty).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('conversion.setup and conversion.sweep', () => {
+    it('should set the tracking of one Advertiser up, retried twice', async (): Promise<void> => {
+      expect(CONVERSION_SETUP_JOB.cron).toBeUndefined();
+      expect(CONVERSION_SETUP_JOB.policy).toMatchObject({ retryLimit: 2, retryDelay: 60, expireInSeconds: 900 });
+
+      await CONVERSION_SETUP_JOB.createHandler(fastify)(
+        { advertiserId: 'd0000000-0000-4000-8000-000000000001' },
+        {
+          id: 'job-1',
+          retryCount: 0,
+        }
+      );
+
+      expect(tracking.setup).toHaveBeenCalledWith('d0000000-0000-4000-8000-000000000001');
+    });
+
+    it('should queue what waits for a setup every half hour, one pass at a time', async (): Promise<void> => {
+      expect(CONVERSION_SWEEP_JOB.cron).toBe('*/30 * * * *');
+      expect(CONVERSION_SWEEP_JOB.policy).toMatchObject({ policy: 'exclusive', retryLimit: 0, expireInSeconds: 1500 });
+
+      await (CONVERSION_SWEEP_JOB.createHandler(fastify) as () => Promise<void>)();
+
+      expect(tracking.sweep).toHaveBeenCalledTimes(1);
     });
   });
 });

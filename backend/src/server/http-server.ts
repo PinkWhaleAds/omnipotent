@@ -22,6 +22,7 @@ import AssetServicePlugin from '@src/services/asset.service';
 import BudgetCurveServicePlugin from '@src/services/budget-curve.service';
 import CreativeServicePlugin from '@src/services/creative.service';
 import CampaignServicePlugin from '@src/services/campaign.service';
+import ConversionGoalServicePlugin from '@src/services/conversion-goal.service';
 import GeoImportServicePlugin from '@src/services/geo-import.service';
 import GeoServicePlugin from '@src/services/geo.service';
 import GeocodingServicePlugin from '@src/services/geocoding.service';
@@ -42,6 +43,7 @@ import ReviewServicePlugin from '@src/services/review.service';
 import SyncServicePlugin from '@src/services/sync.service';
 import TargetingServicePlugin from '@src/services/targeting.service';
 import TokenVerifierPlugin from '@src/services/token-verifier.service';
+import TrackingServicePlugin from '@src/services/tracking.service';
 import { Opt, Callback } from '@src/types';
 import { callCallback, LoggerBuilder, Logger, trustNearestProxies } from '@utils';
 import { Server } from './server';
@@ -136,6 +138,9 @@ export class HttpServer extends Server {
     await this.fastify.register(GeoServicePlugin);
     await this.fastify.register(GeoImportServicePlugin);
     await this.fastify.register(GeocodingServicePlugin);
+    // The tracking first: the conversion goals, the Advertisers and the ad accounts ask it for setups.
+    await this.fastify.register(TrackingServicePlugin);
+    await this.fastify.register(ConversionGoalServicePlugin);
     await this.fastify.register(LabelServicePlugin);
     await this.fastify.register(AdvertiserServicePlugin);
     // The five levels of the campaign tree, parents before children.

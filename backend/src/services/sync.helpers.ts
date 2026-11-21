@@ -16,7 +16,7 @@
  */
 import { EntityManager, In, Not } from 'typeorm';
 
-import { LineEntity, PlatformUnitEntity } from '@src/database/entities';
+import { AdGroupEntity, LineEntity, PlatformUnitEntity } from '@src/database/entities';
 
 /**
  * Mark every unit of a campaign as having something to apply.
@@ -155,4 +155,35 @@ export async function markListDirty(manager: EntityManager, listId: string): Pro
  */
 export async function markAccountDirty(manager: EntityManager, adAccountId: string): Promise<number> {
   return mark(manager, { adAccountId });
+}
+
+/**
+ * Mark the units an optimized conversion goal changed for: those of the AdGroups that optimize it, on
+ * one account (D58, `docs/phase-10.md` § 8.10).
+ *
+ * A goal becomes biddable on an account once it is set up there, which no write of the tree records:
+ * without this, a campaign waiting for its goal would wait for the next modification of the campaign.
+ * Over-inclusive as the others: an AdGroup that names the goal under another strategy has an unchanged
+ * fingerprint, and its sync makes no call.
+ *
+ * @param manager - The transaction
+ * @param goalId - The goal whose state changed on the account
+ * @param adAccountId - The account
+ * @returns How many units were marked
+ *
+ * @example
+ * ```typescript
+ * await markGoalDirty(manager, goalId, adAccountId); // after the goal became ready there
+ * ```
+ */
+export async function markGoalDirty(manager: EntityManager, goalId: string, adAccountId: string): Promise<number> {
+  const adGroups: { id: string }[] = await manager.find(AdGroupEntity, {
+    where: { conversionGoalId: goalId },
+    select: { id: true },
+  });
+  if (adGroups.length === 0) return 0;
+  return mark(manager, {
+    adGroupId: In(adGroups.map((adGroup: { id: string }): string => adGroup.id)),
+    adAccountId,
+  });
 }

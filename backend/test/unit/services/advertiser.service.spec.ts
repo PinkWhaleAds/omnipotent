@@ -69,13 +69,15 @@ describe('Unit::Services::AdvertiserService', () => {
   let db: DataSourceMock;
   let access: AccessServiceMock;
   let labels: LabelServiceMock;
+  let tracking: { request: jest.Mock };
   let service: AdvertiserService;
 
   beforeEach((): void => {
     db = createDataSourceMock();
     access = createAccessMock();
     labels = { setOn: jest.fn().mockResolvedValue([SPRING]), summariesOf: jest.fn().mockResolvedValue(new Map()) };
-    service = new AdvertiserService(db.dataSource, access as never, labels as unknown as LabelService);
+    tracking = { request: jest.fn().mockResolvedValue(undefined) };
+    service = new AdvertiserService(db.dataSource, access as never, labels as unknown as LabelService, tracking);
   });
 
   describe('toAdvertiser', () => {
@@ -229,6 +231,8 @@ describe('Unit::Services::AdvertiserService', () => {
       expect(db.manager.exists).toHaveBeenCalledWith(AdvertiserEntity, {
         where: { organizationId: IDS.organization, name: 'Herbéa Bio', deletedAt: expect.anything() },
       });
+      // Its name is in the names of its conversion goals at the platforms (`docs/phase-10.md` § 8.10).
+      expect(tracking.request).toHaveBeenCalledWith(IDS.advertiser);
     });
 
     it('should leave a field out of the body alone, and not check a name that does not change', async (): Promise<void> => {
@@ -237,6 +241,7 @@ describe('Unit::Services::AdvertiserService', () => {
 
       await expect(service.update(JANE, IDS.organization, IDS.advertiser, { name: 'Herbéa' })).resolves.toEqual(HERBEA);
       expect(db.manager.exists).not.toHaveBeenCalled();
+      expect(tracking.request).not.toHaveBeenCalled();
     });
 
     it('should accept a body changing nothing', async (): Promise<void> => {
@@ -414,7 +419,11 @@ describe('Unit::Services::AdvertiserService', () => {
 
   describe('AdvertiserServicePlugin', () => {
     it('should decorate the instance with an AdvertiserService wired to its dependencies', async (): Promise<void> => {
-      const app: FastifyInstance = await buildServiceApp([LabelServicePlugin, AdvertiserServicePlugin], { db, access });
+      const app: FastifyInstance = await buildServiceApp([LabelServicePlugin, AdvertiserServicePlugin], {
+        db,
+        access,
+        tracking,
+      });
       db.manager.findOne.mockResolvedValue(advertiserRow());
 
       expect(app.advertiserService).toBeInstanceOf(AdvertiserService);

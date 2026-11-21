@@ -219,10 +219,11 @@ export function nameTag(unitId: string, key: string): string {
  *
  * @param name - Its name with us
  * @param tag - Its tag
+ * @param maxLength - The longest name Google takes for this object
  * @returns The name Google shows
  */
-export function taggedName(name: string, tag: string): string {
-  const room: number = MAX_NAME_LENGTH - tag.length - 1;
+export function taggedName(name: string, tag: string, maxLength: number = MAX_NAME_LENGTH): string {
+  const room: number = maxLength - tag.length - 1;
   return `${name.length > room ? name.slice(0, room) : name} ${tag}`;
 }
 
@@ -300,6 +301,9 @@ export function googleStatus(status: NodeStatus): GoogleStatus {
   return status === 'active' ? 'ENABLED' : 'PAUSED';
 }
 
+/** How a campaign bids: exactly one scheme. */
+export type CampaignBidding = Pick<GoogleCampaign, 'manualCpc' | 'targetSpend' | 'maximizeConversions'>;
+
 /**
  * How a campaign bids, in Google's words (`plateformes/google-ads.md` § 5).
  *
@@ -314,13 +318,15 @@ export function campaignBidding(
   strategy: BidStrategy | null,
   bidMicros: number | null,
   currency: string
-): Pick<GoogleCampaign, 'manualCpc' | 'targetSpend'> {
+): CampaignBidding {
   if (strategy === 'max_cpc') return { manualCpc: { enhancedCpcEnabled: false } };
   if (strategy === 'maximize_clicks') {
     return {
       targetSpend: bidMicros === null ? {} : { cpcBidCeilingMicros: String(roundMicros(bidMicros, currency)) },
     };
   }
+  // Without a target cost per conversion, as multi-search: the amount is not sent (`docs/phase-10.md` § 8.10).
+  if (strategy === 'maximize_conversions') return { maximizeConversions: {} };
   throw refusal(`Google Search does not bid with ${String(strategy)} here`, 'google_bid_strategy_unsupported', {
     strategy: String(strategy),
   });

@@ -8,7 +8,9 @@ import { createMcpServer, MCP_INSTRUCTIONS } from '@src/mcp';
 import { mcpToolRateLimiter } from '@src/mcp/tool-rate-limit';
 import {
   Advertiser,
+  AdvertiserTracking,
   BulkResult,
+  ConversionGoal,
   DeletionResult,
   Label,
   LabelledResource,
@@ -48,7 +50,9 @@ type ServiceName =
   | 'previewService'
   | 'syncService'
   | 'geoService'
-  | 'geocodingService';
+  | 'geocodingService'
+  | 'conversionGoalService'
+  | 'trackingService';
 
 /** A fake Fastify instance: every service method is a jest mock. */
 type FakeServices = Record<ServiceName, Record<string, jest.Mock>>;
@@ -338,6 +342,32 @@ const KEYWORD = {
 
 /** The query a list of lists receives once the defaults of its schema apply. */
 const LIST_QUERY = { page: 1, limit: 50, sortBy: 'name', sortOrder: 'asc', includeDeleted: false };
+
+/** A conversion goal, as its tools answer it. */
+const GOAL: ConversionGoal = {
+  id: 'f0000000-0000-4000-8000-000000000001',
+  advertiserId: PARENT_ID,
+  key: 'achat',
+  name: 'Achat',
+  category: 'purchase',
+  valueMode: 'none',
+  defaultValueCents: null,
+  currency: null,
+  counting: 'every',
+  status: 'active',
+  createdAt: NOW.toISOString(),
+  updatedAt: NOW.toISOString(),
+};
+
+/** The tracking of an Advertiser, as `get-tracking` answers it. */
+const TRACKING: AdvertiserTracking = {
+  advertiserId: PARENT_ID,
+  snippet: '<script></script>',
+  scriptUrl: 'https://api.omnipotent.test/t/k3yK3yK3yK3yK3yK3yK3yK3y.js',
+  cspDomains: ['api.omnipotent.test'],
+  lastSeenAt: null,
+  platforms: [],
+};
 
 /** What the asset tools answer. */
 const ASSET = {
@@ -760,6 +790,46 @@ const LIBRARY_CASES: ToolCase[] = [
     method: 'list',
     answer: { items: [CREATIVE], total: 1, page: 1, limit: 50 },
     expected: [PARENT_ID, CREATIVE_QUERY],
+  },
+  {
+    tool: 'list-conversion-goals',
+    args: { advertiserId: PARENT_ID, status: 'active' },
+    service: 'conversionGoalService',
+    method: 'list',
+    answer: { items: [GOAL], total: 1, page: 1, limit: 50 },
+    expected: [PARENT_ID, { page: 1, limit: 50, status: 'active' }],
+  },
+  {
+    tool: 'get-conversion-goal',
+    args: { goalId: GOAL.id },
+    service: 'conversionGoalService',
+    method: 'get',
+    answer: GOAL,
+    expected: [GOAL.id],
+  },
+  {
+    tool: 'create-conversion-goal',
+    args: { advertiserId: PARENT_ID, key: 'achat', name: 'Achat', category: 'purchase' },
+    service: 'conversionGoalService',
+    method: 'create',
+    answer: GOAL,
+    expected: [PARENT_ID, { key: 'achat', name: 'Achat', category: 'purchase', valueMode: 'none', counting: 'every' }],
+  },
+  {
+    tool: 'update-conversion-goal',
+    args: { goalId: GOAL.id, status: 'archived' },
+    service: 'conversionGoalService',
+    method: 'update',
+    answer: GOAL,
+    expected: [GOAL.id, { status: 'archived' }],
+  },
+  {
+    tool: 'get-tracking',
+    args: { advertiserId: PARENT_ID },
+    service: 'trackingService',
+    method: 'get',
+    answer: TRACKING,
+    expected: [PARENT_ID],
   },
   {
     tool: 'geocode-addresses',
@@ -1535,6 +1605,8 @@ function fakeServices(): FakeServices {
     previewService: { preview: jest.fn(), launch: jest.fn(), setStatus: jest.fn(), setNodeStatus: jest.fn() },
     syncService: { platformStatus: jest.fn(), requestSync: jest.fn(), retry: jest.fn() },
     geoService: { search: jest.fn(), byIds: jest.fn() },
+    conversionGoalService: { list: jest.fn(), get: jest.fn(), create: jest.fn(), update: jest.fn() },
+    trackingService: { get: jest.fn() },
     geocodingService: {
       status: jest.fn().mockReturnValue({ geocoding: false }),
       geocode: jest.fn(),

@@ -114,6 +114,7 @@ function input(overrides: Partial<DesiredInput> = {}): DesiredInput {
     // Inside the window every node of `branch()` declares.
     today: '2027-01-03',
     minDailyBudgetCents: 0,
+    conversionGoal: null,
     ...overrides,
   };
 }

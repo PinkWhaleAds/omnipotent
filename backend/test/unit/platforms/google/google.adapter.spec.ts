@@ -453,6 +453,56 @@ describe('Unit::Platforms::Google::Adapter', () => {
     });
   });
 
+  describe('the conversions', () => {
+    /** The account whose conversions are set up. */
+    const ACCOUNT: AccountContext = {
+      platform: 'google_ads',
+      adAccountId: 'acc-1',
+      externalId: CLIENT,
+      scope: {},
+      credentials: null,
+    };
+
+    it('should read the Google tag of the account, naming it as Google Ads shows it', async (): Promise<void> => {
+      const client = {
+        search: jest.fn().mockResolvedValue([
+          {
+            customer: {
+              conversionTrackingSetting: { conversionTrackingStatus: 'CONVERSION_TRACKING_MANAGED_BY_THIS_MANAGER' },
+            },
+          },
+        ]),
+      };
+
+      await expect(
+        new GoogleAdsAdapter(client as unknown as GoogleAdsClient).setupTracking(ACCOUNT)
+      ).resolves.toMatchObject({
+        status: 'manual_required',
+        messageParams: { account: `${CLIENT.slice(0, 3)}-${CLIENT.slice(3, 6)}-${CLIENT.slice(6)}` },
+      });
+    });
+
+    it('should set a goal up on the account', async (): Promise<void> => {
+      const client = { search: jest.fn().mockResolvedValue([]), mutate: jest.fn() };
+      const goal = {
+        id: 'f0000000-0000-4000-8000-000000000001',
+        key: 'achat',
+        name: 'Achat',
+        category: 'purchase',
+        valueMode: 'none',
+        defaultValueMicros: null,
+        currency: null,
+        counting: 'every',
+        status: 'archived',
+      } as const;
+
+      await expect(
+        new GoogleAdsAdapter(client as unknown as GoogleAdsClient).setupGoal(ACCOUNT, goal, { tagId: 'AW-1' }, null)
+      ).resolves.toMatchObject({ status: 'paused' });
+      expect(client.search).toHaveBeenCalledWith('acc-1', CLIENT, expect.stringContaining('FROM conversion_action'));
+    });
+  });
+
   describe('readReviews', () => {
     /** The account whose ads are read. */
     const ACCOUNT: AccountContext = {

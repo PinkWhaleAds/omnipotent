@@ -15,6 +15,7 @@ import AssetController from './asset/asset.controller';
 import BudgetDayController from './budget-day/budget-day.controller';
 import CreativeController from './creative/creative.controller';
 import CampaignController from './campaign/campaign.controller';
+import ConversionGoalController from './conversion-goal/conversion-goal.controller';
 import GeoController from './geo/geo.controller';
 import HealthController from './health/health.controller';
 import KeywordController from './keyword/keyword.controller';
@@ -29,6 +30,7 @@ import OAuthController from './oauth/oauth.controller';
 import PreviewController from './preview/preview.controller';
 import SyncController from './sync/sync.controller';
 import StatusController from './status/status.controller';
+import TrackingController from './tracking/tracking.controller';
 
 /**
  * Register the probe and status controllers, the only routes a worker serves.
@@ -83,6 +85,9 @@ async function registerControllers(fastify: FastifyInstance): Promise<void> {
   await fastify.register(CreativeController);
   // The platform accounts and the sub-advertisers.
   await fastify.register(AdAccountController);
+  // The conversion goals of the Advertisers, the one code their sites install and the script it loads.
+  await fastify.register(ConversionGoalController);
+  await fastify.register(TrackingController);
   // The preview and the lifecycle read every level, so they are registered last, with the
   // synchronization they hand the campaign to.
   await fastify.register(PreviewController);

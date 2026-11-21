@@ -1,9 +1,10 @@
-import { LineEntity, PlatformUnitEntity } from '@src/database/entities';
+import { AdGroupEntity, LineEntity, PlatformUnitEntity } from '@src/database/entities';
 import {
   markAccountDirty,
   markCampaignDirty,
   markCampaignsDirty,
   markCreativeDirty,
+  markGoalDirty,
   markListDirty,
 } from '@src/services/sync.helpers';
 import { IDS } from '@test/unit/mocks/auth.fixtures';
@@ -152,6 +153,33 @@ describe('Unit::Services::SyncHelpers', () => {
 
       expect(await markAccountDirty(store.manager, ACCOUNT_ID)).toBe(2);
       expect(units()[2].syncState).toBe('synced');
+    });
+  });
+
+  describe('markGoalDirty', () => {
+    it('should mark the units of the AdGroups optimizing the goal, on that account only', async (): Promise<void> => {
+      store.seed(AdGroupEntity, [
+        { id: 'g-1', conversionGoalId: 'goal-1' },
+        { id: 'g-2', conversionGoalId: 'goal-1' },
+        { id: 'g-3', conversionGoalId: 'goal-2' },
+      ]);
+      seedUnit({ adGroupId: 'g-1' });
+      seedUnit({ adGroupId: 'g-2', adAccountId: 'another' });
+      seedUnit({ adGroupId: 'g-3' });
+
+      expect(await markGoalDirty(store.manager, 'goal-1', ACCOUNT_ID)).toBe(1);
+      expect(units().map((unit: PlatformUnitEntity): string => unit.syncState)).toEqual([
+        'pending',
+        'synced',
+        'synced',
+      ]);
+    });
+
+    it('should cost nothing when no AdGroup optimizes the goal', async (): Promise<void> => {
+      seedUnit({ adGroupId: 'g-1' });
+
+      expect(await markGoalDirty(store.manager, 'goal-1', ACCOUNT_ID)).toBe(0);
+      expect(store.manager.update).not.toHaveBeenCalled();
     });
   });
 });

@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import fastifyPlugin from 'fastify-plugin';
-import { DataSource, EntityManager, IsNull } from 'typeorm';
+import { DataSource, EntityManager, In, IsNull } from 'typeorm';
 
 import { previewConfig, PreviewConfig } from '@configs';
 import {
@@ -8,6 +8,8 @@ import {
   AdGroupEntity,
   AdvertiserAdAccountEntity,
   CampaignEntity,
+  ConversionGoalEntity,
+  ConversionGoalRefEntity,
   CreativeEntity,
   CreativeVersionEntity,
   LeverEntity,
@@ -79,6 +81,17 @@ const TRANSITIONS: Readonly<Record<CampaignStatus, readonly CampaignStatus[]>> =
 const SHARE_TOTAL = 10_000;
 
 /**
+ * The conversion goals the AdGroups of a campaign optimize, read once per preview.
+ *
+ * @property byId - The goals, by id
+ * @property refs - Where each stands on every account, by `<goalId>|<adAccountId>`
+ */
+type PreviewGoals = {
+  byId: Map<string, ConversionGoalEntity>;
+  refs: Map<string, ConversionGoalRefEntity>;
+};
+
+/**
  * Says what will be created on each platform, and what is wrong.
  *
  * The rigour of this API is **at publication, not at entry** (`../../CADRAGE.md` § 13): a draft saves
@@ -140,7 +153,9 @@ export class PreviewService {
     const errors: PreviewFinding[] = [];
     const warnings: PreviewFinding[] = [];
     this.checkStructure(tree, errors, warnings);
-    const platforms: PlatformPreview[] = await this.projectPlatforms(tree, errors, warnings);
+    const goals: PreviewGoals = await this.goalsOf(tree);
+    this.checkGoals(tree, goals, errors);
+    const platforms: PlatformPreview[] = await this.projectPlatforms(tree, goals, errors, warnings);
 
     const nodes: NodeIndex = indexNodes(tree);
     return {
@@ -497,15 +512,143 @@ export class PreviewService {
   }
 
   /**
+   * The conversion goals the AdGroups of a campaign optimize, and where each stands on every account.
+   *
+   * @param tree - The tree
+   * @returns The goals by id, and their refs by `<goalId>|<adAccountId>`
+   */
+  private async goalsOf(tree: CampaignTree): Promise<PreviewGoals> {
+    const ids: string[] = [
+      ...new Set(
+        tree.adGroups
+          .filter((group: AdGroupEntity): boolean => group.bidStrategy === 'maximize_conversions')
+          .flatMap((group: AdGroupEntity): string[] => (group.conversionGoalId ? [group.conversionGoalId] : []))
+      ),
+    ];
+    if (ids.length === 0) return { byId: new Map(), refs: new Map() };
+    const goals: ConversionGoalEntity[] = await this.dataSource.manager.find(ConversionGoalEntity, {
+      where: { id: In(ids), organizationId: tree.campaign.organizationId },
+    });
+    const refs: ConversionGoalRefEntity[] = await this.dataSource.manager.find(ConversionGoalRefEntity, {
+      where: { goalId: In(ids) },
+    });
+    return {
+      byId: new Map(goals.map((goal: ConversionGoalEntity): [string, ConversionGoalEntity] => [goal.id, goal])),
+      refs: new Map(
+        refs.map((ref: ConversionGoalRefEntity): [string, ConversionGoalRefEntity] => [
+          `${ref.goalId}|${ref.adAccountId}`,
+          ref,
+        ])
+      ),
+    };
+  }
+
+  /**
+   * Refuse an AdGroup maximizing conversions without a goal to optimize, or with an archived one
+   * (D58, `docs/phase-10.md` § 8.10). Said once per AdGroup, whatever its platforms.
+   *
+   * @param tree - The tree
+   * @param goals - The goals its AdGroups optimize
+   * @param errors - Collected errors
+   * @returns Nothing
+   */
+  private checkGoals(tree: CampaignTree, goals: PreviewGoals, errors: PreviewFinding[]): void {
+    for (const group of tree.adGroups.filter(
+      (node: AdGroupEntity): boolean => node.bidStrategy === 'maximize_conversions'
+    )) {
+      const goal: ConversionGoalEntity | undefined = group.conversionGoalId
+        ? goals.byId.get(group.conversionGoalId)
+        : undefined;
+      if (!goal) {
+        errors.push(this.finding('preview_conversion_goal_missing', {}, 'ad_group', group.id));
+      } else if (goal.status === 'archived') {
+        errors.push(this.finding('preview_conversion_goal_archived', { goalName: goal.name }, 'ad_group', group.id));
+      }
+    }
+  }
+
+  /**
+   * Refuse an AdGroup maximizing conversions on a platform where its goal is not ready, on the account
+   * the campaign buys on, and warn of an amount the platform does not take under its strategy
+   * (D58, `docs/phase-10.md` § 8.10).
+   *
+   * @param tree - The tree
+   * @param lever - The lever being projected
+   * @param platform - The platform
+   * @param account - The account the campaign buys on there, if any: the account's own findings say
+   *   when there is none, or none usable
+   * @param goals - The goals its AdGroups optimize
+   * @param errors - Collected errors
+   * @param warnings - Collected warnings
+   * @returns Nothing
+   */
+  private checkConversions(
+    tree: CampaignTree,
+    lever: LeverEntity,
+    platform: Platform,
+    account: AdAccountEntity | undefined,
+    goals: PreviewGoals,
+    errors: PreviewFinding[],
+    warnings: PreviewFinding[]
+  ): void {
+    const rules: PlatformRules = rulesOf(platform, lever.lever);
+    for (const group of tree.adGroups.filter((node: AdGroupEntity): boolean => node.leverId === lever.id)) {
+      const shares: PlatformShare[] = group.platformShares?.length ? group.platformShares : lever.platformShares;
+      if (!shares.some((share: PlatformShare): boolean => share.platform === platform)) continue;
+      const amount: boolean =
+        (group.bidAmountCents ?? null) !== null ||
+        tree.targetingGroups.some(
+          (node: TargetingGroupEntity): boolean => node.adGroupId === group.id && (node.bidAmountCents ?? null) !== null
+        );
+      if (amount && rules.ignoredBidAmounts.includes(group.bidStrategy)) {
+        warnings.push(
+          this.finding(
+            'preview_bid_amount_ignored',
+            { platform, strategy: group.bidStrategy },
+            'ad_group',
+            group.id,
+            platform
+          )
+        );
+      }
+      const goal: ConversionGoalEntity | undefined =
+        group.bidStrategy === 'maximize_conversions' && group.conversionGoalId
+          ? goals.byId.get(group.conversionGoalId)
+          : undefined;
+      if (!goal || goal.status === 'archived' || !account || account.deletedAt !== null) continue;
+      if (!rules.bidStrategies.includes(group.bidStrategy)) continue;
+      const ref: ConversionGoalRefEntity | undefined = goals.refs.get(`${goal.id}|${account.id}`);
+      if (ref?.status !== 'ready') {
+        errors.push(
+          this.finding(
+            'preview_conversion_goal_not_ready',
+            {
+              platform,
+              goalName: goal.name,
+              status: ref?.status ?? 'pending',
+              reasonCode: ref?.messageCode ?? null,
+            },
+            'ad_group',
+            group.id,
+            platform
+          )
+        );
+      }
+    }
+  }
+
+  /**
    * What each platform of each lever receives, and what it will leave behind.
    *
    * @param tree - The tree
+   * @param goals - The conversion goals its AdGroups optimize
    * @param errors - Collected errors
    * @param warnings - Collected warnings
    * @returns One entry per couple, in the order of the levers
    */
   private async projectPlatforms(
     tree: CampaignTree,
+    goals: PreviewGoals,
     errors: PreviewFinding[],
     warnings: PreviewFinding[]
   ): Promise<PlatformPreview[]> {
@@ -539,6 +682,9 @@ export class PreviewService {
         if (projection) this.checkTargeting(tree, lever, platform as Platform, effectiveCents, warnings);
         if (projection) this.checkGeo(tree, lever, platform as Platform, effectiveCents, errors, warnings);
         if (projection) this.checkLimits(tree, lever, projection, platform as Platform, errors, warnings);
+        if (projection) {
+          this.checkConversions(tree, lever, platform as Platform, account, goals, errors, warnings);
+        }
       }
     }
     return previews;

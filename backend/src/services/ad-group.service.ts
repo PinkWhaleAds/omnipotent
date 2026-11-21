@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import fastifyPlugin from 'fastify-plugin';
 import { DataSource, EntityManager, ObjectLiteral } from 'typeorm';
 
-import { AdGroupEntity } from '@src/database/entities';
+import { AdGroupEntity, CampaignEntity, ConversionGoalEntity } from '@src/database/entities';
 import {
   assertBidStrategyPermitted,
   assertObjectivePermitted,
@@ -25,7 +25,7 @@ import { BulkIdsBody, BulkResult, DeletionResult, SetLabelsBody } from '@src/typ
 import { LabelSummary } from '@src/types/label.types';
 import { BidStrategy, Lever, Objective } from '@src/types/lever.types';
 import { PlatformShare } from '@src/types/platform.types';
-import { toPage } from '@utils';
+import { httpError, toPage } from '@utils';
 import { AccessService } from './access.service';
 import { assertSharesComplete } from './budget.helpers';
 import { runBulk } from './crud.helpers';
@@ -56,6 +56,7 @@ export function toAdGroup(entity: AdGroupEntity, budget: AdGroup['budget'], labe
     objective: entity.objective,
     bidStrategy: entity.bidStrategy,
     bidAmountCents: entity.bidAmountCents,
+    conversionGoalId: entity.conversionGoalId ?? null,
     platformShares: entity.platformShares,
     locationIntent: entity.locationIntent ?? null,
     budget,
@@ -347,6 +348,9 @@ export class AdGroupService {
     assertBidStrategyPermitted(lever, bidStrategy);
     if (body.platformShares) this.assertKey(lever, body.platformShares);
     if (body.locationIntent != null) assertSearchFieldPermitted(lever, LEVEL, 'locationIntent');
+    if (body.conversionGoalId) {
+      await this.assertGoal(manager, organizationId, parent.campaignId as string, body.conversionGoalId);
+    }
 
     const columns: ObjectLiteral = await normalizeNodeWrite(
       manager,
@@ -371,6 +375,7 @@ export class AdGroupService {
         objective,
         bidStrategy,
         bidAmountCents: body.bidAmountCents ?? null,
+        conversionGoalId: body.conversionGoalId ?? null,
         platformShares: body.platformShares ?? null,
         locationIntent: body.locationIntent ?? null,
         ...columns,
@@ -404,6 +409,9 @@ export class AdGroupService {
     if (body.bidStrategy !== undefined) assertBidStrategyPermitted(lever, body.bidStrategy);
     if (body.platformShares) this.assertKey(lever, body.platformShares);
     if (body.locationIntent != null) assertSearchFieldPermitted(lever, LEVEL, 'locationIntent');
+    if (body.conversionGoalId && body.conversionGoalId !== current.conversionGoalId) {
+      await this.assertGoal(manager, organizationId, current.campaignId as string, body.conversionGoalId);
+    }
 
     const columns: ObjectLiteral = await normalizeNodeWrite(
       manager,
@@ -424,12 +432,47 @@ export class AdGroupService {
       ...(body.objective === undefined ? {} : { objective: body.objective }),
       ...(body.bidStrategy === undefined ? {} : { bidStrategy: body.bidStrategy }),
       ...(body.bidAmountCents === undefined ? {} : { bidAmountCents: body.bidAmountCents }),
+      ...(body.conversionGoalId === undefined ? {} : { conversionGoalId: body.conversionGoalId }),
       ...(body.platformShares === undefined ? {} : { platformShares: body.platformShares }),
       ...(body.locationIntent === undefined ? {} : { locationIntent: body.locationIntent }),
       ...columns,
     });
     const [updated]: AdGroup[] = await this.toApi(manager, [saved]);
     return updated;
+  }
+
+  /**
+   * Refuse a conversion goal the AdGroup cannot optimize: one of another Advertiser than its campaign's,
+   * or one no longer measured (D58, `docs/phase-10.md` § 8.10).
+   *
+   * @param manager - The transaction
+   * @param organizationId - The Organization
+   * @param campaignId - The campaign of the AdGroup
+   * @param goalId - The goal named
+   * @returns Nothing
+   * @throws Error with status 404 coded `conversion_goal_not_found`, 400 coded `conversion_goal_archived`
+   */
+  private async assertGoal(
+    manager: EntityManager,
+    organizationId: string,
+    campaignId: string,
+    goalId: string
+  ): Promise<void> {
+    const campaign = (await manager.findOne(CampaignEntity, {
+      where: { id: campaignId },
+      select: { id: true, advertiserId: true },
+      withDeleted: true,
+    })) as CampaignEntity;
+    const goal: ConversionGoalEntity | null = await manager.findOne(ConversionGoalEntity, {
+      where: { id: goalId, organizationId, advertiserId: campaign.advertiserId },
+    });
+    if (!goal) throw httpError(404, 'Conversion goal not found', { code: 'conversion_goal_not_found' });
+    if (goal.status === 'archived') {
+      throw httpError(400, `The conversion goal ${goal.name} is archived: it is no longer measured`, {
+        code: 'conversion_goal_archived',
+        params: { goalName: goal.name },
+      });
+    }
   }
 
   /**

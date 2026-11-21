@@ -18,6 +18,7 @@ import { LabelSummary } from '@src/types/label.types';
 import { escapeLike, httpError, toPage, toSkipTake, withoutAccents, withoutAccentsSql } from '@utils';
 import { AccessService } from './access.service';
 import { applyLabelFilter, runBulk, toOrder } from './crud.helpers';
+import type { TrackingScheduler } from './conversion-goal.service';
 import { assertDistinctIds, LabelService } from './label.service';
 
 /** PostgreSQL error code of a unique constraint violation. */
@@ -61,11 +62,13 @@ export class AdvertiserService {
    * @param dataSource - Application database
    * @param access - Permission checks
    * @param labels - Posting and reading the Labels of a resource
+   * @param tracking - Asks for the setup of an Advertiser's conversion tracking once it is renamed
    */
   constructor(
     private readonly dataSource: DataSource,
     private readonly access: AccessService,
-    private readonly labels: LabelService
+    private readonly labels: LabelService,
+    private readonly tracking: TrackingScheduler
   ) {}
 
   /**
@@ -367,12 +370,15 @@ export class AdvertiserService {
     body: UpdateAdvertiserBody
   ): Promise<Advertiser> {
     const advertiser: AdvertiserEntity = await this.findOrFail(manager, organizationId, id);
-    if (body.name !== undefined && body.name !== advertiser.name) {
-      await this.assertNameFree(manager, organizationId, body.name);
-      advertiser.name = body.name;
+    const renamed: boolean = body.name !== undefined && body.name !== advertiser.name;
+    if (renamed) {
+      await this.assertNameFree(manager, organizationId, body.name as string);
+      advertiser.name = body.name as string;
     }
     if (body.websiteUrl !== undefined) advertiser.websiteUrl = body.websiteUrl;
     const saved: AdvertiserEntity = await this.save(manager, advertiser, advertiser.name);
+    // Its name is part of the names of its conversion goals at the platforms (`docs/phase-10.md` § 8.10).
+    if (renamed) await this.tracking.request(saved.id);
     const [withLabels]: Advertiser[] = await this.withLabels(manager, [saved]);
     return withLabels;
   }
@@ -502,15 +508,19 @@ export class AdvertiserService {
 /**
  * Fastify plugin that decorates the instance with an {@link AdvertiserService}.
  *
- * Depends on `DatabasePlugin`, `AccessServicePlugin` and `LabelServicePlugin`.
+ * Depends on `DatabasePlugin`, `AccessServicePlugin`, `LabelServicePlugin` and `TrackingServicePlugin` (its
+ * scheduler).
  *
  * @param fastify - The Fastify instance to decorate
  */
 async function advertiserServicePlugin(fastify: FastifyInstance): Promise<void> {
-  fastify.decorate('advertiserService', new AdvertiserService(fastify.db, fastify.accessService, fastify.labelService));
+  fastify.decorate(
+    'advertiserService',
+    new AdvertiserService(fastify.db, fastify.accessService, fastify.labelService, fastify.trackingScheduler)
+  );
 }
 
 export default fastifyPlugin(advertiserServicePlugin, {
   name: 'AdvertiserServicePlugin',
-  dependencies: ['DatabasePlugin', 'AccessServicePlugin', 'LabelServicePlugin'],
+  dependencies: ['DatabasePlugin', 'AccessServicePlugin', 'LabelServicePlugin', 'TrackingServicePlugin'],
 });

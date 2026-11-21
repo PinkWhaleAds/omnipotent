@@ -5,6 +5,8 @@ import {
   AdGroupEntity,
   AdvertiserAdAccountEntity,
   CampaignEntity,
+  ConversionGoalEntity,
+  ConversionGoalRefEntity,
   CreativeEntity,
   CreativeVersionEntity,
   KeywordEntity,
@@ -59,6 +61,7 @@ function hawkRules(overrides: Partial<PlatformRules> = {}): PlatformRules {
     locationIntent: false,
     extensions: false,
     geo: { levels: [], excludedLevels: [], maxRadii: null },
+    ignoredBidAmounts: [],
     ...overrides,
   };
 }
@@ -616,6 +619,196 @@ describe('Unit::Services::PreviewService', () => {
       const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
 
       expect(preview.errors).toEqual([]);
+    });
+  });
+
+  describe('the conversion goal an AdGroup optimizes (D58)', () => {
+    /** The goal of these specs. */
+    const GOAL_ID = 'f9000000-0000-4000-8000-000000000001';
+
+    /** An AdGroup maximizing conversions on that goal, without an amount. */
+    const MAXIMIZING = { bidStrategy: 'maximize_conversions', conversionGoalId: GOAL_ID, bidAmountCents: null };
+
+    /**
+     * Seed the goal, and where it stands on the campaign's account.
+     *
+     * @param status - Its status
+     * @param ref - Where it stands on the account, none when left out
+     * @returns Nothing
+     */
+    function seedGoal(status: 'active' | 'archived', ref?: object): void {
+      store.seed(ConversionGoalEntity, [{ id: GOAL_ID, organizationId: IDS.organization, name: 'Achat', status }]);
+      if (ref) store.seed(ConversionGoalRefEntity, [{ goalId: GOAL_ID, adAccountId: ACCOUNT_ID, ...ref }]);
+    }
+
+    /**
+     * The findings of the conversions, among the others a bare campaign carries.
+     *
+     * @param findings - The findings
+     * @returns Those about the goal, or the amount
+     */
+    function goalFindings(findings: PreviewFinding[]): PreviewFinding[] {
+      return findings.filter((finding: PreviewFinding): boolean => /conversion|bid_amount/.test(finding.code));
+    }
+
+    beforeEach((): void => {
+      registry.hawk = {
+        dooh: hawkRules({
+          bidStrategies: ['fixed_cpm', 'maximize_conversions'],
+          ignoredBidAmounts: ['maximize_conversions'],
+        }),
+      };
+    });
+
+    it('should launch an AdGroup whose goal is ready on the account, without a word', async (): Promise<void> => {
+      seedComplete({ adGroup: MAXIMIZING });
+      seedGoal('active', { status: 'ready', messageCode: null });
+
+      const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+      expect(goalFindings(preview.errors)).toEqual([]);
+      expect(goalFindings(preview.warnings)).toEqual([]);
+    });
+
+    it.each([
+      ['without a goal named', { ...MAXIMIZING, conversionGoalId: null }],
+      ['with a goal the Organization does not have', MAXIMIZING],
+    ])(
+      'should refuse an AdGroup maximizing conversions %s, once whatever its platforms',
+      async (_label: string, adGroup: object): Promise<void> => {
+        seedComplete({ adGroup });
+
+        const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+        expect(goalFindings(preview.errors)).toEqual([
+          {
+            code: 'preview_conversion_goal_missing',
+            params: {},
+            level: 'ad_group',
+            nodeId: AD_GROUP_ID,
+            platform: null,
+          },
+        ]);
+      }
+    );
+
+    it('should refuse an archived goal, and ask nothing of its accounts', async (): Promise<void> => {
+      seedComplete({ adGroup: MAXIMIZING });
+      seedGoal('archived');
+
+      const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+      expect(goalFindings(preview.errors)).toEqual([
+        {
+          code: 'preview_conversion_goal_archived',
+          params: { goalName: 'Achat' },
+          level: 'ad_group',
+          nodeId: AD_GROUP_ID,
+          platform: null,
+        },
+      ]);
+    });
+
+    it.each([
+      ['never set up there', undefined, 'pending', null],
+      [
+        'failed there, with its reason',
+        { status: 'failed', messageCode: 'google_conversion_snippet_missing' },
+        'failed',
+        'google_conversion_snippet_missing',
+      ],
+    ])(
+      'should refuse a goal %s on the account the campaign buys on',
+      async (_label: string, ref: object | undefined, status: string, reasonCode: string | null): Promise<void> => {
+        seedComplete({ adGroup: MAXIMIZING });
+        seedGoal('active', ref);
+
+        const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+        expect(goalFindings(preview.errors)).toEqual([
+          {
+            code: 'preview_conversion_goal_not_ready',
+            params: { platform: 'hawk', goalName: 'Achat', status, reasonCode },
+            level: 'ad_group',
+            nodeId: AD_GROUP_ID,
+            platform: 'hawk',
+          },
+        ]);
+        expect(preview.launchable).toBe(false);
+      }
+    );
+
+    it('should leave the goal to the account findings where there is no usable account', async (): Promise<void> => {
+      seedComplete({ adGroup: MAXIMIZING, account: { deletedAt: new Date() } });
+      seedGoal('active');
+
+      const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+      expect(codes(preview.errors)).not.toContain('preview_conversion_goal_not_ready');
+      expect(codes(preview.errors)).toContain('preview_account_missing');
+    });
+
+    it('should leave the goal to the account findings where the brand has no account there', async (): Promise<void> => {
+      seedComplete({ adGroup: MAXIMIZING });
+      store.rows(AdvertiserAdAccountEntity).splice(0);
+      seedGoal('active');
+
+      const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+      expect(codes(preview.errors)).not.toContain('preview_conversion_goal_not_ready');
+      expect(codes(preview.errors)).toContain('preview_account_missing');
+    });
+
+    it('should take an amount under a strategy that uses it without a word', async (): Promise<void> => {
+      seedComplete({ adGroup: { bidStrategy: 'fixed_cpm', bidAmountCents: 500 } });
+
+      const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+      expect(goalFindings(preview.warnings)).toEqual([]);
+      expect(goalFindings(preview.errors)).toEqual([]);
+    });
+
+    it('should leave the goal to the strategy finding on a platform that does not maximize conversions', async (): Promise<void> => {
+      registry.hawk = { dooh: hawkRules() };
+      seedComplete({ adGroup: MAXIMIZING });
+      seedGoal('active');
+
+      const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+      expect(codes(preview.errors)).toContain('preview_bid_strategy_unsupported');
+      expect(goalFindings(preview.errors)).toEqual([]);
+    });
+
+    it.each([
+      ['on the AdGroup', { ...MAXIMIZING, bidAmountCents: 500 }, {}],
+      ['on one of its TargetingGroups', MAXIMIZING, { bidAmountCents: 500 }],
+    ])(
+      'should warn of an amount the platform does not take %s',
+      async (_label: string, adGroup: object, node: object): Promise<void> => {
+        seedComplete({ adGroup, node });
+        seedGoal('active', { status: 'ready', messageCode: null });
+
+        const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+        expect(preview.warnings).toContainEqual({
+          code: 'preview_bid_amount_ignored',
+          params: { platform: 'hawk', strategy: 'maximize_conversions' },
+          level: 'ad_group',
+          nodeId: AD_GROUP_ID,
+          platform: 'hawk',
+        });
+      }
+    );
+
+    it('should look at an AdGroup on the platforms it buys on only', async (): Promise<void> => {
+      seedComplete({
+        adGroup: { ...MAXIMIZING, platformShares: [{ platform: 'dv360', shareBasisPoints: 10_000 }] },
+      });
+      seedGoal('active');
+
+      const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+      expect(codes(preview.errors)).not.toContain('preview_conversion_goal_not_ready');
     });
   });
 

@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import fastifyPlugin from 'fastify-plugin';
-import { DataSource, EntityManager, In, IsNull, LessThanOrEqual, QueryRunner } from 'typeorm';
+import { DataSource, EntityManager, In, IsNull, LessThanOrEqual } from 'typeorm';
 
 import { syncConfig, SyncConfig } from '@configs';
 import {
@@ -9,6 +9,8 @@ import {
   AdvertiserAdAccountEntity,
   AssetEntity,
   CampaignEntity,
+  ConversionGoalEntity,
+  ConversionGoalRefEntity,
   CreativeEntity,
   CreativeVersionEntity,
   ExternalIdHistoryEntity,
@@ -30,6 +32,7 @@ import {
   DesiredAsset,
   DesiredCreative,
   DesiredKeyword,
+  DesiredGoal,
   DesiredNode,
   desiredUnit,
   DesiredUnit,
@@ -60,6 +63,7 @@ import {
   readCampaignTree,
   targetingGroupsOf,
 } from './campaign-tree.helpers';
+import { withTryLock } from './lock.helpers';
 import { dayAt, nextAppointment, nextLocalMidnight, resolveCampaignTimezone, startInstant } from './pacing.helpers';
 import { SecretStore } from './secret-store.service';
 import { StorageService } from './storage.service';
@@ -216,7 +220,7 @@ export class SyncService {
    * ```
    */
   public async syncCampaign(campaignId: string): Promise<void> {
-    await this.withLock(`sync:${campaignId}`, async (): Promise<void> => {
+    await withTryLock(this.dataSource, `sync:${campaignId}`, async (): Promise<void> => {
       const campaign: CampaignEntity | null = await this.dataSource.manager.findOne(CampaignEntity, {
         where: { id: campaignId },
         withDeleted: true,
@@ -599,7 +603,35 @@ export class SyncService {
       started: this.now() >= startInstant(campaign.startsOn, campaign.startTime, timezone),
       today: dayAt(this.now(), timezone),
       minDailyBudgetCents: rules.minDailyBudgetCents,
+      conversionGoal: await this.goalOf(group, unit.adAccountId),
     });
+  }
+
+  /**
+   * The conversion goal an AdGroup optimizes, as one account holds it (D58, `docs/phase-10.md`
+   * § 8.10): `null` under another strategy than `maximize_conversions`, or without a goal named. A goal
+   * never set up on the account is `pending` there, an archived one `paused`; the adapter refuses to bid
+   * on a goal that is not `ready`.
+   *
+   * @param group - The AdGroup
+   * @param adAccountId - The account of its unit
+   * @returns The goal there, or `null`
+   */
+  private async goalOf(group: AdGroupEntity, adAccountId: string): Promise<DesiredGoal | null> {
+    if (group.bidStrategy !== 'maximize_conversions' || !group.conversionGoalId) return null;
+    const goal: ConversionGoalEntity | null = await this.dataSource.manager.findOne(ConversionGoalEntity, {
+      where: { id: group.conversionGoalId, organizationId: group.organizationId },
+    });
+    if (goal === null) return null;
+    const ref: ConversionGoalRefEntity | null = await this.dataSource.manager.findOne(ConversionGoalRefEntity, {
+      where: { goalId: goal.id, adAccountId },
+    });
+    return {
+      id: goal.id,
+      name: goal.name,
+      status: goal.status === 'archived' ? 'paused' : (ref?.status ?? 'pending'),
+      refs: ref?.refs ?? {},
+    };
   }
 
   /**
@@ -1000,36 +1032,6 @@ export class SyncService {
     });
     if (!campaign) throw httpError(404, 'Campaign not found', { code: 'campaign_not_found' });
     return campaign;
-  }
-
-  /**
-   * Run a task under a PostgreSQL advisory lock, or skip it when another process holds it (D46).
-   *
-   * Skipping rather than waiting is deliberate: the other worker is doing the same work from the same
-   * database, and anything it leaves behind is still marked for the sweep. Waiting would only tie up
-   * a worker to do nothing twice.
-   *
-   * @param key - Name of the lock
-   * @param task - What to run while holding it
-   * @returns A promise that resolves once the task ran, or was skipped
-   */
-  private async withLock(key: string, task: () => Promise<void>): Promise<void> {
-    const runner: QueryRunner = this.dataSource.createQueryRunner();
-    await runner.connect();
-    try {
-      const [{ locked }]: { locked: boolean }[] = await runner.query(
-        'SELECT pg_try_advisory_lock(hashtext($1)) AS locked',
-        [key]
-      );
-      if (!locked) return;
-      try {
-        await task();
-      } finally {
-        await runner.query('SELECT pg_advisory_unlock(hashtext($1))', [key]);
-      }
-    } finally {
-      await runner.release();
-    }
   }
 }
 

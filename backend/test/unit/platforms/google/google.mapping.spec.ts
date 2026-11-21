@@ -225,6 +225,8 @@ describe('Unit::Platforms::Google::Mapping', () => {
         targetSpend: { cpcBidCeilingMicros: '1230000' },
       });
       expect(campaignBidding('maximize_clicks', null, 'EUR')).toEqual({ targetSpend: {} });
+      // Without a target cost per conversion: the amount is not sent (D58).
+      expect(campaignBidding('maximize_conversions', 1_234_567, 'EUR')).toEqual({ maximizeConversions: {} });
     });
 
     it('should refuse a strategy Google Search does not bid with here', (): void => {

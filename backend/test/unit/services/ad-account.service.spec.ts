@@ -145,6 +145,7 @@ describe('Unit::Services::AdAccountService', () => {
   let db: DataSourceMock;
   let access: AccessServiceMock;
   let secrets: { put: jest.Mock; get: jest.Mock; delete: jest.Mock };
+  let tracking: { request: jest.Mock };
   let service: AdAccountService;
 
   beforeEach((): void => {
@@ -152,7 +153,8 @@ describe('Unit::Services::AdAccountService', () => {
     db = createDataSourceMock();
     access = createAccessMock();
     secrets = { put: jest.fn().mockResolvedValue(undefined), get: jest.fn(), delete: jest.fn() };
-    service = new AdAccountService(db.dataSource, access as never, secrets as never);
+    tracking = { request: jest.fn().mockResolvedValue(undefined) };
+    service = new AdAccountService(db.dataSource, access as never, secrets as never, tracking);
     db.manager.save.mockImplementation(async (_entity: unknown, saved: object): Promise<object> =>
       Promise.resolve({ id: ACCOUNT_ID, createdAt: NOW, updatedAt: NOW, deletedAt: null, ...saved })
     );
@@ -398,6 +400,28 @@ describe('Unit::Services::AdAccountService', () => {
       }
     });
 
+    it('should ask for the conversion setup of every brand an account made active serves, once each', async (): Promise<void> => {
+      db.manager.findOne.mockResolvedValue(row({ status: 'pending' }));
+      db.manager.find.mockResolvedValue([{ advertiserId: ADVERTISER_ID }, { advertiserId: ADVERTISER_ID }]);
+
+      await service.setStatus(JANE, IDS.organization, ACCOUNT_ID, { status: 'active' });
+
+      expect(db.manager.find).toHaveBeenCalledWith(AdvertiserAdAccountEntity, {
+        where: { adAccountId: ACCOUNT_ID },
+        select: { advertiserId: true },
+      });
+      expect(tracking.request).toHaveBeenCalledTimes(1);
+      expect(tracking.request).toHaveBeenCalledWith(ADVERTISER_ID);
+    });
+
+    it('should ask for no conversion setup when an account leaves active', async (): Promise<void> => {
+      db.manager.findOne.mockResolvedValue(row({ status: 'active' }));
+
+      await service.setStatus(JANE, IDS.organization, ACCOUNT_ID, { status: 'invalid', reason: 'link_revoked' });
+
+      expect(tracking.request).not.toHaveBeenCalled();
+    });
+
     it('should refuse every passage the table does not name', async (): Promise<void> => {
       for (const [from, to] of [
         ['pending', 'pending'],
@@ -523,6 +547,8 @@ describe('Unit::Services::AdAccountService', () => {
 
       expect(link).toMatchObject({ platform: 'dv360', currency: 'USD', adAccountId: ACCOUNT_ID });
       expect(access.assertOrganizationRole).toHaveBeenCalledWith(JANE, IDS.organization, 'manager');
+      // The brand's conversion goals are set up on the account (`docs/phase-10.md` § 8.10).
+      expect(tracking.request).toHaveBeenCalledWith(ADVERTISER_ID);
     });
 
     it('should refuse to link a brand to an account whose access ended', async (): Promise<void> => {
@@ -599,6 +625,7 @@ describe('Unit::Services::AdAccountService', () => {
         db.dataSource,
         access as never,
         secrets as never,
+        tracking,
         { linkRequestLifetimeDays: 30 },
         (): number => NOW.getTime()
       );
@@ -1140,6 +1167,17 @@ describe('Unit::Services::AdAccountService', () => {
         );
       });
 
+      it('should ask for the conversion setup of the brands an accepted account serves', async (): Promise<void> => {
+        follow([linkedRow()], { [REFERENCE]: 'active' });
+        db.manager.find.mockImplementation(async (entity: unknown): Promise<object[]> =>
+          entity === AdvertiserAdAccountEntity ? [{ advertiserId: ADVERTISER_ID }] : [linkedRow()]
+        );
+
+        await service.checkLinks();
+
+        expect(tracking.request).toHaveBeenCalledWith(ADVERTISER_ID);
+      });
+
       it('should keep the currency an accepted account already had', async (): Promise<void> => {
         follow([linkedRow({ currency: 'USD' })], { [REFERENCE]: 'active' });
 
@@ -1292,7 +1330,7 @@ describe('Unit::Services::AdAccountService', () => {
 
   describe('AdAccountServicePlugin', () => {
     it('should decorate the instance with an AdAccountService wired to its dependencies', async (): Promise<void> => {
-      const app: FastifyInstance = await buildServiceApp([AdAccountServicePlugin], { db, access, secrets });
+      const app: FastifyInstance = await buildServiceApp([AdAccountServicePlugin], { db, access, secrets, tracking });
       db.manager.findOne.mockResolvedValue(row());
 
       expect(app.adAccountService).toBeInstanceOf(AdAccountService);

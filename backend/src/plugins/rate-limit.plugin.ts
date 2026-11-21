@@ -39,6 +39,9 @@ export const ROUTE_RATE_LIMITS: Readonly<Record<string, RateLimit | false>> = {
   'GET /healthz': false,
   // Public routes, per client address.
   'GET /status': { max: 60, windowMs: MINUTE },
+  // The tracking script the sites of the Advertisers load: every page view of every visitor, but cached
+  // 5 minutes by the browser.
+  'GET /t/:key.js': { max: 120, windowMs: MINUTE },
   // MCP: one request per tool call of an assistant.
   [`POST ${mcpServerConfig.endpoint}`]: { max: 120, windowMs: MINUTE },
   // Bulk writes: one request holds a connection and a transaction for up to 200 items, so a tenth of

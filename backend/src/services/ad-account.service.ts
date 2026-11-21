@@ -43,6 +43,7 @@ import {
   withoutAccentsSql,
 } from '@utils';
 import { AccessService } from './access.service';
+import type { TrackingScheduler } from './conversion-goal.service';
 import { toOrder } from './crud.helpers';
 import { SecretStore } from './secret-store.service';
 import { markAccountDirty } from './sync.helpers';
@@ -251,6 +252,7 @@ export class AdAccountService {
    * @param dataSource - Application database
    * @param access - Permission checks
    * @param secrets - Where the credentials live
+   * @param tracking - Asks for the setup of a brand's conversion tracking on an account linked or activated
    * @param config - How long an invitation waits for its answer
    * @param now - The clock, which the tests set
    */
@@ -258,6 +260,7 @@ export class AdAccountService {
     private readonly dataSource: DataSource,
     private readonly access: AccessService,
     private readonly secrets: SecretStore,
+    private readonly tracking: TrackingScheduler,
     private readonly config: AdAccountConfig = adAccountConfig,
     private readonly now: () => number = Date.now
   ) {}
@@ -483,7 +486,7 @@ export class AdAccountService {
     const found: AdAccountEntity = await this.findOrFail(this.dataSource.manager, organizationId, id);
     if (found.linkRef !== null) return this.relink(found, body);
 
-    return this.dataSource.transaction(async (manager: EntityManager): Promise<AdAccount> => {
+    const moved: AdAccount = await this.dataSource.transaction(async (manager: EntityManager): Promise<AdAccount> => {
       const account: AdAccountEntity = await this.findOrFail(manager, organizationId, id);
       assertTransition(account.status, body.status);
       const statusReason: AdAccountStatusReason | null = body.reason ?? null;
@@ -493,6 +496,8 @@ export class AdAccountService {
       await markAccountDirty(manager, account.id);
       return toAdAccount({ ...account, status: body.status, statusReason });
     });
+    if (body.status === 'active') await this.requestTrackingOf(id);
+    return moved;
   }
 
   /**
@@ -694,48 +699,53 @@ export class AdAccountService {
     body: LinkAdvertiserAccountBody
   ): Promise<AdvertiserAdAccount> {
     await this.access.assertOrganizationRole(actor, organizationId, 'manager');
-    return this.dataSource.transaction(async (manager: EntityManager): Promise<AdvertiserAdAccount> => {
-      const account: AdAccountEntity = await this.findOrFail(manager, organizationId, body.adAccountId);
-      if (account.status === 'invalid') {
-        throw httpError(400, 'This account cannot be used: its access is not valid', {
-          code: 'ad_account_unusable',
-          params: { status: account.status, statusReason: account.statusReason },
+    const linked: AdvertiserAdAccount = await this.dataSource.transaction(
+      async (manager: EntityManager): Promise<AdvertiserAdAccount> => {
+        const account: AdAccountEntity = await this.findOrFail(manager, organizationId, body.adAccountId);
+        if (account.status === 'invalid') {
+          throw httpError(400, 'This account cannot be used: its access is not valid', {
+            code: 'ad_account_unusable',
+            params: { status: account.status, statusReason: account.statusReason },
+          });
+        }
+        const { currency } = account;
+        if (currency === null) {
+          throw httpError(400, 'This account has no currency yet: its client has not accepted the link', {
+            code: 'ad_account_currency_unknown',
+            params: { status: account.status },
+          });
+        }
+        const taken: boolean = await manager.exists(AdvertiserAdAccountEntity, {
+          where: {
+            advertiserId,
+            platform: account.platform,
+            currency,
+            deletedAt: IsNull(),
+          },
         });
+        if (taken) {
+          throw httpError(409, 'This brand already buys on an account of that platform in that currency', {
+            code: 'advertiser_account_exists',
+            params: { platform: account.platform, currency },
+          });
+        }
+        const created: AdvertiserAdAccountEntity = await manager.save(
+          AdvertiserAdAccountEntity,
+          manager.create(AdvertiserAdAccountEntity, {
+            organizationId,
+            advertiserId,
+            platform: account.platform,
+            currency,
+            adAccountId: account.id,
+            externalAdvertiserId: body.externalAdvertiserId,
+          })
+        );
+        return toAdvertiserAdAccount(created);
       }
-      const { currency } = account;
-      if (currency === null) {
-        throw httpError(400, 'This account has no currency yet: its client has not accepted the link', {
-          code: 'ad_account_currency_unknown',
-          params: { status: account.status },
-        });
-      }
-      const taken: boolean = await manager.exists(AdvertiserAdAccountEntity, {
-        where: {
-          advertiserId,
-          platform: account.platform,
-          currency,
-          deletedAt: IsNull(),
-        },
-      });
-      if (taken) {
-        throw httpError(409, 'This brand already buys on an account of that platform in that currency', {
-          code: 'advertiser_account_exists',
-          params: { platform: account.platform, currency },
-        });
-      }
-      const created: AdvertiserAdAccountEntity = await manager.save(
-        AdvertiserAdAccountEntity,
-        manager.create(AdvertiserAdAccountEntity, {
-          organizationId,
-          advertiserId,
-          platform: account.platform,
-          currency,
-          adAccountId: account.id,
-          externalAdvertiserId: body.externalAdvertiserId,
-        })
-      );
-      return toAdvertiserAdAccount(created);
-    });
+    );
+    // The brand's conversion goals are set up on the account (`docs/phase-10.md` § 8.10).
+    await this.tracking.request(advertiserId);
+    return linked;
   }
 
   /**
@@ -994,6 +1004,24 @@ export class AdAccountService {
       await manager.update(AdAccountEntity, { id: account.id }, fields);
       await markAccountDirty(manager, account.id);
     });
+    if (fields.status === 'active') await this.requestTrackingOf(account.id);
+  }
+
+  /**
+   * Ask for the setup of the conversion tracking of every brand an account just activated serves
+   * (`docs/phase-10.md` § 8.10).
+   *
+   * @param adAccountId - The account
+   * @returns A promise that resolves once every setup is asked for
+   */
+  private async requestTrackingOf(adAccountId: string): Promise<void> {
+    const links: { advertiserId: string }[] = await this.dataSource.manager.find(AdvertiserAdAccountEntity, {
+      where: { adAccountId },
+      select: { advertiserId: true },
+    });
+    for (const advertiserId of new Set(links.map((link: { advertiserId: string }): string => link.advertiserId))) {
+      await this.tracking.request(advertiserId);
+    }
   }
 
   /**
@@ -1186,15 +1214,19 @@ export class AdAccountService {
 /**
  * Fastify plugin that decorates the instance with an {@link AdAccountService}.
  *
- * Depends on `DatabasePlugin`, `AccessServicePlugin` and `SecretStorePlugin`.
+ * Depends on `DatabasePlugin`, `AccessServicePlugin`, `SecretStorePlugin` and `TrackingServicePlugin` (its
+ * scheduler).
  *
  * @param fastify - The Fastify instance to decorate
  */
 async function adAccountServicePlugin(fastify: FastifyInstance): Promise<void> {
-  fastify.decorate('adAccountService', new AdAccountService(fastify.db, fastify.accessService, fastify.secretStore));
+  fastify.decorate(
+    'adAccountService',
+    new AdAccountService(fastify.db, fastify.accessService, fastify.secretStore, fastify.trackingScheduler)
+  );
 }
 
 export default fastifyPlugin(adAccountServicePlugin, {
   name: 'AdAccountServicePlugin',
-  dependencies: ['DatabasePlugin', 'AccessServicePlugin', 'SecretStorePlugin'],
+  dependencies: ['DatabasePlugin', 'AccessServicePlugin', 'SecretStorePlugin', 'TrackingServicePlugin'],
 });

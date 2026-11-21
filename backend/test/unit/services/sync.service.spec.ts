@@ -6,6 +6,8 @@ import {
   AdvertiserAdAccountEntity,
   AssetEntity,
   CampaignEntity,
+  ConversionGoalEntity,
+  ConversionGoalRefEntity,
   CreativeEntity,
   CreativeVersionAssetEntity,
   CreativeVersionEntity,
@@ -73,6 +75,7 @@ function hawkRules(overrides: Partial<PlatformRules> = {}): PlatformRules {
     locationIntent: false,
     extensions: false,
     geo: { levels: [], excludedLevels: [], maxRadii: null },
+    ignoredBidAmounts: [],
     ...overrides,
   };
 }
@@ -569,6 +572,93 @@ describe('Unit::Services::SyncService', () => {
         [`line:${LINE_ID}`]: { status: 'pending', reasons: [] },
         'line:kept': { status: 'limited', reasons: ['ALCOHOL'] },
       });
+    });
+
+    describe('the conversion goal an AdGroup optimizes (D58)', () => {
+      /** The goal of these specs. */
+      const GOAL_ID = 'f9000000-0000-4000-8000-000000000001';
+
+      /**
+       * The goal the engine handed the adapter.
+       *
+       * @returns The goal of the desired state
+       */
+      function handed(): DesiredUnit['conversionGoal'] {
+        return (apply.mock.calls[0] as [unknown, DesiredUnit])[1].conversionGoal;
+      }
+
+      /**
+       * Seed the goal, and where it stands on the unit's account.
+       *
+       * @param status - Its status
+       * @param ref - Where it stands on the account, none when left out
+       * @returns Nothing
+       */
+      function seedGoal(status: 'active' | 'archived', ref?: object): void {
+        store.seed(ConversionGoalEntity, [{ id: GOAL_ID, organizationId: IDS.organization, name: 'Achat', status }]);
+        if (ref) store.seed(ConversionGoalRefEntity, [{ goalId: GOAL_ID, adAccountId: ACCOUNT_ID, ...ref }]);
+      }
+
+      it('should hand none under another strategy', async (): Promise<void> => {
+        seedTree({ adGroup: { conversionGoalId: GOAL_ID } });
+        seedUnit();
+        seedGoal('active');
+
+        await service.syncCampaign(CAMPAIGN_ID);
+
+        expect(handed()).toBeNull();
+      });
+
+      it.each([
+        ['without a goal named', null],
+        ['with a goal the Organization does not have', GOAL_ID],
+      ])(
+        'should hand none to an AdGroup maximizing conversions %s',
+        async (_label: string, goalId: string | null): Promise<void> => {
+          seedTree({ adGroup: { bidStrategy: 'maximize_conversions', conversionGoalId: goalId } });
+          seedUnit();
+
+          await service.syncCampaign(CAMPAIGN_ID);
+
+          expect(handed()).toBeNull();
+        }
+      );
+
+      it("should hand the goal as the unit's account holds it", async (): Promise<void> => {
+        seedTree({ adGroup: { bidStrategy: 'maximize_conversions', conversionGoalId: GOAL_ID } });
+        seedUnit();
+        seedGoal('active', { status: 'ready', refs: { conversionAction: 'a', sendTo: 'AW-1/b', customGoal: 'c' } });
+
+        await service.syncCampaign(CAMPAIGN_ID);
+
+        expect(handed()).toEqual({
+          id: GOAL_ID,
+          name: 'Achat',
+          status: 'ready',
+          refs: { conversionAction: 'a', sendTo: 'AW-1/b', customGoal: 'c' },
+        });
+      });
+
+      it.each<[string, 'active' | 'archived', object | undefined, string]>([
+        ['pending where it was never set up', 'active', undefined, 'pending'],
+        ['paused once archived, whatever its account says', 'archived', { status: 'ready', refs: {} }, 'paused'],
+      ])(
+        'should say a goal is %s',
+        async (
+          _label: string,
+          status: 'active' | 'archived',
+          ref: object | undefined,
+          expected: string
+        ): Promise<void> => {
+          seedTree({ adGroup: { bidStrategy: 'maximize_conversions', conversionGoalId: GOAL_ID } });
+          seedUnit();
+          seedGoal(status, ref);
+
+          await service.syncCampaign(CAMPAIGN_ID);
+
+          expect(handed()).toEqual({ id: GOAL_ID, name: 'Achat', status: expected, refs: {} });
+        }
+      );
     });
 
     it('should try a unit in error again, even with nothing changed', async (): Promise<void> => {

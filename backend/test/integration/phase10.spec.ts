@@ -3,11 +3,24 @@ import { randomUUID } from 'node:crypto';
 import { strToU8, zipSync } from 'fflate';
 import { DataSource, QueryFailedError, Repository } from 'typeorm';
 
-import { AdAccountEntity, CampaignEntity, GeoLocationEntity, PlatformUnitEntity } from '@src/database/entities';
+import {
+  AdAccountEntity,
+  AdGroupEntity,
+  AdvertiserAdAccountEntity,
+  AdvertiserEntity,
+  AdvertiserTrackingEntity,
+  CampaignEntity,
+  ConversionGoalEntity,
+  ConversionGoalRefEntity,
+  GeoLocationEntity,
+  PlatformUnitEntity,
+} from '@src/database/entities';
 import { ADAPTERS, PlatformAdapter } from '@src/platforms/platform-adapter';
 import { GeoImportService } from '@src/services/geo-import.service';
 import { GeoService } from '@src/services/geo.service';
+import { ConversionGoalService } from '@src/services/conversion-goal.service';
 import { ReviewService } from '@src/services/review.service';
+import { TrackingService } from '@src/services/tracking.service';
 import { AdReview, GeoLocation, GeoLocationList, Platform } from '@src/types';
 import { connectIntegrationDatabase, seedTree, SeededTree, truncateAll } from './database.utils';
 
@@ -186,6 +199,171 @@ describe('Integration::Phase10', () => {
       await new ReviewService(dataSource, { get: jest.fn() } as never, (): number => NOW.getTime()).poll();
 
       expect(readReviews).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('the conversions (D58)', () => {
+    let tree: SeededTree;
+    let account: AdAccountEntity;
+    let goal: ConversionGoalEntity;
+    let scheduler: { request: jest.Mock };
+    let tracking: TrackingService;
+
+    beforeEach(async (): Promise<void> => {
+      tree = await seedTree(dataSource, ORGANIZATION);
+      account = await connect(ORGANIZATION, '5550001111');
+      await dataSource
+        .getRepository(AdAccountEntity)
+        .update(
+          { id: account.id },
+          { status: 'active', statusReason: null, currency: 'EUR', timezone: 'Europe/Paris' }
+        );
+      await dataSource.getRepository(AdvertiserAdAccountEntity).save(
+        dataSource.getRepository(AdvertiserAdAccountEntity).create({
+          organizationId: ORGANIZATION,
+          advertiserId: tree.advertiserId,
+          platform: 'google_ads',
+          currency: 'EUR',
+          adAccountId: account.id,
+          externalAdvertiserId: '5550001111',
+        })
+      );
+      goal = await dataSource.getRepository(ConversionGoalEntity).save(
+        dataSource.getRepository(ConversionGoalEntity).create({
+          organizationId: ORGANIZATION,
+          advertiserId: tree.advertiserId,
+          key: 'achat',
+          name: 'Achat',
+          category: 'purchase',
+          valueMode: 'fixed',
+          defaultValueCents: 8_900,
+          currency: 'EUR',
+          counting: 'every',
+          status: 'active',
+        })
+      );
+      scheduler = { request: jest.fn().mockResolvedValue(undefined) };
+      tracking = new TrackingService(dataSource, {} as never, {} as never, scheduler, 'https://api.omnipotent.test');
+    });
+
+    /**
+     * Where the tracking of the Advertiser and its goal stand on the account.
+     *
+     * @param status - Both statuses
+     * @returns Nothing
+     */
+    async function settle(status: 'ready' | 'failed'): Promise<void> {
+      await dataSource.getRepository(AdvertiserTrackingEntity).save(
+        dataSource.getRepository(AdvertiserTrackingEntity).create({
+          advertiserId: tree.advertiserId,
+          adAccountId: account.id,
+          platform: 'google_ads',
+          status,
+          refs: { tagId: 'AW-987' },
+        })
+      );
+      await dataSource.getRepository(ConversionGoalRefEntity).save(
+        dataSource.getRepository(ConversionGoalRefEntity).create({
+          goalId: goal.id,
+          adAccountId: account.id,
+          platform: 'google_ads',
+          status,
+          refs: {
+            conversionAction: 'customers/5550001111/conversionActions/1',
+            sendTo: 'AW-987/abc',
+            customGoal: null,
+          },
+          biddable: status === 'ready',
+        })
+      );
+    }
+
+    it('should sweep an Advertiser whose active account has nothing set up yet, and leave a settled one alone', async (): Promise<void> => {
+      await tracking.sweep();
+      expect(scheduler.request.mock.calls).toEqual([[tree.advertiserId]]);
+
+      scheduler.request.mockClear();
+      await settle('ready');
+      await tracking.sweep();
+      expect(scheduler.request).not.toHaveBeenCalled();
+    });
+
+    it('should sweep an Advertiser whose goal failed, or changed since its setup', async (): Promise<void> => {
+      await settle('failed');
+      await tracking.sweep();
+      expect(scheduler.request).toHaveBeenCalledWith(tree.advertiserId);
+
+      await dataSource.query('TRUNCATE "advertiser_trackings", "conversion_goal_refs"');
+      await settle('ready');
+      await dataSource.getRepository(ConversionGoalEntity).update({ id: goal.id }, { name: 'Achat en ligne' });
+      scheduler.request.mockClear();
+      await tracking.sweep();
+      expect(scheduler.request).toHaveBeenCalledWith(tree.advertiserId);
+    });
+
+    it('should build the script of a key, and record that the site loaded it', async (): Promise<void> => {
+      await settle('ready');
+      await dataSource
+        .getRepository(AdvertiserEntity)
+        .update({ id: tree.advertiserId }, { trackingKey: 'k3yK3yK3yK3yK3yK3yK3yK3y' });
+
+      await expect(tracking.loaderConfig('k3yK3yK3yK3yK3yK3yK3yK3y')).resolves.toEqual({
+        googleTagIds: ['AW-987'],
+        goals: {
+          achat: {
+            category: 'purchase',
+            valueMode: 'fixed',
+            defaultValue: 89,
+            currency: 'EUR',
+            google: [{ sendTo: 'AW-987/abc' }],
+          },
+        },
+      });
+      await new Promise((resolve: (value: unknown) => void): void => {
+        setTimeout(resolve, 50);
+      });
+      const advertiser: AdvertiserEntity | null = await dataSource
+        .getRepository(AdvertiserEntity)
+        .findOneBy({ id: tree.advertiserId });
+      expect(advertiser?.scriptSeenAt).toBeInstanceOf(Date);
+    });
+
+    it('should refuse to archive a goal an AdGroup of a launched campaign optimizes', async (): Promise<void> => {
+      const goals = new ConversionGoalService(dataSource, { assertOrganizationRole: jest.fn() } as never, scheduler);
+      await dataSource
+        .getRepository(AdGroupEntity)
+        .update({ id: tree.adGroupId }, { bidStrategy: 'maximize_conversions', conversionGoalId: goal.id });
+
+      await expect(goals.update({} as never, ORGANIZATION, goal.id, { status: 'archived' })).resolves.toMatchObject({
+        status: 'archived',
+      });
+
+      await goals.update({} as never, ORGANIZATION, goal.id, { status: 'active' });
+      await dataSource.getRepository(CampaignEntity).update({ id: tree.campaignId }, { status: 'active' });
+      await expect(goals.update({} as never, ORGANIZATION, goal.id, { status: 'archived' })).rejects.toMatchObject({
+        statusCode: 409,
+        errorCode: 'conversion_goal_optimized',
+        errorParams: { adGroupId: tree.adGroupId, campaignId: tree.campaignId, campaignName: 'Automne' },
+      });
+    });
+
+    it('should give an Advertiser one key, whoever asks first', async (): Promise<void> => {
+      const access = { assertOrganizationRole: jest.fn() };
+      const withAccess = new TrackingService(
+        dataSource,
+        access as never,
+        {} as never,
+        scheduler,
+        'https://api.omnipotent.test'
+      );
+
+      const [first, second] = await Promise.all([
+        withAccess.get({} as never, ORGANIZATION, tree.advertiserId),
+        withAccess.get({} as never, ORGANIZATION, tree.advertiserId),
+      ]);
+
+      expect(first.scriptUrl).toBe(second.scriptUrl);
+      expect(first.platforms).toEqual([expect.objectContaining({ adAccountId: account.id, status: 'pending' })]);
     });
   });
 

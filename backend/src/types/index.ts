@@ -15,6 +15,7 @@ export * from './budget-day.types';
 export * from './campaign-lever.types';
 export * from './campaign.types';
 export * from './common.types';
+export * from './conversion.types';
 export * from './creative.types';
 export * from './crud.types';
 export * from './error.types';

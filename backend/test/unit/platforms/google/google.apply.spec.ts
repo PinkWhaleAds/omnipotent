@@ -1,4 +1,5 @@
-import { DesiredAsset, DesiredObject, DesiredUnit } from '@src/platforms/desired-state';
+import { DesiredAsset, DesiredGoal, DesiredObject, DesiredUnit } from '@src/platforms/desired-state';
+import { GoogleConversions } from '@src/platforms/google/google-conversions';
 import { GoogleUnitSync } from '@src/platforms/google/google.apply';
 import { nameTag } from '@src/platforms/google/google.mapping';
 import { GoogleAdsRow, GoogleMutateOperation } from '@src/platforms/google/google.types';
@@ -121,6 +122,7 @@ function desired(
     locationIntent: 'presence',
     currency: 'EUR',
     timezone: 'Europe/Paris',
+    conversionGoal: null,
     objects,
     ...overrides.unit,
   };
@@ -142,6 +144,8 @@ class FakeGoogle {
     link: [],
     image: [],
     status: [{ campaign: { status: 'ENABLED' } }],
+    goalConfig: [],
+    campaignGoals: [],
   };
 
   /** The changes, one list of operations per call. */
@@ -169,6 +173,8 @@ class FakeGoogle {
           [/FROM ad_group_ad/, 'ad'],
           [/FROM campaign_asset/, 'link'],
           [/FROM asset WHERE/, 'image'],
+          [/FROM conversion_goal_campaign_config/, 'goalConfig'],
+          [/FROM campaign_conversion_goal/, 'campaignGoals'],
         ] as [RegExp, string][]
       ).find(([pattern]: [RegExp, string]): boolean => pattern.test(query))?.[1] as string;
       return this.rows[table];
@@ -350,7 +356,7 @@ describe('Unit::Platforms::Google::Apply', () => {
 
   beforeEach((): void => {
     google = new FakeGoogle();
-    sync = new GoogleUnitSync(google as never, (): number => NOW);
+    sync = new GoogleUnitSync(google as never, (): number => NOW, new GoogleConversions(google as never));
   });
 
   describe('a unit Google does not hold yet', () => {
@@ -1045,6 +1051,152 @@ describe('Unit::Platforms::Google::Apply', () => {
 
       google.failures = [null, new Error('boom')];
       await expect(sync.apply(context(), desired(), {})).rejects.toThrow('boom');
+    });
+  });
+  describe('a unit maximizing conversions (D58)', () => {
+    /** The goal its AdGroup optimizes, ready on the account. */
+    const GOAL: DesiredGoal = {
+      id: 'f0000000-0000-4000-8000-000000000001',
+      name: 'Achat',
+      status: 'ready',
+      refs: {
+        conversionAction: `customers/${CID}/conversionActions/1`,
+        sendTo: 'AW-1/abc',
+        customGoal: `customers/${CID}/customConversionGoals/2`,
+      },
+    };
+
+    /**
+     * The desired state, its AdGroup maximizing conversions.
+     *
+     * @param unit - What the unit declares
+     * @returns The state
+     */
+    function maximizing(unit: Partial<DesiredUnit> = {}): DesiredUnit {
+      return desired({
+        objects: {
+          'ad_group:g1': { bidStrategy: 'maximize_conversions' },
+          'targeting_group:t1': { bidStrategy: 'maximize_conversions' },
+        },
+        unit: { conversionGoal: GOAL, ...unit },
+      });
+    }
+
+    it('should create the campaign paused, make it bid on its goal alone, then activate it', async (): Promise<void> => {
+      google.rows.campaignGoals = [
+        {
+          campaignConversionGoal: {
+            resourceName: `customers/${CID}/campaignConversionGoals/9~PURCHASE~WEBSITE`,
+            biddable: true,
+          },
+        },
+      ];
+
+      const result: ApplyResult = await sync.apply(context(), maximizing(), {});
+
+      expect(google.mutations[0][1]).toMatchObject({
+        campaignOperation: { create: { status: 'PAUSED', maximizeConversions: {} } },
+      });
+      const created: string = result.refs['ad_group:g1'];
+      expect(google.mutations[1]).toEqual([
+        {
+          conversionGoalCampaignConfigOperation: {
+            update: {
+              resourceName: `customers/${CID}/conversionGoalCampaignConfigs/${created.slice(created.lastIndexOf('/') + 1)}`,
+              customConversionGoal: GOAL.refs.customGoal,
+            },
+            updateMask: 'customConversionGoal',
+          },
+        },
+        {
+          campaignConversionGoalOperation: {
+            update: { resourceName: `customers/${CID}/campaignConversionGoals/9~PURCHASE~WEBSITE`, biddable: false },
+            updateMask: 'biddable',
+          },
+        },
+        { campaignOperation: { update: { resourceName: created, status: 'ENABLED' }, updateMask: 'status' } },
+      ]);
+    });
+
+    it('should create a campaign meant to be paused paused, and activate nothing', async (): Promise<void> => {
+      await sync.apply(
+        context(),
+        desired({
+          objects: {
+            'ad_group:g1': { bidStrategy: 'maximize_conversions', status: 'paused' },
+            'targeting_group:t1': { bidStrategy: 'maximize_conversions' },
+          },
+          unit: { conversionGoal: GOAL },
+        }),
+        {}
+      );
+
+      expect(google.mutations[0][1]).toMatchObject({ campaignOperation: { create: { status: 'PAUSED' } } });
+      expect(google.mutations[1]).toEqual([
+        expect.objectContaining({ conversionGoalCampaignConfigOperation: expect.anything() }),
+      ]);
+    });
+
+    it('should switch a campaign held to maximized conversions, then leave alone one that bids on its goal', async (): Promise<void> => {
+      existing(google);
+
+      await sync.apply(context(), maximizing(), REFS);
+
+      expect(google.mutations[0]).toContainEqual({
+        campaignOperation: {
+          update: { resourceName: CAMPAIGN, maximizeConversions: {} },
+          updateMask: 'maximize_conversions.target_cpa_micros',
+        },
+      });
+      expect(google.mutations[1]).toEqual([
+        expect.objectContaining({
+          conversionGoalCampaignConfigOperation: expect.objectContaining({
+            update: expect.objectContaining({ resourceName: `customers/${CID}/conversionGoalCampaignConfigs/11` }),
+          }),
+        }),
+      ]);
+
+      google.mutate.mockClear();
+      google.mutations.length = 0;
+      google.rows.campaign[0].campaign = {
+        ...google.rows.campaign[0].campaign,
+        biddingStrategyType: 'MAXIMIZE_CONVERSIONS',
+      };
+      google.rows.goalConfig = [
+        { conversionGoalCampaignConfig: { customConversionGoal: GOAL.refs.customGoal as string } },
+      ];
+
+      await sync.apply(context(), maximizing(), REFS);
+
+      expect(google.mutate).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['no goal named', null, 'google_conversion_goal_missing'],
+      ['a goal not ready on the account', { ...GOAL, status: 'pending' as const }, 'google_conversion_goal_not_ready'],
+    ])(
+      'should refuse a unit that delivers with %s, before anything is sent',
+      async (_label: string, goal: DesiredGoal | null, code: string): Promise<void> => {
+        await expect(sync.apply(context(), maximizing({ conversionGoal: goal }), {})).rejects.toMatchObject({
+          options: { messageCode: code },
+        });
+        expect(google.mutate).not.toHaveBeenCalled();
+      }
+    );
+
+    it('should say which goal is not ready, and where it stands', async (): Promise<void> => {
+      await expect(
+        sync.apply(context(), maximizing({ conversionGoal: { ...GOAL, status: 'failed' } }), {})
+      ).rejects.toMatchObject({ options: { messageParams: { goalName: 'Achat', status: 'failed' } } });
+    });
+
+    it('should never hold back a paused unit on its goal', async (): Promise<void> => {
+      await sync.apply(context(), maximizing({ status: 'paused', conversionGoal: null }), {});
+
+      expect(google.mutations).toHaveLength(1 + 4);
+      expect(google.mutations.flat()).not.toContainEqual(
+        expect.objectContaining({ conversionGoalCampaignConfigOperation: expect.anything() })
+      );
     });
   });
 });

@@ -77,6 +77,14 @@ export class AdGroupEntity extends BaseEntity {
   bidStrategy!: BidStrategy;
 
   /**
+   * The conversion goal `maximize_conversions` optimizes, an id of the Advertiser's goals; ignored by
+   * the other strategies (D58, `docs/phase-10.md` § 8.10). Every platform campaign of its
+   * TargetingGroups optimizes it.
+   */
+  @Column({ type: 'uuid', nullable: true })
+  conversionGoalId!: string | null;
+
+  /**
    * The bid amount in integer cents — a CPM, a CPC or a CPCV depending on the strategy — `null` when
    * the strategy names no amount. A TargetingGroup may override it, being the real bidding object.
    */

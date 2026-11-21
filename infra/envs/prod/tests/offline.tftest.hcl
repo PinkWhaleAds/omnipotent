@@ -131,6 +131,14 @@ run "apply_with_defaults" {
   }
 
   assert {
+    condition = (
+      local.api_environment["TRACKING_SCRIPT_BASE_URL"] == "https://d123.cloudfront.net" &&
+      !contains(keys(local.common_environment), "TRACKING_SCRIPT_BASE_URL")
+    )
+    error_message = "The API serves the tracking scripts itself, at its own public URL; the worker never names it."
+  }
+
+  assert {
     condition     = length(module.guardduty) == 1 && output.guardduty_detector_id != null
     error_message = "GuardDuty is on by default."
   }
@@ -319,7 +327,8 @@ run "domain_stage_2_moves_every_url" {
   assert {
     condition = (
       local.common_environment["MCP_RESOURCE_URL"] == "https://omnipotent.pinkwhale.co/mcp" &&
-      local.api_environment["MCP_RESOURCE_URL"] == "https://omnipotent.pinkwhale.co/mcp"
+      local.api_environment["MCP_RESOURCE_URL"] == "https://omnipotent.pinkwhale.co/mcp" &&
+      local.api_environment["TRACKING_SCRIPT_BASE_URL"] == "https://omnipotent.pinkwhale.co"
     )
     error_message = "The backend builds its public URLs from the custom hostname: the MCP resource is the API's."
   }

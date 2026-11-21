@@ -10,10 +10,13 @@
 import { AdGroupEntity } from './ad-group.entity';
 import { AdAccountEntity } from './ad-account.entity';
 import { AdvertiserAdAccountEntity } from './advertiser-ad-account.entity';
+import { AdvertiserTrackingEntity } from './advertiser-tracking.entity';
 import { AdvertiserEntity } from './advertiser.entity';
 import { AssetEntity } from './asset.entity';
 import { BudgetDayEntity } from './budget-day.entity';
 import { CampaignEntity } from './campaign.entity';
+import { ConversionGoalRefEntity } from './conversion-goal-ref.entity';
+import { ConversionGoalEntity } from './conversion-goal.entity';
 import { CreativeVersionAssetEntity } from './creative-version-asset.entity';
 import { CreativeVersionEntity } from './creative-version.entity';
 import { CreativeEntity } from './creative.entity';
@@ -33,10 +36,13 @@ export * from './ad-group.entity';
 export * from './ad-account.entity';
 export * from './advertiser-ad-account.entity';
 export * from './advertiser.entity';
+export * from './advertiser-tracking.entity';
 export * from './asset.entity';
 export * from './base.entity';
 export * from './budget-day.entity';
 export * from './campaign.entity';
+export * from './conversion-goal-ref.entity';
+export * from './conversion-goal.entity';
 export * from './creative-version-asset.entity';
 export * from './creative-version.entity';
 export * from './creative.entity';
@@ -75,4 +81,7 @@ export const ENTITIES: (new () => unknown)[] = [
   ExternalIdHistoryEntity,
   PlatformCallEntity,
   GeoLocationEntity,
+  ConversionGoalEntity,
+  ConversionGoalRefEntity,
+  AdvertiserTrackingEntity,
 ];
