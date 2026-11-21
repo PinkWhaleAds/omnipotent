@@ -138,6 +138,9 @@ const API_ROUTES: RouteKey[] = [
   { method: 'POST', url: '/targeting-groups/:id/keywords' },
   { method: 'PATCH', url: '/keywords/:id' },
   { method: 'DELETE', url: '/keywords/:id' },
+  // Phase 10: the referential of places the location dimension takes.
+  { method: 'GET', url: '/geo/locations' },
+  { method: 'GET', url: '/geo/locations/by-ids' },
   ...crudRoutes('lists', { labels: false }),
   { method: 'POST', url: '/lists/:id/duplicate' },
   { method: 'POST', url: '/lists/:id/move' },

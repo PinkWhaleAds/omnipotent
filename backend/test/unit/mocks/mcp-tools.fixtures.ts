@@ -112,6 +112,8 @@ export const EXPECTED_TOOLS: string[] = [
   'set-targeting',
   'set-targeting-dimension',
   'remove-targeting-dimension',
+  'search-geo-locations',
+  'get-geo-locations',
   'list-lists',
   'get-list',
   'create-list',

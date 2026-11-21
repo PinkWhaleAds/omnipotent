@@ -17,7 +17,8 @@
  */
 import type { FastifyInstance } from 'fastify';
 
-import type { JobDefinition } from '@src/types/job.types';
+import { GEO_IMPORT_JOB_NAME } from '@src/services/geo-import.service';
+import type { JobDefinition, JobHandler } from '@src/types/job.types';
 
 /**
  * Apply the desired state of one campaign at its platforms.
@@ -114,6 +115,35 @@ export const REVIEW_POLL_JOB: JobDefinition = {
       fastify.reviewService.poll(),
 };
 
+/**
+ * Payload of an import of Google's catalog of places: empty for the monthly one — pg-boss gives `null`
+ * to a scheduled job.
+ *
+ * @property whenEmpty - Import only if the referential is empty (the job queued at a worker's start)
+ */
+export type GeoImportJob = { whenEmpty?: boolean } | null;
+
+/**
+ * Import Google's catalog of places, the 1st of every month at 03:00 UTC (`docs/phase-10.md` § 8.9).
+ *
+ * Each worker also queues one at its start, run only if the referential is empty — a new database. One
+ * import queued or running at most; retried twice, 15 minutes apart then 30. It walks no fleet: the
+ * referential is one file, whatever the number of campaigns.
+ */
+export const GEO_IMPORT_JOB: JobDefinition<GeoImportJob> = {
+  name: GEO_IMPORT_JOB_NAME,
+  policy: { policy: 'exclusive', retryLimit: 2, retryDelay: 900, retryBackoff: true, expireInSeconds: 3600 },
+  cron: '0 3 1 * *',
+  createHandler:
+    (fastify: FastifyInstance): JobHandler<GeoImportJob> =>
+    async (data: GeoImportJob): Promise<void> => {
+      await fastify.geoImportService.importGoogle({ whenEmpty: data?.whenEmpty === true });
+    },
+  onWorkerStart: async (fastify: FastifyInstance): Promise<void> => {
+    await fastify.geoImportService.queueWhenEmpty();
+  },
+};
+
 /** Job definitions, see {@link JobDefinition}. */
 export const JOB_DEFINITIONS: JobDefinition[] = [
   SYNC_CAMPAIGN_JOB as JobDefinition,
@@ -122,4 +152,5 @@ export const JOB_DEFINITIONS: JobDefinition[] = [
   CAMPAIGN_END_JOB,
   ACCOUNT_LINKS_JOB,
   REVIEW_POLL_JOB,
+  GEO_IMPORT_JOB as JobDefinition,
 ];

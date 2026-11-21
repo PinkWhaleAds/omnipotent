@@ -23,6 +23,7 @@ import { AdGroupActivation1793304000000 } from './1793304000000-AdGroupActivatio
 import { CampaignStartTime1793305000000 } from './1793305000000-CampaignStartTime';
 import { SearchSettings1793306000000 } from './1793306000000-SearchSettings';
 import { AdReviews1793307000000 } from './1793307000000-AdReviews';
+import { GeoLocations1793308000000 } from './1793308000000-GeoLocations';
 
 export const MIGRATIONS: (new () => unknown)[] = [
   AdvertisersAndLabels1792936887388,
@@ -38,4 +39,5 @@ export const MIGRATIONS: (new () => unknown)[] = [
   CampaignStartTime1793305000000,
   SearchSettings1793306000000,
   AdReviews1793307000000,
+  GeoLocations1793308000000,
 ];

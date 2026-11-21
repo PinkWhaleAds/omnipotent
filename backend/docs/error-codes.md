@@ -250,6 +250,47 @@ produit un avertissement de preview, jamais une erreur.
 Une dimension absente du registre ou un type de dimension inconnu sont refusés **par le schéma** de
 la route, donc en `validation_failed` : l'énumération des dimensions fait partie du contrat.
 
+### Le ciblage géographique : ce que le front doit savoir
+
+Ce que fait multi-search, repris tel quel, avec ce que le modèle d'Omnipotent y change
+(`docs/phase-10.md` § 8.9, D57). Un front qui l'ignore compose des ciblages que la preview refuse, ou
+qui diffusent plus large qu'il ne le montre.
+
+- **Les pays sont la limite du TargetingGroup.** Un pays qui contient des lieux ou des rayons est
+  **remplacé** par eux ; un pays qui n'en a aucun part entier. « France et Belgique, avec Paris » vaut
+  donc Paris plus toute la Belgique, et non Paris seul. Un lieu ou un rayon hors des pays inclus est
+  une **erreur** de preview : pour cibler Paris, inclure aussi la France.
+- **Un lieu s'envoie par son seul identifiant**, celui du référentiel (`GET /geo/locations`) :
+  `{ "include": [{ "id": "1006094" }] }`. L'API complète `level`, `name`, `canonicalName` et
+  `countryCode`, et les rend à la lecture. Renvoyer ce qu'une lecture a rendu n'est pas une erreur : ces
+  champs sont réécrits depuis le référentiel.
+- **Un code postal est un lieu** comme un autre, trouvé par la recherche avec le niveau
+  `postal_code`. La dimension `zip_code`, du texte libre sans pays, n'est pas envoyée à Google : la
+  preview le dit, avec le montant qui partirait sans elle.
+- **Un rayon porte son pays** (`countryCode`), obligatoire : c'est le pays qu'il remplace. Le géocodage
+  le donne ; un rayon posé à la main sur une carte doit le recevoir du front.
+- **Les noms sont ceux de Google, en anglais** (« Ile-de-France »). Les noms français des régions qui en
+  ont un se cherchent aussi, mais la réponse garde le nom de Google.
+- **Un lieu que Google retire** reste lisible (`active: false` dans `GET /geo/locations/by-ids`), mais
+  il bloque toute nouvelle écriture des lieux du TargetingGroup tant qu'il n'en est pas ôté : le front
+  doit le montrer et proposer de l'enlever.
+- **Le géocodage peut être éteint** : ses routes répondent alors `geo_service_unavailable`, et
+  `GET /geo/status` le dit d'avance, pour ne pas montrer un champ d'adresse qui échouera. Il est aussi
+  plafonné par heure et par Organization. Une adresse introuvable n'est pas une erreur de la requête :
+  elle porte son propre code dans la réponse, à côté des autres.
+- **Chez multi-search, le ciblage est sur l'AdGroup, et se modifie en partie.** Ici, il est sur le
+  TargetingGroup, une dimension à la fois : `country`, `location` et `proximity` s'écrivent chacune par
+  sa route.
+
+### Le référentiel des lieux
+
+`src/services/geo.service.ts` (`docs/phase-10.md` § 8.9). Ses routes ne nomment aucune Organization :
+le référentiel est le même pour tous.
+
+| Code                   | Statut | Quand                                                                                                        | `params` |
+| ---------------------- | ------ | ------------------------------------------------------------------------------------------------------------ | -------- |
+| `geo_search_too_short` | 400    | Le texte cherché a moins de `min` lettres ou chiffres, une fois la casse, les accents et la ponctuation ôtés | `min`    |
+
 ### Les listes
 
 | Code                     | Statut | Quand                                                                             | `params`               |

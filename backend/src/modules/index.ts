@@ -15,6 +15,7 @@ import AssetController from './asset/asset.controller';
 import BudgetDayController from './budget-day/budget-day.controller';
 import CreativeController from './creative/creative.controller';
 import CampaignController from './campaign/campaign.controller';
+import GeoController from './geo/geo.controller';
 import HealthController from './health/health.controller';
 import KeywordController from './keyword/keyword.controller';
 import LabelController from './label/label.controller';
@@ -73,6 +74,8 @@ async function registerControllers(fastify: FastifyInstance): Promise<void> {
   await fastify.register(BudgetDayController);
   // The targeting of the TargetingGroups, the lists it references and the keywords it buys.
   await fastify.register(TargetingController);
+  // The referential of places its location dimension takes, the same for every Organization.
+  await fastify.register(GeoController);
   await fastify.register(ListController);
   await fastify.register(KeywordController);
   // The library of an Advertiser: the bytes, then what is assembled from them.

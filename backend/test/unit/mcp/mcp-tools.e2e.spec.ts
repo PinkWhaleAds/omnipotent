@@ -46,7 +46,8 @@ type ServiceName =
   | 'creativeService'
   | 'adAccountService'
   | 'previewService'
-  | 'syncService';
+  | 'syncService'
+  | 'geoService';
 
 /** A fake Fastify instance: every service method is a jest mock. */
 type FakeServices = Record<ServiceName, Record<string, jest.Mock>>;
@@ -1516,6 +1517,7 @@ function fakeServices(): FakeServices {
     assetService: { ...crud(), upload: jest.fn() },
     previewService: { preview: jest.fn(), launch: jest.fn(), setStatus: jest.fn(), setNodeStatus: jest.fn() },
     syncService: { platformStatus: jest.fn(), requestSync: jest.fn(), retry: jest.fn() },
+    geoService: { search: jest.fn(), byIds: jest.fn() },
     adAccountService: {
       list: jest.fn(),
       get: jest.fn(),
@@ -1641,6 +1643,8 @@ describe('Unit::Mcp::McpToolsE2E', () => {
         'get-me',
         'get-targeting-dimensions',
         'get-creative-formats',
+        'search-geo-locations',
+        'get-geo-locations',
         ...TOOL_CASES.map((toolCase: ToolCase): string => toolCase.tool),
       ];
 
@@ -1707,6 +1711,28 @@ describe('Unit::Mcp::McpToolsE2E', () => {
       );
       // The two subtypes no platform of our references accepts are absent (L20).
       expect(catalog.couples.map((couple): string => couple.subtype)).not.toContain('html5');
+    });
+
+    it('should search the referential of places without naming an Organization', async (): Promise<void> => {
+      // The referential is Google's catalog, the same for everyone (`backend/docs/phase-10.md` § 8.9).
+      const places = { items: [] };
+      services.geoService.search.mockResolvedValue(places);
+      services.geoService.byIds.mockResolvedValue(places);
+
+      const found: ToolCallResult = await connection.client.callTool({
+        name: 'search-geo-locations',
+        arguments: { q: 'Paris', levels: ['city'] },
+      });
+      const read: ToolCallResult = await connection.client.callTool({
+        name: 'get-geo-locations',
+        arguments: { ids: ['1006094'] },
+      });
+
+      expect(found.isError).toBeFalsy();
+      expect(found.structuredContent).toEqual(places);
+      expect(services.geoService.search).toHaveBeenCalledWith({ q: 'Paris', levels: ['city'], limit: 20 });
+      expect(read.isError).toBeFalsy();
+      expect(services.geoService.byIds).toHaveBeenCalledWith(['1006094']);
     });
 
     it('should prefer the Organization the model names to the one of the connection', async (): Promise<void> => {

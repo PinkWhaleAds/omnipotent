@@ -421,9 +421,9 @@ Omnipotent la **met en pause** (R5, § 8.5).
 - **aucun budget minimum** : `minDailyBudgetCents: 0` ;
 - **le ciblage** : en 3a, `country`, `proximity` et `device`. Un pays part par son identifiant chez
   Google, qui vaut 2000 plus son code numérique ISO 3166 — 2250 pour la France —, à constater sur
-  quelques pays. `zip_code` et `location` arrivent en 3c ; d'ici là, comme toute dimension qu'un couple
-  n'exprime pas, ils sont **retirés pour Google**, et la preview le dit avec le montant qui part sans eux
-  (L2). `language` n'y est pas, Google la refusant depuis septembre ;
+  quelques pays. `location` arrive en 3c, codes postaux compris ; d'ici là, comme toute dimension qu'un
+  couple n'exprime pas, il est **retiré pour Google**, et la preview le dit avec le montant qui part sans
+  lui (L2). `zip_code`, du texte libre, le reste après 3c (§ 8.9, point 4). `language` n'y est pas, Google la refusant depuis septembre ;
 - **les stratégies d'enchère**, un champ de plus au registre : `max_cpc` → `MANUAL_CPC`,
   `maximize_clicks` → `TARGET_SPEND`, puis `maximize_conversions` en 3d. `cpm` est refusé, le Search
   n'achetant pas au mille ;
@@ -716,4 +716,152 @@ n'examinant pas une annonce en pause, la question revient à Lorin (§ 1).
    le verdict dans `GET /campaigns/:id/platform-status`. Les unités à relire sont choisies en SQL, ce
    qu'un test d'intégration prouve sur un vrai PostgreSQL ;
 2. ✅ `GET /creatives/:id/lines` et l'outil `list-creative-lines` ;
-3. **à faire** : la preuve, par Lorin, avec `../../scenarios/campagne-google-verdicts.mjs`.
+3. ✅ la preuve, le 2026-11-21, avec `../../scenarios/campagne-google-verdicts.mjs` : les annonces de
+   la campagne de test, en pause, sont approuvées chez Google et dans Omnipotent, lues par
+   `review.poll`. Google examine donc une annonce en pause.
+
+### 8.9 3c — le ciblage fin
+
+Écrit le 2026-11-21, avant la moindre ligne de code de 3c, multi-search relu à son commit `0aac705`
+(D54), sa `docs/phase-12.md` surtout.
+
+**Ce que fait multi-search**, la mesure :
+
+- **le référentiel est le catalogue public des lieux de Google** (`geotargets-AAAA-MM-JJ.csv`, sur
+  `developers.google.com/google-ads/api/data/geotargets`), importé dans une table `geo_locations` :
+  l'identifiant de Google, le nom, le nom complet, le parent, le pays, le type de Google, le niveau et
+  le statut (`Active` ou `Removal Planned`). **L'identifiant de Google sert de pivot** à toutes les
+  plateformes : Microsoft le nomme lui-même dans son fichier des lieux (colonne `AdWords Location Id`) ;
+- **quatre niveaux**, qui regroupent les types de Google : région, département, ville, code postal.
+  Le reste — quartiers, et en France cantons et arrondissements — n'est pas proposé. Les noms sont ceux
+  de Google, en anglais ; les noms français des régions qui en ont un (Bretagne, Normandie…) se
+  cherchent aussi ;
+- **un job `geo.import`** recharge le fichier le 1er de chaque mois à 03:00 UTC, et au démarrage d'un
+  worker quand la table est vide. Un fichier qui porte moins de la moitié des lieux actifs déjà gardés
+  est refusé ; un lieu absent du nouveau fichier passe `Removal Planned`, sans jamais être supprimé ;
+- **la recherche d'un lieu** (`GET /geo/locations`, outil `search-geo-locations`) : 2 à 100
+  caractères, des filtres par pays et par niveau, 50 résultats au plus, cherchés dans PostgreSQL par
+  trigrammes (`pg_trgm`) et classés du nom exact au plus lointain. `GET /geo/locations/by-ids` relit
+  200 lieux au plus. Il suffit d'être connecté, sans Organization ;
+- **un code postal est un lieu du référentiel** comme un autre, trouvé par la recherche : il n'y a
+  aucune saisie libre ;
+- **les pays sont la limite de l'AdGroup**, et ils sont obligatoires. On y ajoute des lieux inclus et
+  exclus, mille de chaque, et des rayons, cinq cents, chacun avec son pays. L'appelant envoie
+  l'identifiant d'un lieu ; l'API complète son niveau, son nom, son nom complet et son pays depuis le
+  référentiel. Sont refusés à l'enregistrement : un lieu inconnu, un pays, un niveau non proposé, un
+  lieu retiré, un lieu à la fois inclus et exclu. Un lieu retiré par Google bloque donc toute
+  modification des lieux tant qu'il n'est pas ôté ;
+- **chez chaque plateforme, pays par pays** (`platforms/geo-plan.ts`, une fonction pure que la preview
+  et la synchro partagent) :
+  - un pays sans lieu ni rayon part entier ;
+  - un pays qui en a est **remplacé** par eux ;
+  - si la plateforme ne sait pas cibler l'un d'eux — son niveau, pas de correspondance, pas de rayons —,
+    le pays part entier, avec un avertissement : jamais une partie de ce qui était demandé, qui serait
+    plus étroite ;
+  - un pays ne part jamais avec un de ses lieux : Google additionne ses lieux, donc il diffuserait
+    dans tout le pays ;
+  - un lieu exclu part là où la plateforme exclut son niveau, et il est ignoré ailleurs, avec un
+    avertissement ;
+- **la preview** : en erreur, un lieu ou un rayon hors des pays inclus (`geo_area_outside_countries`)
+  et plus de rayons que la plateforme n'en prend ; en avertissement, un pays élargi avec ses raisons,
+  des exclusions ignorées ;
+- **le géocodage** : Amazon Location Service, à Stockholm, appelé avec le rôle IAM de la tâche, donc
+  sans clé. Deux routes et deux outils, `geocode-addresses` (100 adresses au plus) et
+  `reverse-geocode-positions` (100 points), au rôle viewer d'une Organization, 1 000 par heure et par
+  Organization comptés dans la mémoire du processus, sans cache. Un résultat ne devient jamais qu'un
+  **rayon** — ni un lieu, ni un code postal. Sans `GEO_ENABLED`, les routes répondent 503
+  `geo_service_unavailable` ;
+- hors de son périmètre : une enchère par lieu, un rayon exclu, la carte interactive.
+
+**Ce que le modèle d'Omnipotent change** :
+
+- le ciblage vit sur le TargetingGroup, et chacun devient une campagne Google (D55) : c'est l'AdGroup
+  de multi-search, il n'y a rien à adapter ;
+- les dimensions existent depuis la phase 5 : `country`, `location` (des identifiants opaques
+  « du référentiel de la plateforme »), `zip_code` (des codes en texte libre, sans pays) et `proximity`
+  (des points, sans pays) ;
+- un pays n'est chez nous qu'un critère parmi d'autres, et un TargetingGroup sans aucun critère est
+  valide.
+
+**Trouvé en relisant 3a** : un TargetingGroup qui cible un pays et un rayon envoie **les deux** à
+Google. Google additionne ses lieux, donc la campagne diffuse dans tout le pays, et le rayon n'y change
+rien. multi-search remplace le pays par le rayon. La campagne de test de 3a est dans ce cas : elle cible
+aujourd'hui toute la France. 3c le corrige avec le plan transcrit.
+
+**Ce que 3c livre** :
+
+1. **le référentiel** : la table `geo_locations` et l'extension `pg_trgm` (une migration), l'import du
+   fichier de Google et le job `geo.import`, transcrits. La table des correspondances par plateforme
+   (`geo_platform_ids` chez multi-search) et l'import du fichier de Microsoft arrivent avec le lot B
+   de la phase 11 ;
+2. **la recherche** : `GET /geo/locations`, `GET /geo/locations/by-ids` et l'outil
+   `search-geo-locations` ;
+3. **`location` relié au référentiel** : chaque lieu devient
+   `{ id, level, name, canonicalName, countryCode }`. L'appelant n'envoie que `id`, et le service
+   complète le reste depuis la table. Mille lieux inclus et mille exclus au plus. Sont refusés en 400 : un lieu inconnu, un pays ou un niveau non
+   proposé, un lieu retiré. Les régions, départements, villes et codes postaux passent tous par là ;
+4. **`proximity` gagne le pays de chaque point** (`countryCode`), et l'adresse dont il vient ;
+5. **le plan géographique** (`planGeo`), transcrit, générique, partagé par la preview et l'état
+   voulu, et ce que le registre en déclare par couple : les niveaux ciblés, les niveaux exclus et le
+   plafond de rayons. Chez Google, les quatre niveaux dans les deux sens, et cinq cents rayons ;
+6. **la preview** : en erreur, un lieu ou un rayon hors des pays inclus et trop de rayons ; en
+   avertissement, un pays élargi et des exclusions ignorées. Les codes suivent notre préfixe
+   `preview_` et sont ajoutés à `error-codes.md` ;
+7. **chez Google**, les critères de lieu lus dans le plan : `geoTargetConstants/<id>`, inclus et
+   exclus, jamais un pays avec l'un de ses lieux ;
+8. **le géocodage** : `POST /geo/geocode`, `POST /geo/reverse-geocode` et leurs outils MCP,
+   `POST /geo/map`, l'image d'une carte où les rayons sont dessinés, que le front de multi-search
+   montre, et `GET /geo/status`, qui dit s'il est allumé ; Amazon Location Service dans la région du
+   projet, `eu-north-1`. La carte, trouvée en relisant les routes de multi-search après la validation
+   des points, n'y figurait pas : elle passe par le même service et les mêmes droits. Le rôle IAM des tâches gagne ses trois
+   actions dans `infra/modules/task-roles`.
+
+**Les points présentés à Lorin, validés le 2026-11-21** — les deux premiers sont D57. Ce qu'un
+front doit en savoir est dans `error-codes.md`, « Le ciblage géographique » :
+
+1. **Le référentiel est celui de Google, et son identifiant sert de pivot**, comme chez multi-search.
+   `location` devient « les lieux du référentiel d'Omnipotent » et non plus ceux de chaque plateforme :
+   chacune y est reliée par une correspondance, Google sans en avoir besoin. Écarté : un identifiant à
+   nous, avec une correspondance pour Google aussi, une table de plus tant que le pivot de Google
+   suffit.
+2. **Les pays sont la limite du TargetingGroup**, comme chez multi-search. Un pays qui contient des
+   lieux ou des rayons est remplacé par eux ; un pays sans aucun part entier ; un lieu ou un rayon hors
+   des pays inclus est une **erreur** de preview. Un TargetingGroup qui cible Paris doit donc inclure la
+   France. Un TargetingGroup sans aucun critère reste valide. Écarté : une intersection stricte, où
+   « France et Belgique, avec Paris » vaudrait Paris seul, et non Paris plus la Belgique entière.
+3. **La campagne de test de 3a cible aujourd'hui toute la France** (le défaut ci-dessus). Elle se
+   corrige une fois son rayon réenregistré avec son pays (point 5) : la synchro suivante remplace alors
+   la France par le rayon chez Google.
+4. **Un code postal passe par `location`**, trouvé par la recherche, comme chez multi-search. Pour
+   Google, `zip_code` et `zip_code_lists`, du texte libre sans pays, restent retirés, avec
+   l'avertissement qui dit le montant parti sans eux ; la phase 21 dira s'ils se fondent dans
+   `location`. **Cela revient sur le § 8.3**, qui annonçait `zip_code` en 3c. Écarté : traduire un code
+   en texte par le référentiel et les pays inclus, ambigu quand plusieurs pays sont inclus, et dont
+   l'échec se verrait trop tard.
+5. **Un rayon porte son pays**, obligatoire à l'enregistrement, rempli par le géocodage ou par
+   l'appelant, comme chez multi-search : c'est ce qui dit quel pays il remplace. Un rayon déjà
+   enregistré sans pays compte comme hors des pays inclus, donc il bloque la preview jusqu'à ce qu'il
+   soit réenregistré. Le seul concerné est celui de la campagne de test.
+6. **Le géocodage par Amazon Location Service**, comme multi-search. Les 1 000 appels par heure et par
+   Organization se comptent dans la mémoire de chaque processus, donc autant de fois qu'il y a de
+   répliques. C'est un garde-fou contre une boucle, pas un quota. En développement, il est éteint par
+   défaut et s'allume avec le profil AWS `omnilor` pour l'essayer. La modification Terraform est à
+   appliquer par Lorin.
+7. **Pas de route d'import à la main.** Celle de multi-search est réservée à son super-admin, et
+   Omnipotent n'a aucun rôle au-dessus des Organizations, les rôles étant à omnipass. Le job
+   mensuel et l'import au démarrage d'un worker sur une table vide suffisent.
+
+**Où en est 3c**, sur la branche `phase-10-lot-3c` :
+
+1. ✅ le référentiel : la table `geo_locations` (migration `GeoLocations1793308000000`), l'import du
+   fichier de Google et le job `geo.import`, la recherche (`GET /geo/locations`,
+   `GET /geo/locations/by-ids`) et ses outils MCP, `search-geo-locations` et `get-geo-locations` —
+   ce dernier en plus de multi-search, chaque route ayant son outil (D21) ;
+2. **à faire** : `location` relié au référentiel, le pays de chaque rayon, le plan géographique, la
+   preview et les critères de lieu chez Google ;
+3. **à faire** : le géocodage et la carte ;
+4. **à faire** : la preuve.
+
+**La preuve** (§ 8.1) : la campagne de test, son rayon réenregistré avec son pays, puis un
+TargetingGroup ciblé sur une ville et un code postal trouvés par la recherche, poussés chez Google et
+conformes dans son interface — la France remplacée par eux, et non additionnée.

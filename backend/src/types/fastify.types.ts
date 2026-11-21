@@ -26,6 +26,8 @@ import type {
   TokenVerifier,
 } from '@services';
 import type { AuthContext, AuthMode } from './auth.types';
+import type { GeoImportService } from '@src/services/geo-import.service';
+import type { GeoService } from '@src/services/geo.service';
 import type { ReviewService } from '@src/services/review.service';
 import type { SyncScheduler, SyncService } from '@src/services/sync.service';
 import type { CallJournal } from '@src/services/platform-call.service';
@@ -100,6 +102,10 @@ declare module 'fastify' {
     syncScheduler: SyncScheduler;
     /** What the platforms make of our ads, read every ten minutes. */
     reviewService: ReviewService;
+    /** The referential of places, Google's catalog, the same for every Organization. */
+    geoService: GeoService;
+    /** What loads that referential, every month and on an empty database. */
+    geoImportService: GeoImportService;
     /** One line per call to a platform: what a failed sync is debugged with. */
     platformCallJournal: CallJournal;
     assetService: AssetService;

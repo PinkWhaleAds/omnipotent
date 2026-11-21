@@ -18,6 +18,7 @@ import { CreativeVersionAssetEntity } from './creative-version-asset.entity';
 import { CreativeVersionEntity } from './creative-version.entity';
 import { CreativeEntity } from './creative.entity';
 import { ExternalIdHistoryEntity } from './external-id-history.entity';
+import { GeoLocationEntity } from './geo-location.entity';
 import { KeywordEntity } from './keyword.entity';
 import { LabelAssignmentEntity } from './label-assignment.entity';
 import { LabelEntity } from './label.entity';
@@ -40,6 +41,7 @@ export * from './creative-version-asset.entity';
 export * from './creative-version.entity';
 export * from './creative.entity';
 export * from './external-id-history.entity';
+export * from './geo-location.entity';
 export * from './keyword.entity';
 export * from './label-assignment.entity';
 export * from './label.entity';
@@ -72,4 +74,5 @@ export const ENTITIES: (new () => unknown)[] = [
   PlatformUnitEntity,
   ExternalIdHistoryEntity,
   PlatformCallEntity,
+  GeoLocationEntity,
 ];

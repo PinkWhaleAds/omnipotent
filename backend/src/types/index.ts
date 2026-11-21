@@ -19,6 +19,7 @@ export * from './creative.types';
 export * from './crud.types';
 export * from './error.types';
 export * from './extension.types';
+export * from './geo.types';
 export * from './fastify.types';
 export * from './health.types';
 export * from './job.types';

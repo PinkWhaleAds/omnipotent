@@ -15,6 +15,7 @@ import AssetToolsController from './asset/asset.controller';
 import BudgetDayToolsController from './budget-day/budget-day.controller';
 import CreativeToolsController from './creative/creative.controller';
 import CampaignToolsController from './campaign/campaign.controller';
+import GeoToolsController from './geo/geo.controller';
 import KeywordToolsController from './keyword/keyword.controller';
 import LabelToolsController from './label/label.controller';
 import LeverToolsController from './lever/lever.controller';
@@ -52,6 +53,8 @@ export function registerToolControllers(server: McpServer, fastify: FastifyInsta
   BudgetDayToolsController(server, fastify, context);
   // The targeting of the TargetingGroups, the lists it references and the keywords it buys.
   TargetingToolsController(server, fastify, context);
+  // The referential of places its location dimension takes, the same for every Organization.
+  GeoToolsController(server, fastify);
   ListToolsController(server, fastify, context);
   KeywordToolsController(server, fastify, context);
   // The library of an Advertiser: the bytes, then what is assembled from them.

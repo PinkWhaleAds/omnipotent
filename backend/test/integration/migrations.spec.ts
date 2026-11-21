@@ -21,6 +21,7 @@ const APPLICATION_TABLES: string[] = [
   'creative_versions',
   'creatives',
   'external_id_history',
+  'geo_locations',
   'keywords',
   'label_assignments',
   'labels',

@@ -3,6 +3,7 @@ import { FastifyInstance } from 'fastify';
 import {
   ACCOUNT_LINKS_JOB,
   CAMPAIGN_END_JOB,
+  GEO_IMPORT_JOB,
   JOB_DEFINITIONS,
   PACING_REFRESH_JOB,
   REVIEW_POLL_JOB,
@@ -18,6 +19,7 @@ describe('Unit::Jobs', () => {
   let sync: Record<string, jest.Mock>;
   let accounts: Record<string, jest.Mock>;
   let reviews: Record<string, jest.Mock>;
+  let geoImport: Record<string, jest.Mock>;
   let fastify: FastifyInstance;
 
   beforeEach((): void => {
@@ -30,7 +32,16 @@ describe('Unit::Jobs', () => {
     };
     accounts = { checkLinks: jest.fn().mockResolvedValue(undefined) };
     reviews = { poll: jest.fn().mockResolvedValue(undefined) };
-    fastify = { syncService: sync, adAccountService: accounts, reviewService: reviews } as unknown as FastifyInstance;
+    geoImport = {
+      importGoogle: jest.fn().mockResolvedValue(null),
+      queueWhenEmpty: jest.fn().mockResolvedValue(true),
+    };
+    fastify = {
+      syncService: sync,
+      adAccountService: accounts,
+      reviewService: reviews,
+      geoImportService: geoImport,
+    } as unknown as FastifyInstance;
   });
 
   it('should declare every job exactly once, under a queue name a process can create', (): void => {
@@ -43,6 +54,7 @@ describe('Unit::Jobs', () => {
       'campaign.end',
       'account.links',
       'review.poll',
+      'geo.import',
     ]);
     expect(new Set(names).size).toBe(names.length);
     for (const name of names) expect(name).toMatch(/^[\w.\-/]+$/);
@@ -117,6 +129,30 @@ describe('Unit::Jobs', () => {
       await (REVIEW_POLL_JOB.createHandler(fastify) as () => Promise<void>)();
 
       expect(reviews.poll).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('geo.import', () => {
+    it("should import Google's catalog of places the 1st of every month, one import at a time", async (): Promise<void> => {
+      expect(GEO_IMPORT_JOB.cron).toBe('0 3 1 * *');
+      expect(GEO_IMPORT_JOB.policy).toMatchObject({ policy: 'exclusive', retryLimit: 2, retryDelay: 900 });
+
+      // pg-boss gives `null` to a scheduled job.
+      await GEO_IMPORT_JOB.createHandler(fastify)(null, { id: 'job-1', retryCount: 0 });
+
+      expect(geoImport.importGoogle).toHaveBeenCalledWith({ whenEmpty: false });
+    });
+
+    it('should import only into an empty referential the job queued at a worker start', async (): Promise<void> => {
+      await GEO_IMPORT_JOB.createHandler(fastify)({ whenEmpty: true }, { id: 'job-1', retryCount: 0 });
+
+      expect(geoImport.importGoogle).toHaveBeenCalledWith({ whenEmpty: true });
+    });
+
+    it('should queue that job at each worker start', async (): Promise<void> => {
+      await GEO_IMPORT_JOB.onWorkerStart?.(fastify);
+
+      expect(geoImport.queueWhenEmpty).toHaveBeenCalledTimes(1);
     });
   });
 });

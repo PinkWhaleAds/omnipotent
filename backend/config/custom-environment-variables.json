@@ -125,5 +125,18 @@
     "appSecret": "MICROSOFT_ADS_APP_SECRET",
     "oauthSecret": "MICROSOFT_ADS_OAUTH_SECRET",
     "redirectUri": "MICROSOFT_ADS_REDIRECT_URI"
+  },
+  "Geo": {
+    "enabled": {
+      "__name": "GEO_ENABLED",
+      "__format": "json"
+    },
+    "region": "GEO_REGION",
+    "googleTargetsUrl": "GEO_GOOGLE_TARGETS_URL",
+    "hourlyLimitPerOrganization": {
+      "__name": "GEO_HOURLY_LIMIT",
+      "__format": "json"
+    },
+    "mapStyle": "GEO_MAP_STYLE"
   }
 }
