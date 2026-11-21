@@ -863,7 +863,10 @@ front doit en savoir est dans `error-codes.md`, « Le ciblage géographique » :
    - **une synchro refuse** un lieu ou un rayon hors des pays (`google_geo_outside_countries`), comme
      elle refuse un pays que Google ne cible pas : une campagne lancée se modifie sans repasser par la
      preview, et l'envoyer sans eux la ferait diffuser plus large que demandé ;
-   - Zod passe en 4.6.7, l'audit de la CI classant la 4.4.3 haute (GHSA-mrhx-c7xc-m3w5) ;
+   - Zod passe en 4.6.7, l'audit de la CI classant la 4.4.3 haute (GHSA-mrhx-c7xc-m3w5). Zod 4.6
+     compte les longueurs en caractères Unicode, non plus en unités UTF-16 : Lorin a choisi le
+     2026-11-21 de le suivre, AJV avec lui, plutôt que de garder la 4.4.3 et la faille. Un emoji compte
+     désormais 1, ce que dit `error-codes.md` ;
 3. ✅ le géocodage et la carte : `POST /geo/geocode`, `POST /geo/reverse-geocode`, `POST /geo/map` et
    `GET /geo/status`, Amazon Location Service transcrit de multi-search, les outils
    `geocode-addresses`, `reverse-geocode-positions` et `get-geo-status` — ce dernier en plus de

@@ -58,7 +58,7 @@ Un champ que la route **ne déclare pas** est refusé, pas ignoré : la règle e
 et `field` nomme le champ fautif. Vrai d'un corps, d'une querystring et des arguments d'un tool MCP ;
 les en-têtes, eux, restent souples (une requête porte les siens).
 
-Les corps sont validés par leur schéma Zod lui-même (`src/plugins/validation.plugin.ts`), les querystrings, paramètres d'URL et en-têtes par AJV sur leur JSON Schema. Dans les deux cas la réponse a la forme ci-dessus, et la correspondance entre les deux est faite par `src/utils/validation.utils.ts`. Les longueurs se comptent en unités de code UTF-16 : un emoji compte 2.
+Les corps sont validés par leur schéma Zod lui-même (`src/plugins/validation.plugin.ts`), les querystrings, paramètres d'URL et en-têtes par AJV sur leur JSON Schema. Dans les deux cas la réponse a la forme ci-dessus, et la correspondance entre les deux est faite par `src/utils/validation.utils.ts`. Les longueurs se comptent en caractères Unicode (points de code) : un emoji compte 1. Jusqu'au 2026-11-21, elles se comptaient en unités UTF-16, un emoji comptant 2 ; Zod 4.6 a changé de mesure pour corriger une faille, et AJV l'a suivi. Un front qui mesure avec `.length` reste plus strict que l'API, donc jamais refusé.
 
 ## Authentification
 

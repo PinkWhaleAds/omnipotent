@@ -6,7 +6,7 @@ import { RouteSchemaDefinition, RouteValidator, zodBodyValidator } from '@utils'
 
 /**
  * Options of the AJV validating querystrings, params and headers: Fastify's own (types coerced from strings,
- * defaults filled), with two changes.
+ * defaults filled), with one change.
  *
  * - `removeAdditional: false` — a querystring parameter the route does not declare is **refused**
  *   (`validation_failed`, rule `additionalProperties`), where Fastify's default silently deletes it.
@@ -14,16 +14,14 @@ import { RouteSchemaDefinition, RouteValidator, zodBodyValidator } from '@utils'
  *   quietly ignored is a bug nobody sees. Only a schema that says `additionalProperties: false` is
  *   concerned — every input schema of the API does, being built from a strict Zod object
  *   (`backend/CLAUDE.md`); the headers schemas do not, since a request carries many headers of its own.
- * - lengths counted in UTF-16 code units as Zod counts them (an emoji counts 2) rather than in code
- *   points. AJV 8 still honours `unicode: false` but warns that it is deprecated when its constructor
- *   is given it, hence set once the instance exists.
+ *
+ * Lengths are counted in Unicode code points, AJV's default, as Zod counts them since 4.6 (an emoji counts
+ * 1): a body and a querystring measure the same text alike. Zod 4.4 counted UTF-16 code units, and AJV was
+ * set to match it; Zod moved for GHSA-mrhx-c7xc-m3w5, and AJV followed (Lorin, 2026-11-21).
  */
 const AJV_OPTIONS = {
   customOptions: { removeAdditional: false },
   plugins: [],
-  onCreate: (ajv: { opts: { unicode?: boolean } }): void => {
-    ajv.opts.unicode = false;
-  },
 };
 
 /**

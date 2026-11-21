@@ -16,8 +16,8 @@ type Failure = { path: PropertyKey[]; rule: string; message: string };
  * Build the validator of a route body from the Zod schema of its JSON Schema.
  *
  * The body is parsed by Zod, as an MCP tool's arguments are: `trim`, lowercase/uppercase and defaults apply,
- * no type is coerced (`"25"` is not a number, `0` is not `null`), lengths count UTF-16 code units (an emoji
- * counts 2), refinements and URL protocols are checked, and an unknown field is **refused** — every body
+ * no type is coerced (`"25"` is not a number, `0` is not `null`), lengths count Unicode code points (an emoji
+ * counts 1), refinements and URL protocols are checked, and an unknown field is **refused** — every body
  * schema of the API is a strict Zod object (`backend/CLAUDE.md`). The parsed value
  * replaces `request.body`. A refused body gives its first issue in the shape of an AJV error, so the error
  * handler answers `validation_failed` with the same `field`, `rule` and `location` as for the other parts.

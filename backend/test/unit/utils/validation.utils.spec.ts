@@ -68,11 +68,11 @@ describe('Unit::Utils::Validation', () => {
       });
     });
 
-    it('should count lengths in UTF-16 code units: an emoji counts 2', (): void => {
+    it('should count lengths in Unicode code points: an emoji counts 1', (): void => {
       const validate: RouteValidator = validatorOf(bodySchema);
 
-      expect(validate({ name: '😀😀', share: 25 })).toEqual({ value: { name: '😀😀', share: 25, tags: [] } });
-      expect(validate({ name: '😀😀a', share: 25 })).toMatchObject({ error: [{ keyword: 'maxLength' }] });
+      expect(validate({ name: '😀😀😀😀', share: 25 })).toEqual({ value: { name: '😀😀😀😀', share: 25, tags: [] } });
+      expect(validate({ name: '😀😀😀😀a', share: 25 })).toMatchObject({ error: [{ keyword: 'maxLength' }] });
     });
 
     it('should refuse a missing body as a whole', (): void => {

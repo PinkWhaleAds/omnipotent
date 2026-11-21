@@ -107,7 +107,7 @@ describe('Unit::ValidationPlugin', () => {
 
     it.each<[string, object, string | null, string]>([
       ['a name of spaces', { name: '   ', share: 25 }, 'name', 'minLength'],
-      ['a name of 3 emojis (6 UTF-16 units)', { name: '😀😀😀', share: 25 }, 'name', 'maxLength'],
+      ['a name of 5 emojis (5 code points)', { name: '😀😀😀😀😀', share: 25 }, 'name', 'maxLength'],
       ['a share sent as a text', { name: 'Acme', share: '25' }, 'share', 'type'],
       ['a missing share', { name: 'Acme' }, 'share', 'required'],
       ['a javascript: URL', { name: 'Acme', share: 25, website: 'javascript:alert(1)' }, 'website', 'format'],
@@ -119,11 +119,11 @@ describe('Unit::ValidationPlugin', () => {
       expectRefused(response, { field, rule, location: 'body' });
     });
 
-    it('should accept 2 emojis, 4 UTF-16 units', async (): Promise<void> => {
+    it('should accept 4 emojis, 8 UTF-16 units but 4 code points', async (): Promise<void> => {
       const response: LightMyRequestResponse = await app.inject({
         method: 'POST',
         url: `/things/${ID}`,
-        payload: { name: '😀😀', share: 25 },
+        payload: { name: '😀😀😀😀', share: 25 },
       });
 
       expect(response.statusCode).toBe(200);
@@ -186,17 +186,17 @@ describe('Unit::ValidationPlugin', () => {
       });
     });
 
-    it('should count lengths in UTF-16 code units, as Zod: an emoji counts 2', async (): Promise<void> => {
-      const twoEmojis: LightMyRequestResponse = await app.inject({
+    it('should count lengths in Unicode code points, as Zod: an emoji counts 1', async (): Promise<void> => {
+      const fourEmojis: LightMyRequestResponse = await app.inject({
         method: 'GET',
-        url: `/things?q=${encodeURIComponent('😀😀')}`,
+        url: `/things?q=${encodeURIComponent('😀😀😀😀')}`,
       });
       const more: LightMyRequestResponse = await app.inject({
         method: 'GET',
-        url: `/things?q=${encodeURIComponent('😀😀a')}`,
+        url: `/things?q=${encodeURIComponent('😀😀😀😀a')}`,
       });
 
-      expect(twoEmojis.statusCode).toBe(200);
+      expect(fourEmojis.statusCode).toBe(200);
       expectRefused(more, { field: 'q', rule: 'maxLength', location: 'querystring' });
     });
 
