@@ -362,19 +362,15 @@ export class GoogleAdsAdapter implements PlatformAdapter {
 }
 
 /**
- * Build the adapter of Google Ads, with what reads our credentials.
+ * The client of the Google Ads API, through our MCC: what the adapter calls, and what a command-line
+ * script of ours calls directly (`pnpm google:cleanup`).
  *
  * @param setup - Our MCC, and the reading of our two credentials
  * @param journal - Where every call is recorded
- * @returns The adapter
+ * @returns The client
  * @throws Error when the configured MCC is not a customer id
- *
- * @example
- * ```typescript
- * registerAdapter(createGoogleAdsAdapter({ managerId: '771-934-5054', loadServiceAccountKey, loadInviterSecret }, journal));
- * ```
  */
-export function createGoogleAdsAdapter(setup: GoogleAdsSetup, journal: CallJournal): GoogleAdsAdapter {
+export function createGoogleAdsClient(setup: GoogleAdsSetup, journal: CallJournal): GoogleAdsClient {
   const managerId: string | null = normalizeCustomerId(setup.managerId);
   if (managerId === null) throw new Error(`The Google Ads manager account ${setup.managerId} is not a customer id`);
   const auth = new GoogleServiceAccountAuth(setup.loadServiceAccountKey, setup.fetchFn, setup.now);
@@ -396,16 +392,30 @@ export function createGoogleAdsAdapter(setup: GoogleAdsSetup, journal: CallJourn
       describeError: describeGoogleAdsError,
       fetchFn: setup.fetchFn,
     });
-  return new GoogleAdsAdapter(
-    new GoogleAdsClient(
-      httpWith((): Promise<string> => auth.accessToken()),
-      managerId,
-      (): void => auth.invalidate(),
-      {
-        http: httpWith((): Promise<string> => inviter.accessToken()),
-        onUnauthenticated: (): void => inviter.invalidate(),
-      }
-    ),
-    setup.now
+  return new GoogleAdsClient(
+    httpWith((): Promise<string> => auth.accessToken()),
+    managerId,
+    (): void => auth.invalidate(),
+    {
+      http: httpWith((): Promise<string> => inviter.accessToken()),
+      onUnauthenticated: (): void => inviter.invalidate(),
+    }
   );
+}
+
+/**
+ * Build the adapter of Google Ads, with what reads our credentials.
+ *
+ * @param setup - Our MCC, and the reading of our two credentials
+ * @param journal - Where every call is recorded
+ * @returns The adapter
+ * @throws Error when the configured MCC is not a customer id
+ *
+ * @example
+ * ```typescript
+ * registerAdapter(createGoogleAdsAdapter({ managerId: '771-934-5054', loadServiceAccountKey, loadInviterSecret }, journal));
+ * ```
+ */
+export function createGoogleAdsAdapter(setup: GoogleAdsSetup, journal: CallJournal): GoogleAdsAdapter {
+  return new GoogleAdsAdapter(createGoogleAdsClient(setup, journal), setup.now);
 }

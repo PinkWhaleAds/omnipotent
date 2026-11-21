@@ -10,7 +10,8 @@ import { errorCodeOf, httpError, statusCodeOf } from '@utils';
 import { IDS, JANE } from '@test/unit/mocks/auth.fixtures';
 
 const INTERNAL_ERROR_MESSAGE = 'Internal error, please retry later';
-const ORGANIZATION_REQUIRED_MESSAGE = 'organizationId is required: call list-organizations and pass one of their ids';
+const ORGANIZATION_REQUIRED_MESSAGE =
+  'organizationId is required: call get-me and pass the id of one of its Organizations';
 
 /**
  * Run a function expected to throw and return what it threw.

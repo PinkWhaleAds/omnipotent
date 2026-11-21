@@ -6,7 +6,8 @@
 #
 # The published ports are those of multi-search shifted by one, so both stacks can run side by side
 # on the same machine: Postgres on 5442, the object storage on 9012, the secret store on 9022,
-# Grafana on 3012. The API keeps 3000, which multi-search's never holds while it is frozen (D30).
+# Grafana on 3012 — and the API, on 3002 as on the host (`pnpm start:dev`): multi-search and omnipass
+# hold 3000.
 #
 # Postgres is on 5442 and not 5441 because **omnipass publishes 5441**: the three stacks run side by
 # side on this machine, so the port moved here rather than there. Move it again and the two
@@ -112,7 +113,7 @@ services:
       - path: .env
         required: false
     ports:
-      - 3000:3000
+      - 3002:3002
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -128,7 +129,7 @@ services:
         - CMD
         - node
         - -e
-        - "fetch('http://localhost:3000/readyz').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+        - "fetch('http://localhost:3002/readyz').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
       interval: 5s
       timeout: 30s
       retries: 10

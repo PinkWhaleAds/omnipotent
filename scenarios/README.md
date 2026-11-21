@@ -126,3 +126,16 @@ Puis vérifie dans Google Ads : l'action de conversion dans Objectifs, Conversio
 secondaire ; et dans les paramètres de la campagne nommée à la fin, l'enchère « Maximiser les
 conversions » sur l'objectif personnalisé seul. Pour revenir en arrière, repasse l'AdGroup en
 `maximize_clicks`.
+
+## Nettoyer le compte Google après les tests
+
+Les campagnes que les scénarios ont fait créer chez Google s'ôtent par `pnpm google:cleanup`, dans
+`backend/`. La commande liste les campagnes du compte, en deux groupes :
+- celles qui portent le tag d'Omnipotent (`[op:…]`), qu'elle supprimera ;
+- les autres, qu'elle ne touche jamais : celles du client, celles de multi-search (`[ms:…]`).
+
+Elle ne fait rien sans un « oui ». Chez Google, elle **supprime** les campagnes, alors que la synchro
+ne fait jamais que les mettre en pause : une campagne de test n'a pas d'historique à garder. Les actions
+de conversion restent. Chez Omnipotent, elle archive les campagnes concernées et efface leurs unités de
+ce compte, pour qu'aucune synchro ne les renvoie. Pour retester, relance `campagne-google.mjs`.
+

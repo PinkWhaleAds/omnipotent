@@ -80,7 +80,7 @@ export async function runTool(body: () => Promise<object>): Promise<McpToolResul
 export function resolveOrganizationId(context: McpContext, organizationId?: string): string {
   const resolved: string | undefined = organizationId ?? context.organizationId;
   if (!resolved) {
-    throw httpError(400, 'organizationId is required: call list-organizations and pass one of their ids', {
+    throw httpError(400, 'organizationId is required: call get-me and pass the id of one of its Organizations', {
       code: 'organization_id_required',
     });
   }

@@ -26,6 +26,7 @@
     "secrets:seed": "bash ./scripts/seed-local-secrets.sh",
     "google:connect": "tsx --env-file-if-exists=.env ./src/scripts/google-connect.ts",
     "microsoft:connect": "tsx --env-file-if-exists=.env ./src/scripts/microsoft-connect.ts",
+    "google:cleanup": "tsx --env-file-if-exists=.env ./src/scripts/google-cleanup.ts",
     "setup:dev": "bash ./scripts/setup-dev.sh",
     "lint": "eslint . --fix",
     "lint:check": "eslint .",

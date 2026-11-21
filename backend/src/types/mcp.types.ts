@@ -21,7 +21,7 @@ export type McpContext = {
 export const organizationArgSchema = z
   .uuid()
   .optional()
-  .describe('Organization to act on (from list-organizations); defaults to the X-Organization-Id header');
+  .describe('Organization to act on (from get-me); defaults to the X-Organization-Id header');
 
 /**
  * Zod schema of what the « Assistant IA » page needs to add the MCP server to an assistant.
