@@ -1,6 +1,23 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
-import { GeoLocationIdsQuery, GeoLocationSearchQuery } from '@src/types';
+import type { MapImage } from '@src/geo/amazon-location';
+import { GeocodeBody, GeoLocationIdsQuery, GeoLocationSearchQuery, GeoMapBody, ReverseGeocodeBody } from '@src/types';
+import { actorOf, organizationIdOf } from '@utils';
+
+/**
+ * Handler for `GET /geo/status`.
+ *
+ * @param _request - The request
+ * @param reply - The reply, sent with what the geo services can do
+ * @returns A promise that resolves once the response has been sent
+ */
+export async function getGeoStatus(
+  this: FastifyInstance,
+  _request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  reply.send(this.geocodingService.status());
+}
 
 /**
  * Handler for `GET /geo/locations`.
@@ -32,4 +49,54 @@ export async function getGeoLocationsByIds(
   reply: FastifyReply
 ): Promise<void> {
   reply.send(await this.geoService.byIds(request.query.ids));
+}
+
+/**
+ * Handler for `POST /geo/geocode`.
+ *
+ * @param request - The request, with the addresses
+ * @param reply - The reply, sent with one result per address
+ * @returns A promise that resolves once the response has been sent
+ */
+export async function geocode(
+  this: FastifyInstance,
+  request: FastifyRequest<{ Body: GeocodeBody }>,
+  reply: FastifyReply
+): Promise<void> {
+  reply.send(await this.geocodingService.geocode(actorOf(request), organizationIdOf(request), request.body));
+}
+
+/**
+ * Handler for `POST /geo/reverse-geocode`.
+ *
+ * @param request - The request, with the positions
+ * @param reply - The reply, sent with one result per position
+ * @returns A promise that resolves once the response has been sent
+ */
+export async function reverseGeocode(
+  this: FastifyInstance,
+  request: FastifyRequest<{ Body: ReverseGeocodeBody }>,
+  reply: FastifyReply
+): Promise<void> {
+  reply.send(await this.geocodingService.reverseGeocode(actorOf(request), organizationIdOf(request), request.body));
+}
+
+/**
+ * Handler for `POST /geo/map`.
+ *
+ * @param request - The request, with the circles and the size of the image
+ * @param reply - The reply, sent with the image
+ * @returns A promise that resolves once the response has been sent
+ */
+export async function getGeoMap(
+  this: FastifyInstance,
+  request: FastifyRequest<{ Body: GeoMapBody }>,
+  reply: FastifyReply
+): Promise<void> {
+  const map: MapImage = await this.geocodingService.staticMap(
+    actorOf(request),
+    organizationIdOf(request),
+    request.body
+  );
+  reply.type(map.contentType).send(map.image);
 }

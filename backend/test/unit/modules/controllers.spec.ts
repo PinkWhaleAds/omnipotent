@@ -138,9 +138,13 @@ const API_ROUTES: RouteKey[] = [
   { method: 'POST', url: '/targeting-groups/:id/keywords' },
   { method: 'PATCH', url: '/keywords/:id' },
   { method: 'DELETE', url: '/keywords/:id' },
-  // Phase 10: the referential of places the location dimension takes.
+  // Phase 10: the referential of places the location dimension takes, and the geocoding of circles.
   { method: 'GET', url: '/geo/locations' },
   { method: 'GET', url: '/geo/locations/by-ids' },
+  { method: 'GET', url: '/geo/status' },
+  { method: 'POST', url: '/geo/geocode' },
+  { method: 'POST', url: '/geo/reverse-geocode' },
+  { method: 'POST', url: '/geo/map' },
   ...crudRoutes('lists', { labels: false }),
   { method: 'POST', url: '/lists/:id/duplicate' },
   { method: 'POST', url: '/lists/:id/move' },

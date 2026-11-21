@@ -47,7 +47,8 @@ type ServiceName =
   | 'adAccountService'
   | 'previewService'
   | 'syncService'
-  | 'geoService';
+  | 'geoService'
+  | 'geocodingService';
 
 /** A fake Fastify instance: every service method is a jest mock. */
 type FakeServices = Record<ServiceName, Record<string, jest.Mock>>;
@@ -759,6 +760,22 @@ const LIBRARY_CASES: ToolCase[] = [
     method: 'list',
     answer: { items: [CREATIVE], total: 1, page: 1, limit: 50 },
     expected: [PARENT_ID, CREATIVE_QUERY],
+  },
+  {
+    tool: 'geocode-addresses',
+    args: { addresses: ['1 rue de Rivoli'], countries: ['FR'] },
+    service: 'geocodingService',
+    method: 'geocode',
+    answer: { items: [] },
+    expected: [{ addresses: ['1 rue de Rivoli'], countries: ['FR'], language: 'fr' }],
+  },
+  {
+    tool: 'reverse-geocode-positions',
+    args: { points: [{ latitude: 48.86, longitude: 2.34 }], language: 'en' },
+    service: 'geocodingService',
+    method: 'reverseGeocode',
+    answer: { items: [] },
+    expected: [{ points: [{ latitude: 48.86, longitude: 2.34 }], language: 'en' }],
   },
   {
     tool: 'list-creative-lines',
@@ -1518,6 +1535,11 @@ function fakeServices(): FakeServices {
     previewService: { preview: jest.fn(), launch: jest.fn(), setStatus: jest.fn(), setNodeStatus: jest.fn() },
     syncService: { platformStatus: jest.fn(), requestSync: jest.fn(), retry: jest.fn() },
     geoService: { search: jest.fn(), byIds: jest.fn() },
+    geocodingService: {
+      status: jest.fn().mockReturnValue({ geocoding: false }),
+      geocode: jest.fn(),
+      reverseGeocode: jest.fn(),
+    },
     adAccountService: {
       list: jest.fn(),
       get: jest.fn(),
@@ -1645,6 +1667,7 @@ describe('Unit::Mcp::McpToolsE2E', () => {
         'get-creative-formats',
         'search-geo-locations',
         'get-geo-locations',
+        'get-geo-status',
         ...TOOL_CASES.map((toolCase: ToolCase): string => toolCase.tool),
       ];
 
@@ -1733,6 +1756,13 @@ describe('Unit::Mcp::McpToolsE2E', () => {
       expect(services.geoService.search).toHaveBeenCalledWith({ q: 'Paris', levels: ['city'], limit: 20 });
       expect(read.isError).toBeFalsy();
       expect(services.geoService.byIds).toHaveBeenCalledWith(['1006094']);
+    });
+
+    it('should say whether geocoding works here without naming an Organization', async (): Promise<void> => {
+      const result: ToolCallResult = await connection.client.callTool({ name: 'get-geo-status', arguments: {} });
+
+      expect(result.isError).toBeFalsy();
+      expect(result.structuredContent).toEqual({ geocoding: false });
     });
 
     it('should prefer the Organization the model names to the one of the connection', async (): Promise<void> => {

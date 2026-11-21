@@ -864,7 +864,12 @@ front doit en savoir est dans `error-codes.md`, « Le ciblage géographique » :
      elle refuse un pays que Google ne cible pas : une campagne lancée se modifie sans repasser par la
      preview, et l'envoyer sans eux la ferait diffuser plus large que demandé ;
    - Zod passe en 4.6.7, l'audit de la CI classant la 4.4.3 haute (GHSA-mrhx-c7xc-m3w5) ;
-3. **à faire** : le géocodage et la carte ;
+3. ✅ le géocodage et la carte : `POST /geo/geocode`, `POST /geo/reverse-geocode`, `POST /geo/map` et
+   `GET /geo/status`, Amazon Location Service transcrit de multi-search, les outils
+   `geocode-addresses`, `reverse-geocode-positions` et `get-geo-status` — ce dernier en plus de
+   multi-search (D21). La carte n'a pas d'outil : c'est une image pour une personne, dont un modèle n'a
+   que faire. Le rôle IAM des tâches gagne les trois actions d'Amazon Location, et l'API l'allume en
+   production (`GEO_ENABLED`) : **à appliquer par Lorin** (`terraform apply`) ;
 4. **à faire** : la preuve.
 
 **La preuve** (§ 8.1) : la campagne de test, son rayon réenregistré avec son pays, puis un

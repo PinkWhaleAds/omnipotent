@@ -77,9 +77,9 @@ resource "aws_iam_role_policy" "execution" {
   policy = data.aws_iam_policy_document.execution.json
 }
 
-# Task role: what the application itself may do. Its bucket, its secrets and, with IAM database
-# authentication, signing in to PostgreSQL as the application role; nothing else. A phase that needs another
-# AWS service (Amazon Location for the geocoding, Bedrock…) adds its statement here, scoped to its resources.
+# Task role: what the application itself may do. Its bucket, its secrets, the geocoding by Amazon Location and,
+# with IAM database authentication, signing in to PostgreSQL as the application role; nothing else. A phase that
+# needs another AWS service (Bedrock…) adds its statement here, scoped to its resources.
 resource "aws_iam_role" "task" {
   name               = "${var.name}-task"
   description        = "Omnipotent backend: its bucket, its secrets, database sign-in"
@@ -137,6 +137,22 @@ data "aws_iam_policy_document" "task" {
       "secretsmanager:PutSecretValue",
     ]
     resources = [local.organization_secrets_arn]
+  }
+
+  # Amazon Location v2 has no resource to create: the AWS-managed provider of the region is authorized
+  # (geocoding of the circles' addresses, the address of typed coordinates, static maps of the circles).
+  # Transcribed from multi-search (backend/docs/phase-10.md § 8.9).
+  statement {
+    sid = "AmazonLocation"
+    actions = [
+      "geo-places:Geocode",
+      "geo-places:ReverseGeocode",
+      "geo-maps:GetStaticMap",
+    ]
+    resources = [
+      "arn:aws:geo-places:${local.region}::provider/default",
+      "arn:aws:geo-maps:${local.region}::provider/default",
+    ]
   }
 
   # RDS IAM authentication: an authentication token for the application role only (not the master user).

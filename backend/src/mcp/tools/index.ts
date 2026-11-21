@@ -53,8 +53,8 @@ export function registerToolControllers(server: McpServer, fastify: FastifyInsta
   BudgetDayToolsController(server, fastify, context);
   // The targeting of the TargetingGroups, the lists it references and the keywords it buys.
   TargetingToolsController(server, fastify, context);
-  // The referential of places its location dimension takes, the same for every Organization.
-  GeoToolsController(server, fastify);
+  // The referential of places its location dimension takes, and the geocoding of its circles.
+  GeoToolsController(server, fastify, context);
   ListToolsController(server, fastify, context);
   KeywordToolsController(server, fastify, context);
   // The library of an Advertiser: the bytes, then what is assembled from them.

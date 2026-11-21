@@ -122,6 +122,15 @@ run "apply_with_defaults" {
   }
 
   assert {
+    condition = (
+      local.api_environment["GEO_ENABLED"] == "true" &&
+      local.api_environment["GEO_REGION"] == "eu-north-1" &&
+      !contains(keys(local.common_environment), "GEO_ENABLED")
+    )
+    error_message = "The API geocodes with Amazon Location of the region; the worker never calls it."
+  }
+
+  assert {
     condition     = length(module.guardduty) == 1 && output.guardduty_detector_id != null
     error_message = "GuardDuty is on by default."
   }

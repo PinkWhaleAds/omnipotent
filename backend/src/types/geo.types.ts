@@ -125,3 +125,170 @@ export const geoPlaceSchema = z.strictObject({
 
 /** TypeScript type inferred from {@link geoPlaceSchema}. */
 export type GeoPlace = z.infer<typeof geoPlaceSchema>;
+
+/** Most addresses geocoded, or positions reverse geocoded, in one call. */
+export const GEOCODE_MAX_ITEMS = 100;
+
+/** Most circles drawn on one static map. */
+export const GEO_MAP_MAX_CIRCLES = 50;
+
+/** Languages the labels of the geocoding and the maps are written in: those of the interface. */
+export const geoLanguageSchema = z.enum(['en', 'fr']);
+
+/** A latitude, WGS 84 degrees. */
+const latitudeSchema = z.number().min(-90).max(90);
+
+/** A longitude, WGS 84 degrees. */
+const longitudeSchema = z.number().min(-180).max(180);
+
+/**
+ * Why one address or position found nothing:
+ * - `geo_address_not_found`: no place matches the address (in the countries asked);
+ * - `geo_position_not_found`: no address near the position;
+ * - `geo_lookup_failed`: Amazon Location failed on this item (try it again later).
+ */
+export const geoLookupErrorCodeSchema = z.enum([
+  'geo_address_not_found',
+  'geo_position_not_found',
+  'geo_lookup_failed',
+]);
+
+/** TypeScript type inferred from {@link geoLookupErrorCodeSchema}. */
+export type GeoLookupErrorCode = z.infer<typeof geoLookupErrorCodeSchema>;
+
+/**
+ * Zod schema of the body geocoding addresses.
+ *
+ * @property addresses - Free-text addresses, 1 to 100, each 1 to 200 characters
+ * @property countries - Only results in these countries (100 at most); anywhere when absent
+ * @property language - Language of the labels found (`fr` by default)
+ */
+export const geocodeBodySchema = z.strictObject({
+  addresses: z.array(z.string().trim().min(1).max(200)).min(1).max(GEOCODE_MAX_ITEMS),
+  countries: z.array(geoCountryCodeSchema).min(1).max(100).optional(),
+  language: geoLanguageSchema.default('fr'),
+});
+
+/** TypeScript type inferred from {@link geocodeBodySchema}, after defaults apply. */
+export type GeocodeBody = z.infer<typeof geocodeBodySchema>;
+
+/**
+ * Zod schema of the result of one address, in the order of the request: either the place found and
+ * `errorCode` null, or every field null but `address` and `errorCode`.
+ *
+ * @property address - The address, as sent (trimmed)
+ * @property latitude - WGS 84 degrees
+ * @property longitude - WGS 84 degrees
+ * @property label - The address found, written in full (« 10 Rue de Rivoli, 75004 Paris, France »)
+ * @property countryCode - ISO 3166-1 alpha-2 country of the place found: the `countryCode` of its circle
+ * @property errorCode - Why nothing was found, see {@link geoLookupErrorCodeSchema}
+ */
+export const geocodeResultSchema = z.object({
+  address: z.string(),
+  latitude: z.number().nullable(),
+  longitude: z.number().nullable(),
+  label: z.string().nullable(),
+  countryCode: z.string().nullable(),
+  errorCode: geoLookupErrorCodeSchema.nullable(),
+});
+
+/** TypeScript type inferred from {@link geocodeResultSchema}. */
+export type GeocodeResult = z.infer<typeof geocodeResultSchema>;
+
+/** Zod schema of the answer of a geocoding: one result per address, in order. */
+export const geocodeResultListSchema = z.object({
+  items: z.array(geocodeResultSchema),
+});
+
+/** TypeScript type inferred from {@link geocodeResultListSchema}. */
+export type GeocodeResultList = z.infer<typeof geocodeResultListSchema>;
+
+/** Zod schema of a position (WGS 84 degrees). */
+export const geoPositionSchema = z.strictObject({ latitude: latitudeSchema, longitude: longitudeSchema });
+
+/** TypeScript type inferred from {@link geoPositionSchema}. */
+export type GeoPosition = z.infer<typeof geoPositionSchema>;
+
+/**
+ * Zod schema of the body reverse geocoding positions.
+ *
+ * @property points - Positions, 1 to 100
+ * @property language - Language of the labels found (`fr` by default)
+ */
+export const reverseGeocodeBodySchema = z.strictObject({
+  points: z.array(geoPositionSchema).min(1).max(GEOCODE_MAX_ITEMS),
+  language: geoLanguageSchema.default('fr'),
+});
+
+/** TypeScript type inferred from {@link reverseGeocodeBodySchema}, after defaults apply. */
+export type ReverseGeocodeBody = z.infer<typeof reverseGeocodeBodySchema>;
+
+/**
+ * Zod schema of the result of one position, in the order of the request.
+ *
+ * @property latitude - The position, as sent
+ * @property longitude - The position, as sent
+ * @property label - The nearest address, written in full; `null` when nothing was found
+ * @property countryCode - ISO 3166-1 alpha-2 country of that address; `null` when nothing was found
+ * @property errorCode - Why nothing was found, see {@link geoLookupErrorCodeSchema}
+ */
+export const reverseGeocodeResultSchema = z.object({
+  latitude: z.number(),
+  longitude: z.number(),
+  label: z.string().nullable(),
+  countryCode: z.string().nullable(),
+  errorCode: geoLookupErrorCodeSchema.nullable(),
+});
+
+/** TypeScript type inferred from {@link reverseGeocodeResultSchema}. */
+export type ReverseGeocodeResult = z.infer<typeof reverseGeocodeResultSchema>;
+
+/** Zod schema of the answer of a reverse geocoding: one result per position, in order. */
+export const reverseGeocodeResultListSchema = z.object({
+  items: z.array(reverseGeocodeResultSchema),
+});
+
+/** TypeScript type inferred from {@link reverseGeocodeResultListSchema}. */
+export type ReverseGeocodeResultList = z.infer<typeof reverseGeocodeResultListSchema>;
+
+/** Zod schema of a circle drawn on a map: the centre and the radius of a circle of `proximity`. */
+export const geoMapCircleSchema = z.strictObject({
+  latitude: latitudeSchema,
+  longitude: longitudeSchema,
+  radiusKm: z.number().positive().max(1_000),
+});
+
+/** TypeScript type inferred from {@link geoMapCircleSchema}. */
+export type GeoMapCircle = z.infer<typeof geoMapCircleSchema>;
+
+/**
+ * Zod schema of the body drawing circles on a static map, framed on them.
+ *
+ * @property circles - The circles, 1 to 50
+ * @property width - Width of the image in pixels (64 to 1400, 640 by default)
+ * @property height - Height of the image in pixels (64 to 1400, 400 by default)
+ * @property language - Language of the map labels (`fr` by default)
+ */
+export const geoMapBodySchema = z.strictObject({
+  circles: z.array(geoMapCircleSchema).min(1).max(GEO_MAP_MAX_CIRCLES),
+  width: z.number().int().min(64).max(1400).default(640),
+  height: z.number().int().min(64).max(1400).default(400),
+  language: geoLanguageSchema.default('fr'),
+});
+
+/** TypeScript type inferred from {@link geoMapBodySchema}, after defaults apply. */
+export type GeoMapBody = z.infer<typeof geoMapBodySchema>;
+
+/**
+ * Zod schema of what the geo services can do in this environment.
+ *
+ * @property geocoding - Whether addresses and positions are geocoded and maps drawn (Amazon Location
+ *   Service); without it, those routes answer 503 `geo_service_unavailable`, and a circle is placed by
+ *   its coordinates
+ */
+export const geoStatusSchema = z.object({
+  geocoding: z.boolean(),
+});
+
+/** TypeScript type inferred from {@link geoStatusSchema}. */
+export type GeoStatus = z.infer<typeof geoStatusSchema>;

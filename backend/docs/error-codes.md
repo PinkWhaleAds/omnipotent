@@ -284,14 +284,27 @@ qui diffusent plus large qu'il ne le montre.
   TargetingGroup, une dimension à la fois : `country`, `location` et `proximity` s'écrivent chacune par
   sa route.
 
-### Le référentiel des lieux
+### Le référentiel des lieux et le géocodage
 
-`src/services/geo.service.ts` (`docs/phase-10.md` § 8.9). Ses routes ne nomment aucune Organization :
-le référentiel est le même pour tous.
+`src/services/{geo,geocoding}.service.ts` (`docs/phase-10.md` § 8.9). Les routes du référentiel ne
+nomment aucune Organization : il est le même pour tous. Celles du géocodage et de la carte en nomment
+une, dont elles consomment le plafond horaire.
 
-| Code                   | Statut | Quand                                                                                                        | `params` |
-| ---------------------- | ------ | ------------------------------------------------------------------------------------------------------------ | -------- |
-| `geo_search_too_short` | 400    | Le texte cherché a moins de `min` lettres ou chiffres, une fois la casse, les accents et la ponctuation ôtés | `min`    |
+| Code                       | Statut | Quand                                                                                                                              | `params` |
+| -------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `geo_search_too_short`     | 400    | Le texte cherché a moins de `min` lettres ou chiffres, une fois la casse, les accents et la ponctuation ôtés                       | `min`    |
+| `geo_hourly_limit_reached` | 429    | L'Organization a demandé `limit` adresses, positions ou cartes dans l'heure : un garde-fou contre une boucle, compté par processus | `limit`  |
+| `geo_service_unavailable`  | 503    | Le géocodage et les cartes ne sont pas disponibles ici (`GET /geo/status`) : placer le rayon par ses coordonnées                   | `{}`     |
+| `geo_map_failed`           | 502    | Amazon Location n'a pas dessiné la carte                                                                                           | `{}`     |
+
+Une adresse ou une position introuvable **n'est pas une erreur de la requête** : la réponse est un 200,
+et l'élément porte son propre code dans `errorCode`, à côté des autres :
+
+| `errorCode`              | Quand                                                          |
+| ------------------------ | -------------------------------------------------------------- |
+| `geo_address_not_found`  | Aucun lieu ne correspond à l'adresse, dans les pays demandés   |
+| `geo_position_not_found` | Aucune adresse près de la position                             |
+| `geo_lookup_failed`      | Amazon Location a échoué sur cet élément : réessayer plus tard |
 
 ### Les listes
 

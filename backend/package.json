@@ -35,6 +35,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-geo-maps": "~3.1156.0",
+    "@aws-sdk/client-geo-places": "~3.1156.0",
     "@aws-sdk/client-s3": "^3.1152.0",
     "@aws-sdk/client-secrets-manager": "^3.1152.0",
     "@aws-sdk/rds-signer": "^3.1152.0",

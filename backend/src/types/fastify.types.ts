@@ -28,6 +28,7 @@ import type {
 import type { AuthContext, AuthMode } from './auth.types';
 import type { GeoImportService } from '@src/services/geo-import.service';
 import type { GeoService } from '@src/services/geo.service';
+import type { GeocodingService } from '@src/services/geocoding.service';
 import type { ReviewService } from '@src/services/review.service';
 import type { SyncScheduler, SyncService } from '@src/services/sync.service';
 import type { CallJournal } from '@src/services/platform-call.service';
@@ -106,6 +107,8 @@ declare module 'fastify' {
     geoService: GeoService;
     /** What loads that referential, every month and on an empty database. */
     geoImportService: GeoImportService;
+    /** Addresses into circles, and maps of them, by Amazon Location Service. */
+    geocodingService: GeocodingService;
     /** One line per call to a platform: what a failed sync is debugged with. */
     platformCallJournal: CallJournal;
     assetService: AssetService;

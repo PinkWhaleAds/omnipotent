@@ -136,6 +136,11 @@ locals {
     # The client address of the access log and the rate limits: the CloudFront-Viewer-Address header the API
     # distribution adds (the load balancer only accepts requests coming through CloudFront).
     TRUST_CLOUDFRONT_VIEWER_ADDRESS = "true"
+
+    # The geocoding and the maps of the circles, by Amazon Location of the region, with the task role
+    # (backend/docs/phase-10.md § 8.9). Off by default in the backend, so local development reaches no AWS.
+    GEO_ENABLED = "true"
+    GEO_REGION  = var.region
   })
 
   # Read by the ECS agent at task start: the RDS-managed master password (key "password" of its JSON), for the
