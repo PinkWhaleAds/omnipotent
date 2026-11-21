@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 
-import { ListEntity, PlatformUnitEntity, TargetingGroupEntity } from '@src/database/entities';
+import { GeoLocationEntity, ListEntity, PlatformUnitEntity, TargetingGroupEntity } from '@src/database/entities';
 import TargetingServicePlugin, { TargetingService } from '@src/services/targeting.service';
 import { Targeting, TargetingResponse } from '@src/types';
 import { AccessServiceMock, buildServiceApp, createAccessMock } from '@test/unit/mocks/access.mock';
@@ -13,6 +13,28 @@ const NODE_ID = 'f4000000-0000-4000-8000-000000000001';
 
 /** The list the specs reference. */
 const LIST_ID = 'fa000000-0000-4000-8000-000000000001';
+
+/**
+ * A place of the referential, as its row stands.
+ *
+ * @param overrides - Columns to change
+ * @returns The row
+ */
+function place(overrides: Partial<GeoLocationEntity> = {}): GeoLocationEntity {
+  return {
+    id: '1006094',
+    name: 'Paris',
+    canonicalName: 'Paris,Paris,Ile-de-France,France',
+    searchText: 'paris | paris paris ile de france france',
+    parentId: '20321',
+    countryCode: 'FR',
+    targetType: 'City',
+    level: 'city',
+    status: 'Active',
+    updatedAt: NOW,
+    ...overrides,
+  };
+}
 
 /**
  * The node as its row stands.
@@ -49,13 +71,15 @@ function node(overrides: Partial<TargetingGroupEntity> = {}): TargetingGroupEnti
 describe('Unit::Services::TargetingService', () => {
   let db: DataSourceMock;
   let access: AccessServiceMock;
+  let geo: { findByIds: jest.Mock };
   let service: TargetingService;
 
   beforeEach((): void => {
     jest.clearAllMocks();
     db = createDataSourceMock();
     access = createAccessMock();
-    service = new TargetingService(db.dataSource, access as never);
+    geo = { findByIds: jest.fn().mockResolvedValue(new Map()) };
+    service = new TargetingService(db.dataSource, access as never, geo as never);
     db.manager.findOne.mockResolvedValue(node());
   });
 
@@ -213,6 +237,144 @@ describe('Unit::Services::TargetingService', () => {
     });
   });
 
+  describe('the places of location', () => {
+    it('should fill each place from the referential, whatever the caller typed beside its id', async (): Promise<void> => {
+      geo.findByIds.mockResolvedValue(
+        new Map([
+          ['1006094', place()],
+          [
+            '9056126',
+            place({ id: '9056126', name: '75001', canonicalName: '75001,Ile-de-France,France', level: 'postal_code' }),
+          ],
+        ])
+      );
+
+      const answer: TargetingResponse = await service.setDimension(JANE, IDS.organization, NODE_ID, 'location', {
+        include: [{ id: '1006094', name: 'Lyon', countryCode: 'BE' }],
+        exclude: [{ id: '9056126' }],
+      });
+
+      const location = {
+        include: [
+          {
+            id: '1006094',
+            level: 'city',
+            name: 'Paris',
+            canonicalName: 'Paris,Paris,Ile-de-France,France',
+            countryCode: 'FR',
+          },
+        ],
+        exclude: [
+          {
+            id: '9056126',
+            level: 'postal_code',
+            name: '75001',
+            canonicalName: '75001,Ile-de-France,France',
+            countryCode: 'FR',
+          },
+        ],
+      };
+      expect(answer.targeting).toEqual({ location });
+      expect(geo.findByIds).toHaveBeenCalledWith(['1006094', '9056126']);
+      expect(db.manager.update).toHaveBeenCalledWith(
+        TargetingGroupEntity,
+        { id: NODE_ID },
+        { targeting: { location } }
+      );
+    });
+
+    it('should fill the places of a whole targeting too', async (): Promise<void> => {
+      geo.findByIds.mockResolvedValue(new Map([['1006094', place()]]));
+
+      const answer: TargetingResponse = await service.replace(JANE, IDS.organization, NODE_ID, {
+        country: { include: ['FR'] },
+        location: { include: [{ id: '1006094' }] },
+      } as unknown as Targeting);
+
+      expect(answer.targeting).toMatchObject({
+        location: { include: [{ id: '1006094', name: 'Paris' }], exclude: [] },
+      });
+    });
+
+    it('should refuse an id the referential does not hold, each once', async (): Promise<void> => {
+      geo.findByIds.mockResolvedValue(new Map([['1006094', place()]]));
+
+      await expect(
+        service.setDimension(JANE, IDS.organization, NODE_ID, 'location', {
+          include: [{ id: '1006094' }, { id: '42' }],
+          exclude: [{ id: '43' }, { id: '42' }],
+        })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        errorCode: 'targeting_location_unknown',
+        errorParams: { ids: '42, 43' },
+      });
+      expect(db.manager.update).not.toHaveBeenCalled();
+    });
+
+    it('should refuse a country, a place of a level not offered, one without country, and one Google is removing', async (): Promise<void> => {
+      geo.findByIds.mockResolvedValue(
+        new Map([
+          ['2250', place({ id: '2250', level: 'country' })],
+          ['1', place({ id: '1', level: null })],
+          ['2', place({ id: '2', countryCode: null })],
+          ['3', place({ id: '3', status: 'Removal Planned' })],
+          ['1006094', place()],
+        ])
+      );
+
+      await expect(
+        service.setDimension(JANE, IDS.organization, NODE_ID, 'location', {
+          include: [{ id: '2250' }, { id: '1' }, { id: '2' }, { id: '3' }, { id: '1006094' }],
+        })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        errorCode: 'targeting_location_not_targetable',
+        errorParams: { ids: '2250, 1, 2, 3' },
+      });
+    });
+
+    it('should not read the referential for a targeting without places', async (): Promise<void> => {
+      await service.setDimension(JANE, IDS.organization, NODE_ID, 'country', { include: ['FR'] });
+
+      expect(geo.findByIds).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('the circles of proximity', () => {
+    it('should keep a circle with its country and the address it came from', async (): Promise<void> => {
+      const point = {
+        latitude: 48.86,
+        longitude: 2.35,
+        radiusKm: 5,
+        countryCode: 'FR',
+        address: '1 rue de Rivoli, Paris',
+      };
+
+      const answer: TargetingResponse = await service.setDimension(JANE, IDS.organization, NODE_ID, 'proximity', {
+        points: [point],
+      });
+
+      expect(answer.targeting).toEqual({ proximity: { points: [point] } });
+    });
+
+    it('should refuse a circle without its country, the country it replaces', async (): Promise<void> => {
+      await expect(
+        service.setDimension(JANE, IDS.organization, NODE_ID, 'proximity', {
+          points: [
+            { latitude: 48.86, longitude: 2.35, radiusKm: 5, countryCode: 'FR' },
+            { latitude: 45.76, longitude: 4.84, radiusKm: 5 },
+          ],
+        })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        errorCode: 'targeting_criteria_invalid',
+        errorParams: { dimension: 'proximity', reason: 'every point needs its countryCode, the country it replaces' },
+      });
+      expect(db.manager.update).not.toHaveBeenCalled();
+    });
+  });
+
   describe('removeDimension', () => {
     it('should drop the dimension and keep the others', async (): Promise<void> => {
       db.manager.findOne.mockResolvedValue(
@@ -268,7 +430,7 @@ describe('Unit::Services::TargetingService', () => {
 
   describe('TargetingServicePlugin', () => {
     it('should decorate the instance with a TargetingService wired to its dependencies', async (): Promise<void> => {
-      const app: FastifyInstance = await buildServiceApp([TargetingServicePlugin], { db, access });
+      const app: FastifyInstance = await buildServiceApp([TargetingServicePlugin], { db, access, geo });
 
       expect(app.targetingService).toBeInstanceOf(TargetingService);
       await expect(app.targetingService.get(JANE, IDS.organization, NODE_ID)).resolves.toMatchObject({

@@ -58,6 +58,7 @@ function hawkRules(overrides: Partial<PlatformRules> = {}): PlatformRules {
     settings: {},
     locationIntent: false,
     extensions: false,
+    geo: { levels: [], excludedLevels: [], maxRadii: null },
     ...overrides,
   };
 }
@@ -615,6 +616,121 @@ describe('Unit::Services::PreviewService', () => {
       const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
 
       expect(preview.errors).toEqual([]);
+    });
+  });
+
+  describe('the places and circles (D57)', () => {
+    /** Places of the referential, as the targeting service fills them. */
+    const PARIS = {
+      id: '1006094',
+      level: 'city',
+      name: 'Paris',
+      canonicalName: 'Paris,Paris,Ile-de-France,France',
+      countryCode: 'FR',
+    };
+    const PARIS_1ST = { ...PARIS, id: '9056126', level: 'postal_code', name: '75001' };
+    const BRUSSELS = { ...PARIS, id: '1001004', name: 'Brussels', countryCode: 'BE' };
+
+    it('should refuse a place or a circle outside the countries the TargetingGroup includes, on every platform', async (): Promise<void> => {
+      seedComplete({
+        node: {
+          targeting: {
+            country: { include: ['FR'], exclude: [] },
+            location: { include: [PARIS, BRUSSELS], exclude: [] },
+            proximity: { points: [{ latitude: 48.86, longitude: 2.35, radiusKm: 5, label: 'Châtelet' }] },
+          },
+        },
+      });
+
+      const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+      expect(preview.errors).toContainEqual({
+        code: 'preview_geo_outside_countries',
+        params: { count: 2, names: 'Brussels, Châtelet' },
+        level: 'targeting_group',
+        nodeId: NODE_ID,
+        platform: null,
+      });
+      expect(preview.launchable).toBe(false);
+    });
+
+    it('should say where a platform serves a country whole, with the money, and what it does not exclude', async (): Promise<void> => {
+      registry.hawk = { dooh: hawkRules({ geo: { levels: ['region'], excludedLevels: [], maxRadii: null } }) };
+      seedComplete({
+        node: {
+          targeting: {
+            country: { include: ['FR'], exclude: [] },
+            location: { include: [PARIS], exclude: [PARIS_1ST] },
+          },
+        },
+      });
+
+      const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+      expect(preview.warnings).toEqual(
+        expect.arrayContaining([
+          {
+            code: 'preview_geo_widened_to_country',
+            params: { platform: 'hawk', country: 'FR', reasons: 'level', cents: 100_000 },
+            level: 'targeting_group',
+            nodeId: NODE_ID,
+            platform: 'hawk',
+          },
+          {
+            code: 'preview_geo_exclusions_ignored',
+            params: { platform: 'hawk', count: 1, names: '75001' },
+            level: 'targeting_group',
+            nodeId: NODE_ID,
+            platform: 'hawk',
+          },
+        ])
+      );
+      // The plan says it with the country: the places are not also reported as dropped.
+      expect(codes(preview.warnings)).not.toContain('preview_targeting_dropped');
+      expect(codes(preview.errors)).not.toContain('preview_geo_outside_countries');
+    });
+
+    it('should refuse more circles than one object of the platform takes', async (): Promise<void> => {
+      registry.hawk = { dooh: hawkRules({ geo: { levels: [], excludedLevels: [], maxRadii: 1 } }) };
+      const circle = { latitude: 48.86, longitude: 2.35, radiusKm: 5, countryCode: 'FR' };
+      seedComplete({
+        node: {
+          targeting: {
+            country: { include: ['FR'], exclude: [] },
+            proximity: { points: [circle, { ...circle, radiusKm: 9 }] },
+          },
+        },
+      });
+
+      const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+      expect(preview.errors).toContainEqual({
+        code: 'preview_geo_too_many_radii',
+        params: { platform: 'hawk', count: 2, max: 1 },
+        level: 'targeting_group',
+        nodeId: NODE_ID,
+        platform: 'hawk',
+      });
+    });
+
+    it('should say nothing of a TargetingGroup whose places the platform targets', async (): Promise<void> => {
+      registry.hawk = { dooh: hawkRules({ geo: { levels: ['city'], excludedLevels: ['postal_code'], maxRadii: 10 } }) };
+      seedComplete({
+        node: {
+          targeting: {
+            country: { include: ['FR'], exclude: [] },
+            location: { include: [PARIS], exclude: [PARIS_1ST] },
+          },
+        },
+      });
+
+      const preview: Preview = await service.preview(JANE, IDS.organization, CAMPAIGN_ID);
+
+      expect(
+        codes([...preview.errors, ...preview.warnings]).filter((code: string): boolean =>
+          code.startsWith('preview_geo')
+        )
+      ).toEqual([]);
     });
   });
 

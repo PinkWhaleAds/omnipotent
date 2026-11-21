@@ -675,7 +675,7 @@ describe('Unit::Platforms::Google::Apply', () => {
               bidStrategy: 'max_cpc',
               targeting: {
                 country: { include: ['FR'], exclude: [] },
-                proximity: { points: [{ latitude: 48.85, longitude: 2.35, radiusKm: 5 }] },
+                proximity: { points: [{ latitude: 48.85, longitude: 2.35, radiusKm: 5, countryCode: 'FR' }] },
                 device: { include: ['mobile'], exclude: [] },
               },
             },
@@ -788,6 +788,8 @@ describe('Unit::Platforms::Google::Apply', () => {
       expect(operations).toContainEqual({ campaignAssetOperation: { remove: `${CAMPAIGN}~c1` } });
       expect(operations).toContainEqual({ campaignAssetOperation: { remove: `${CAMPAIGN}~x` } });
       expect(operations).toContainEqual({ campaignCriterionOperation: { remove: `${CAMPAIGN}~be` } });
+      // France is replaced by its circle, never sent beside it: Google would serve the whole country (D57).
+      expect(operations).toContainEqual({ campaignCriterionOperation: { remove: `${CAMPAIGN}~1` } });
       expect(operations).not.toContainEqual(
         expect.objectContaining({
           adGroupAdOperation: expect.objectContaining({

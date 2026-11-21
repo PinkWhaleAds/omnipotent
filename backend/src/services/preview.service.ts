@@ -46,6 +46,7 @@ import { AccessService } from './access.service';
 import { CampaignService } from './campaign.service';
 import { rulesOfCouple } from '@src/creatives/creative-formats';
 import { adapterOf, hasAdapterFor } from '@src/platforms/platform-adapter';
+import { geoNameOf, GeoOutside, GeoPlan, outsideCountries, planGeo, PLANNED_DIMENSIONS } from '@src/platforms/geo-plan';
 import { countByObject, ProjectedObject, projectObjects } from '@src/platforms/projection';
 import { adGroupStructure, CampaignTree, leverStructure, readCampaignTree } from './campaign-tree.helpers';
 import { dayAt, nextAppointment, nextLocalMidnight, resolveCampaignTimezone, startInstant } from './pacing.helpers';
@@ -407,6 +408,20 @@ export class PreviewService {
       }
     }
     for (const node of tree.targetingGroups) {
+      // The countries are the limit of a TargetingGroup (D57): a place or a circle outside them has no
+      // country to replace, so it would be sent nowhere, or beside the whole country.
+      const outside: GeoOutside = outsideCountries(node.targeting);
+      const strays: string[] = [...outside.places, ...outside.radii].map(geoNameOf);
+      if (strays.length > 0) {
+        errors.push(
+          this.finding(
+            'preview_geo_outside_countries',
+            { count: strays.length, names: strays.join(', ') },
+            'targeting_group',
+            node.id
+          )
+        );
+      }
       const lines: LineEntity[] = tree.lines.filter((line: LineEntity): boolean => line.targetingGroupId === node.id);
       if (lines.length === 0) {
         errors.push(this.finding('preview_line_missing', { name: node.name }, 'targeting_group', node.id));
@@ -522,6 +537,7 @@ export class PreviewService {
         });
         if (projection) this.checkCreatives(tree, lever, platform as Platform, errors, warnings);
         if (projection) this.checkTargeting(tree, lever, platform as Platform, effectiveCents, warnings);
+        if (projection) this.checkGeo(tree, lever, platform as Platform, effectiveCents, errors, warnings);
         if (projection) this.checkLimits(tree, lever, projection, platform as Platform, errors, warnings);
       }
     }
@@ -690,13 +706,79 @@ export class PreviewService {
     for (const node of tree.targetingGroups.filter(
       (node: TargetingGroupEntity): boolean => node.lever === lever.lever
     )) {
-      const asked: TargetingDimension[] = Object.keys(node.targeting) as TargetingDimension[];
+      // The places and the circles are the plan's to judge: see `checkGeo`.
+      const asked: TargetingDimension[] = (Object.keys(node.targeting) as TargetingDimension[]).filter(
+        (dimension: TargetingDimension): boolean => !PLANNED_DIMENSIONS.includes(dimension)
+      );
       if (asked.length === 0) continue;
       for (const dimension of unsupportedDimensions(platform, lever.lever, asked)) {
         warnings.push(
           this.finding(
             'preview_targeting_dropped',
             { dimension, cents: effectiveCents },
+            'targeting_group',
+            node.id,
+            platform
+          )
+        );
+      }
+    }
+  }
+
+  /**
+   * Say what a platform makes of the places and circles of each TargetingGroup (D57,
+   * `docs/phase-10.md` § 8.9): a country it serves whole because it cannot target one of them, with the
+   * money that delivers there wider than asked; the excluded places it cannot exclude; and more circles
+   * than one of its objects takes, an error.
+   *
+   * @param tree - The tree
+   * @param lever - The lever being projected
+   * @param platform - The platform
+   * @param effectiveCents - What that platform receives
+   * @param errors - Collected errors
+   * @param warnings - Collected warnings
+   * @returns Nothing
+   */
+  private checkGeo(
+    tree: CampaignTree,
+    lever: LeverEntity,
+    platform: Platform,
+    effectiveCents: number,
+    errors: PreviewFinding[],
+    warnings: PreviewFinding[]
+  ): void {
+    const rules: PlatformRules = rulesOf(platform, lever.lever);
+    for (const node of tree.targetingGroups.filter(
+      (node: TargetingGroupEntity): boolean => node.lever === lever.lever
+    )) {
+      const plan: GeoPlan = planGeo(node.targeting, rules.geo);
+      for (const { country, reasons } of plan.widened) {
+        warnings.push(
+          this.finding(
+            'preview_geo_widened_to_country',
+            { platform, country, reasons: reasons.join(', '), cents: effectiveCents },
+            'targeting_group',
+            node.id,
+            platform
+          )
+        );
+      }
+      if (plan.ignoredExclusions.length > 0) {
+        warnings.push(
+          this.finding(
+            'preview_geo_exclusions_ignored',
+            { platform, count: plan.ignoredExclusions.length, names: plan.ignoredExclusions.map(geoNameOf).join(', ') },
+            'targeting_group',
+            node.id,
+            platform
+          )
+        );
+      }
+      if (plan.tooManyRadii !== null) {
+        errors.push(
+          this.finding(
+            'preview_geo_too_many_radii',
+            { platform, ...plan.tooManyRadii },
             'targeting_group',
             node.id,
             platform

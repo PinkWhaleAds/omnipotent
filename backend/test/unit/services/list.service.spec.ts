@@ -376,6 +376,7 @@ describe('Unit::Services::ListService', () => {
   describe('ListServicePlugin', () => {
     it('should decorate the instance with a ListService wired to its dependencies', async (): Promise<void> => {
       const app: FastifyInstance = await buildServiceApp([TargetingServicePlugin, ListServicePlugin], {
+        geo: {},
         db,
         access,
       });

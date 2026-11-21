@@ -83,6 +83,8 @@ export async function buildServiceApp(
     jobQueue?: unknown;
     /** The engine and its scheduler, for a plugin that depends on `SyncServicePlugin`. */
     sync?: { service: unknown; scheduler: unknown };
+    /** The referential of places, for a plugin that depends on `GeoServicePlugin`. */
+    geo?: unknown;
   }
 ): Promise<FastifyInstance> {
   const app: FastifyInstance = Fastify();
@@ -172,6 +174,16 @@ export async function buildServiceApp(
           instance.decorate('syncScheduler', dependencies.sync?.scheduler as never);
         },
         { name: 'SyncServicePlugin' }
+      )
+    );
+  }
+  if (dependencies.geo !== undefined) {
+    await app.register(
+      fastifyPlugin(
+        async (instance: FastifyInstance): Promise<void> => {
+          instance.decorate('geoService', dependencies.geo as never);
+        },
+        { name: 'GeoServicePlugin' }
       )
     );
   }

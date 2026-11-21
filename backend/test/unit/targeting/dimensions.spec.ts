@@ -40,7 +40,17 @@ const EXAMPLES: Partial<Record<TargetingDimension, Example>> = {
   position: { valid: { include: ['above_fold'] }, invalid: { include: ['top'] } },
   interstitial_parallax: { valid: { include: ['parallax'] }, invalid: { include: ['both'] } },
   demographics: { valid: { ageRanges: ['25_34'], genders: ['female'] }, invalid: { ageRanges: ['25-34'] } },
-  proximity: { valid: { points: [{ latitude: 48.86, longitude: 2.35, radiusKm: 5 }] }, invalid: { points: [] } },
+  // A place is told apart by its id: the same one on both sides is refused, whatever else it carries.
+  location: {
+    valid: { include: [{ id: '1006094' }], exclude: [{ id: '9056126', level: 'postal_code' }] },
+    invalid: { include: [{ id: '1006094' }], exclude: [{ id: '1006094', name: 'Paris' }] },
+  },
+  proximity: {
+    valid: {
+      points: [{ latitude: 48.86, longitude: 2.35, radiusKm: 5, countryCode: 'FR', address: '1 rue de Rivoli' }],
+    },
+    invalid: { points: [] },
+  },
   gps: {
     valid: { shapes: [{ kind: 'circle', label: 'Bastille', latitude: 48.85, longitude: 2.37, radiusKm: 1.5 }] },
     invalid: { shapes: [{ kind: 'circle', label: 'Bastille', latitude: 148.85, longitude: 2.37, radiusKm: 1.5 }] },

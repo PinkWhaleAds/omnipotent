@@ -857,8 +857,13 @@ front doit en savoir est dans `error-codes.md`, « Le ciblage géographique » :
    fichier de Google et le job `geo.import`, la recherche (`GET /geo/locations`,
    `GET /geo/locations/by-ids`) et ses outils MCP, `search-geo-locations` et `get-geo-locations` —
    ce dernier en plus de multi-search, chaque route ayant son outil (D21) ;
-2. **à faire** : `location` relié au référentiel, le pays de chaque rayon, le plan géographique, la
-   preview et les critères de lieu chez Google ;
+2. ✅ `location` relié au référentiel, le pays de chaque rayon, le plan géographique (`geo-plan.ts`) et
+   ce que le registre en déclare, la preview et les critères de lieu chez Google. La France de la
+   campagne de test part dès que son rayon est réenregistré avec son pays. Deux choses de plus :
+   - **une synchro refuse** un lieu ou un rayon hors des pays (`google_geo_outside_countries`), comme
+     elle refuse un pays que Google ne cible pas : une campagne lancée se modifie sans repasser par la
+     preview, et l'envoyer sans eux la ferait diffuser plus large que demandé ;
+   - Zod passe en 4.6.7, l'audit de la CI classant la 4.4.3 haute (GHSA-mrhx-c7xc-m3w5) ;
 3. **à faire** : le géocodage et la carte ;
 4. **à faire** : la preuve.
 

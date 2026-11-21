@@ -107,12 +107,12 @@ const adGroup = await call('POST', `/levers/${lever.id}/ad-groups`, {
 });
 say(`${adGroup.name}, ${adGroup.bidStrategy}, ${adGroup.bidAmountCents} centimes (${adGroup.id})`);
 
-title('Le ciblage : la France, et 20 km autour de Paris');
+title('Le ciblage : 20 km autour de Paris, qui remplace la France (D57)');
 const node = await call('POST', `/ad-groups/${adGroup.id}/targeting-groups`, { name: 'Île-de-France' });
 await call('PUT', `/targeting-groups/${node.id}/targeting`, {
   targeting: {
     country: { include: ['FR'] },
-    proximity: { points: [{ latitude: 48.8566, longitude: 2.3522, radiusKm: 20, label: 'Paris' }] },
+    proximity: { points: [{ latitude: 48.8566, longitude: 2.3522, radiusKm: 20, label: 'Paris', countryCode: 'FR' }] },
   },
 });
 say(`${node.name} (${node.id})`);

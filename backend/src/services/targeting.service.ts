@@ -2,12 +2,23 @@ import { FastifyInstance } from 'fastify';
 import fastifyPlugin from 'fastify-plugin';
 import { DataSource, EntityManager, In, IsNull } from 'typeorm';
 
-import { ListEntity, TargetingGroupEntity } from '@src/database/entities';
+import { GeoLocationEntity, ListEntity, TargetingGroupEntity } from '@src/database/entities';
+import { ACTIVE_STATUS } from '@src/geo/google-geo-targets';
 import { assertDimensionPermitted, targetingDimensionsOf } from '@src/levers/lever-profiles';
 import { allDimensions, listKindOf, parseTargeting } from '@src/targeting/dimensions';
-import { AuthContext, ListKind, Targeting, TargetingDimension, TargetingResponse } from '@src/types';
+import {
+  AuthContext,
+  GeoLevel,
+  GeoPlace,
+  geoLevelSchema,
+  ListKind,
+  Targeting,
+  TargetingDimension,
+  TargetingResponse,
+} from '@src/types';
 import { httpError } from '@utils';
 import { AccessService } from './access.service';
+import { GeoService } from './geo.service';
 import { markCampaignDirty } from './sync.helpers';
 
 /**
@@ -28,10 +39,12 @@ export class TargetingService {
    *
    * @param dataSource - Application database
    * @param access - Permission checks
+   * @param geo - The referential the places of `location` come from
    */
   constructor(
     private readonly dataSource: DataSource,
-    private readonly access: AccessService
+    private readonly access: AccessService,
+    private readonly geo: GeoService
   ) {}
 
   /**
@@ -218,7 +231,53 @@ export class TargetingService {
     }
     const parsed: Targeting = parseTargeting(targeting as Record<string, unknown>) as Targeting;
     await this.assertListsFit(manager, organizationId, parsed);
+    if (parsed.proximity) assertRadiiInCountries(parsed.proximity as ProximityCriteria);
+    if (parsed.location) parsed.location = await this.placesOf(parsed.location as PlaceCriteria);
     return parsed;
+  }
+
+  /**
+   * The places of a `location`, filled from the referential (D57, `docs/phase-10.md` § 8.9).
+   *
+   * Whatever the caller sent beside an id is written again from the referential: a place read back and
+   * sent again is the same place, and nothing a caller types can make it say another country.
+   *
+   * @param criteria - The places, as parsed
+   * @returns The same places, each with its level, its names and its country
+   * @throws Error with status 400 coded `targeting_location_unknown` for an id the referential does not
+   *   hold, `targeting_location_not_targetable` for a country, a place of a level not offered, or one
+   *   Google is removing
+   */
+  private async placesOf(criteria: PlaceCriteria): Promise<PlaceCriteria> {
+    const ids: string[] = [...criteria.include, ...criteria.exclude].map((place: GeoPlace): string => place.id);
+    const found: Map<string, GeoLocationEntity> = await this.geo.findByIds(ids);
+    const unknown: string[] = [...new Set(ids.filter((id: string): boolean => !found.has(id)))];
+    if (unknown.length > 0) {
+      throw httpError(400, `No place of the referential has the id ${unknown.join(', ')}`, {
+        code: 'targeting_location_unknown',
+        params: { ids: unknown.join(', ') },
+      });
+    }
+    const refused: string[] = [...found.values()]
+      .filter((place: GeoLocationEntity): boolean => !isTargetable(place))
+      .map((place: GeoLocationEntity): string => place.id);
+    if (refused.length > 0) {
+      throw httpError(400, `These places cannot be targeted: ${refused.join(', ')}`, {
+        code: 'targeting_location_not_targetable',
+        params: { ids: refused.join(', ') },
+      });
+    }
+    const filled = (place: GeoPlace): GeoPlace => {
+      const row: GeoLocationEntity = found.get(place.id) as GeoLocationEntity;
+      return {
+        id: row.id,
+        level: row.level as GeoLevel,
+        name: row.name,
+        canonicalName: row.canonicalName,
+        countryCode: row.countryCode as string,
+      };
+    };
+    return { include: criteria.include.map(filled), exclude: criteria.exclude.map(filled) };
   }
 
   /**
@@ -296,18 +355,65 @@ export class TargetingService {
   }
 }
 
+/** The criteria of `location`, as its schema parses them. */
+type PlaceCriteria = { include: GeoPlace[]; exclude: GeoPlace[] };
+
+/** The criteria of `proximity`, as its schema parses them. */
+type ProximityCriteria = { points: { countryCode?: string }[] };
+
+/** The levels a place is targeted at; a country goes through the `country` dimension. */
+const PLACE_LEVELS: readonly string[] = geoLevelSchema.options;
+
+/**
+ * Whether a place of the referential can be targeted: of an offered level, in a country, and still
+ * offered by Google.
+ *
+ * @param place - The place
+ * @returns `true` when it can
+ */
+function isTargetable(place: GeoLocationEntity): boolean {
+  return (
+    place.level !== null &&
+    PLACE_LEVELS.includes(place.level) &&
+    place.countryCode !== null &&
+    place.status === ACTIVE_STATUS
+  );
+}
+
+/**
+ * Refuse a circle without its country: it is the country the circle replaces (D57), so a circle
+ * without one could only be sent beside the whole country, or nowhere.
+ *
+ * Judged here rather than by the schema, which reads back a circle written before the rule.
+ *
+ * @param criteria - The circles, as parsed
+ * @returns Nothing
+ * @throws Error with status 400 coded `targeting_criteria_invalid`
+ */
+function assertRadiiInCountries(criteria: ProximityCriteria): void {
+  const missing: number = criteria.points.filter(
+    (point: { countryCode?: string }): boolean => !point.countryCode
+  ).length;
+  if (missing === 0) return;
+  const reason = 'every point needs its countryCode, the country it replaces';
+  throw httpError(400, `The criteria of proximity do not hold: ${reason}`, {
+    code: 'targeting_criteria_invalid',
+    params: { dimension: 'proximity', reason },
+  });
+}
+
 /**
  * Fastify plugin that decorates the instance with a {@link TargetingService}.
  *
- * Depends on `DatabasePlugin` and `AccessServicePlugin`.
+ * Depends on `DatabasePlugin`, `AccessServicePlugin` and `GeoServicePlugin`.
  *
  * @param fastify - The Fastify instance to decorate
  */
 async function targetingServicePlugin(fastify: FastifyInstance): Promise<void> {
-  fastify.decorate('targetingService', new TargetingService(fastify.db, fastify.accessService));
+  fastify.decorate('targetingService', new TargetingService(fastify.db, fastify.accessService, fastify.geoService));
 }
 
 export default fastifyPlugin(targetingServicePlugin, {
   name: 'TargetingServicePlugin',
-  dependencies: ['DatabasePlugin', 'AccessServicePlugin'],
+  dependencies: ['DatabasePlugin', 'AccessServicePlugin', 'GeoServicePlugin'],
 });

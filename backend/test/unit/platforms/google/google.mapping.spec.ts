@@ -268,18 +268,33 @@ describe('Unit::Platforms::Google::Mapping', () => {
   describe('targeting', () => {
     const CAMPAIGN = 'customers/1/campaigns/-1';
 
-    it('should target countries and circles, and exclude countries', (): void => {
+    /** A place of the referential, as the targeting service fills it. */
+    const PARIS = {
+      id: '1006094',
+      level: 'city',
+      name: 'Paris',
+      canonicalName: 'Paris,Paris,Ile-de-France,France',
+      countryCode: 'FR',
+    };
+
+    it('should replace a country by its places and circles, keep a country without any, and exclude countries', (): void => {
       const criteria = campaignCriteria(
         {
-          country: { include: ['FR'], exclude: ['MC', 'XX'] },
-          proximity: { points: [{ latitude: 48.8566, longitude: 2.3522, radiusKm: 10 }] },
+          country: { include: ['FR', 'BE'], exclude: ['MC', 'XX'] },
+          location: {
+            include: [PARIS],
+            exclude: [{ ...PARIS, id: '9056126', level: 'postal_code', name: '75001' }],
+          },
+          proximity: { points: [{ latitude: 48.8566, longitude: 2.3522, radiusKm: 10, countryCode: 'FR' }] },
         },
         CAMPAIGN
       );
 
       expect(criteria).toEqual([
-        { campaign: CAMPAIGN, location: { geoTargetConstant: 'geoTargetConstants/2250' } },
+        { campaign: CAMPAIGN, location: { geoTargetConstant: 'geoTargetConstants/2056' } },
         { campaign: CAMPAIGN, negative: true, location: { geoTargetConstant: geoTargetConstant('MC') } },
+        { campaign: CAMPAIGN, location: { geoTargetConstant: 'geoTargetConstants/1006094' } },
+        { campaign: CAMPAIGN, negative: true, location: { geoTargetConstant: 'geoTargetConstants/9056126' } },
         {
           campaign: CAMPAIGN,
           proximity: {
@@ -289,6 +304,27 @@ describe('Unit::Platforms::Google::Mapping', () => {
           },
         },
       ]);
+    });
+
+    it('should refuse a place or a circle outside the countries, rather than serve wider than asked', (): void => {
+      // The circle of 3a, written before D57, has no country: France would be served whole beside it.
+      expect((): unknown =>
+        campaignCriteria(
+          {
+            country: { include: ['FR'] },
+            location: { include: [{ ...PARIS, id: '1001004', name: 'Brussels', countryCode: 'BE' }] },
+            proximity: { points: [{ latitude: 48.8566, longitude: 2.3522, radiusKm: 10 }] },
+          },
+          CAMPAIGN
+        )
+      ).toThrow(
+        expect.objectContaining({
+          options: expect.objectContaining({
+            messageCode: 'google_geo_outside_countries',
+            messageParams: { count: 2 },
+          }),
+        })
+      );
     });
 
     it('should target nothing for a node that restricts nothing', (): void => {

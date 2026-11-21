@@ -240,12 +240,14 @@ produit un avertissement de preview, jamais une erreur.
 
 ### Le ciblage
 
-| Code                            | Statut | Quand                                                                          | `params`                     |
-| ------------------------------- | ------ | ------------------------------------------------------------------------------ | ---------------------------- |
-| `targeting_dimension_forbidden` | 400    | Le levier du nœud n'a rien à faire de cette dimension                          | `lever`, `dimension`         |
-| `targeting_criteria_invalid`    | 400    | Les critères ne passent pas le schéma de leur dimension, clé inconnue comprise | `dimension`, `reason`        |
-| `targeting_list_kind_mismatch`  | 400    | Une liste d'un genre branchée sur une dimension qui en attend un autre         | `listId`, `kind`, `expected` |
-| `targeting_group_not_found`     | 404    | Le TargetingGroup est absent, supprimé, ou d'une autre Organization            | `{}`                         |
+| Code                                | Statut | Quand                                                                                                                          | `params`                     |
+| ----------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------- |
+| `targeting_dimension_forbidden`     | 400    | Le levier du nœud n'a rien à faire de cette dimension                                                                          | `lever`, `dimension`         |
+| `targeting_criteria_invalid`        | 400    | Les critères ne passent pas le schéma de leur dimension, clé inconnue comprise                                                 | `dimension`, `reason`        |
+| `targeting_list_kind_mismatch`      | 400    | Une liste d'un genre branchée sur une dimension qui en attend un autre                                                         | `listId`, `kind`, `expected` |
+| `targeting_location_unknown`        | 400    | Un lieu de `location` dont le référentiel ne connaît pas l'identifiant (`GET /geo/locations`)                                  | `ids`                        |
+| `targeting_location_not_targetable` | 400    | Un lieu de `location` qui ne se cible pas ainsi : un pays (par `country`), un niveau non proposé, ou un lieu que Google retire | `ids`                        |
+| `targeting_group_not_found`         | 404    | Le TargetingGroup est absent, supprimé, ou d'une autre Organization                                                            | `{}`                         |
 
 Une dimension absente du registre ou un type de dimension inconnu sont refusés **par le schéma** de
 la route, donc en `validation_failed` : l'énumération des dimensions fait partie du contrat.
@@ -479,20 +481,24 @@ Elle bloquera son activation.
 | `preview_bid_strategy_unsupported`          | La plateforme n'enchérit pas avec la stratégie de cet AdGroup                                                                                                                                                                         | `platform`, `strategy`               |
 | `preview_too_many_ads`                      | Plus d'annonces actives sous un même objet que la plateforme n'en diffuse : trois par ad group chez Google                                                                                                                            | `count`, `max`                       |
 | `preview_targeting_not_shared`              | Des TargetingGroups qui partagent une campagne de la plateforme demandent des lieux différents, alors qu'elle ne les pose que sur la campagne : donner un budget propre à l'un, ce qui l'éclate, ou le déplacer dans un autre AdGroup | `dimension`                          |
+| `preview_geo_outside_countries`             | Des lieux ou des rayons d'un TargetingGroup hors des pays qu'il inclut, ou un rayon sans pays, écrit avant D57 : inclure leur pays, ou les ôter                                                                                       | `count`, `names`                     |
+| `preview_geo_too_many_radii`                | Plus de rayons que cette plateforme n'en prend sur un objet                                                                                                                                                                           | `platform`, `count`, `max`           |
 | `preview_sitelink_descriptions`             | Un lien annexe à une seule ligne de description : les plateformes en prennent deux, ou aucune                                                                                                                                         | `text`                               |
 | `preview_iab_categories_missing`            | La plateforme exige des catégories IAB que la créa n'a pas                                                                                                                                                                            | `creative`                           |
 | `preview_platform_campaign_cap`             | L'éclatement dépasse le plafond d'objets par AdGroup                                                                                                                                                                                  | `objects`, `max`                     |
 
 ### Les avertissements, qui ne bloquent rien
 
-| Code                              | Quand                                                                                               | `params`             |
-| --------------------------------- | --------------------------------------------------------------------------------------------------- | -------------------- |
-| `preview_targeting_dropped`       | Cette plateforme n'applique pas cette dimension : **ce montant y diffusera sans elle**              | `dimension`, `cents` |
-| `preview_creative_dropped`        | Cette plateforme n'accepte pas le couple de la créa                                                 | `format`, `subtype`  |
-| `preview_campaign_split`          | L'éclatement crée plusieurs objets là où il y en aurait eu un                                       | `objects`, `level`   |
-| `preview_node_paused`             | Un nœud en pause : il ne partira pas                                                                | `{}`                 |
-| `preview_extensions_dropped`      | Cette plateforme ne montre aucune des extensions du levier                                          | `platform`           |
-| `preview_location_intent_dropped` | Cette plateforme ne vise que les personnes présentes dans les lieux, pas celles qui s'y intéressent | `platform`           |
+| Code                              | Quand                                                                                                                                                      | `params`                                  |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `preview_targeting_dropped`       | Cette plateforme n'applique pas cette dimension : **ce montant y diffusera sans elle**                                                                     | `dimension`, `cents`                      |
+| `preview_geo_widened_to_country`  | Cette plateforme ne sait pas cibler un lieu ou un rayon de ce pays (`reasons` : `level`, `radius`) : **elle y diffuse dans tout le pays**, avec ce montant | `platform`, `country`, `reasons`, `cents` |
+| `preview_geo_exclusions_ignored`  | Cette plateforme n'exclut pas des lieux de ce niveau : ils ne sont pas exclus chez elle                                                                    | `platform`, `count`, `names`              |
+| `preview_creative_dropped`        | Cette plateforme n'accepte pas le couple de la créa                                                                                                        | `format`, `subtype`                       |
+| `preview_campaign_split`          | L'éclatement crée plusieurs objets là où il y en aurait eu un                                                                                              | `objects`, `level`                        |
+| `preview_node_paused`             | Un nœud en pause : il ne partira pas                                                                                                                       | `{}`                                      |
+| `preview_extensions_dropped`      | Cette plateforme ne montre aucune des extensions du levier                                                                                                 | `platform`                                |
+| `preview_location_intent_dropped` | Cette plateforme ne vise que les personnes présentes dans les lieux, pas celles qui s'y intéressent                                                        | `platform`                                |
 
 Chaque constat porte en plus `level`, `nodeId` et `platform` — nuls quand il concerne la campagne
 entière ou toutes les plateformes —, de sorte qu'une interface peut le poser à côté du nœud fautif
@@ -528,13 +534,14 @@ compte illisible) arrivent avec leur propre code, celui qu'elles portaient déj�
 Les refus que l'adapter de Google Ads formule lui-même, avant ou après avoir appelé Google
 (`phase-10.md` § 8.5) — aucun ne se retente seul :
 
-| Code                              | Quand                                                                                                  | `params`   |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------ | ---------- |
-| `google_campaign_removed`         | La campagne Google de ce nœud a été supprimée hors d'Omnipotent : elle n'est jamais recréée en silence | `campaign` |
-| `google_country_unsupported`      | Un pays inclus que Google Ads ne cible pas                                                             | `country`  |
-| `google_bid_strategy_unsupported` | Une stratégie avec laquelle Google Search n'enchérit pas ici — la preview la refuse d'abord            | `strategy` |
-| `google_bid_required`             | Un CPC manuel sans montant d'enchère                                                                   | `{}`       |
-| `google_ad_incomplete`            | Une Line active sans créa ou sans page de destination — la preview la refuse d'abord                   | `line`     |
+| Code                              | Quand                                                                                                                                   | `params`   |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `google_campaign_removed`         | La campagne Google de ce nœud a été supprimée hors d'Omnipotent : elle n'est jamais recréée en silence                                  | `campaign` |
+| `google_country_unsupported`      | Un pays inclus que Google Ads ne cible pas                                                                                              | `country`  |
+| `google_geo_outside_countries`    | Des lieux ou des rayons hors des pays inclus — la preview les refuse d'abord : sans eux, la campagne diffuserait plus large que demandé | `count`    |
+| `google_bid_strategy_unsupported` | Une stratégie avec laquelle Google Search n'enchérit pas ici — la preview la refuse d'abord                                             | `strategy` |
+| `google_bid_required`             | Un CPC manuel sans montant d'enchère                                                                                                    | `{}`       |
+| `google_ad_incomplete`            | Une Line active sans créa ou sans page de destination — la preview la refuse d'abord                                                    | `line`     |
 
 Ce qui distingue les deux familles n'est pas le code mais `nextAttemptAt` : une prochaine tentative
 fixée veut dire « réessayer peut marcher », et **nulle** veut dire qu'il faut corriger quelque chose —

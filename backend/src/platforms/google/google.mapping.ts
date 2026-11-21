@@ -9,11 +9,14 @@
  * Nothing here calls Google: the adapter reads, diffs and sends (`google.adapter.ts`).
  */
 import { DesiredAsset, DesiredObject, DesiredUnit, fingerprint } from '@src/platforms/desired-state';
+import { GeoPlan, GeoRadius, planGeo } from '@src/platforms/geo-plan';
 import { PlatformError } from '@src/platforms/platform-adapter';
+import { rulesOf } from '@src/platforms/platform-rules';
 import {
   AdReview,
   BidStrategy,
   Extensions,
+  GeoPlace,
   LocationIntent,
   MatchType,
   NodeStatus,
@@ -384,42 +387,56 @@ function includeExclude(
 }
 
 /**
- * The places and circles a campaign targets, from the targeting its ad groups share
- * (`sharedTargeting`, which the preview makes equal).
+ * The places and circles a campaign targets, from the plan of its TargetingGroup (D57,
+ * `docs/phase-10.md` § 8.9): a country with no place nor circle in it is sent whole, one with some is
+ * replaced by them — never sent beside them, since Google adds up the places of a campaign and would
+ * serve the whole country.
  *
- * @param targeting - The targeting of its first ad group
+ * @param targeting - The targeting of its TargetingGroup
  * @param campaign - The campaign's resource name
  * @returns Its criteria
- * @throws PlatformError coded `google_country_unsupported` for an included country Google does not
- *   target; an excluded one is simply left out
+ * @throws PlatformError coded `google_geo_outside_countries` for a place or a circle outside the
+ *   countries the TargetingGroup includes, which the preview refuses first: sent without them, the
+ *   campaign would serve more widely than asked, or elsewhere; coded `google_country_unsupported` for an
+ *   included country Google does not target — an excluded one is simply left out
  */
 export function campaignCriteria(targeting: Targeting | null, campaign: string): GoogleCampaignCriterion[] {
-  const countries: { include: string[]; exclude: string[] } = includeExclude(targeting, 'country');
-  const criteria: GoogleCampaignCriterion[] = countries.include.map((country: string): GoogleCampaignCriterion => {
+  const plan: GeoPlan = planGeo(targeting, rulesOf('google_ads', 'search').geo);
+  const outside: number = plan.outside.places.length + plan.outside.radii.length;
+  if (outside > 0) {
+    throw refusal(
+      'Some places or circles are outside the countries the targeting group includes',
+      'google_geo_outside_countries',
+      { count: outside }
+    );
+  }
+  const criteria: GoogleCampaignCriterion[] = plan.countries.map((country: string): GoogleCampaignCriterion => {
     const constant: string | null = geoTargetConstant(country);
     if (constant === null) {
       throw refusal(`Google Ads cannot target the country ${country}`, 'google_country_unsupported', { country });
     }
     return { campaign, location: { geoTargetConstant: constant } };
   });
-  for (const country of countries.exclude) {
+  for (const country of plan.excludedCountries) {
     const constant: string | null = geoTargetConstant(country);
     if (constant !== null) criteria.push({ campaign, negative: true, location: { geoTargetConstant: constant } });
   }
-  const points = (
-    (targeting?.proximity ?? { points: [] }) as {
-      points: { latitude: number; longitude: number; radiusKm: number }[];
-    }
-  ).points;
-  for (const point of points) {
+  // A place of the referential goes by its own id: the referential is Google's catalog.
+  for (const place of plan.places) {
+    criteria.push({ campaign, location: { geoTargetConstant: `geoTargetConstants/${place.id}` } });
+  }
+  for (const place of plan.excludedPlaces as GeoPlace[]) {
+    criteria.push({ campaign, negative: true, location: { geoTargetConstant: `geoTargetConstants/${place.id}` } });
+  }
+  for (const radius of plan.radii as GeoRadius[]) {
     criteria.push({
       campaign,
       proximity: {
         geoPoint: {
-          latitudeInMicroDegrees: Math.round(point.latitude * 1_000_000),
-          longitudeInMicroDegrees: Math.round(point.longitude * 1_000_000),
+          latitudeInMicroDegrees: Math.round(radius.latitude * 1_000_000),
+          longitudeInMicroDegrees: Math.round(radius.longitude * 1_000_000),
         },
-        radius: point.radiusKm,
+        radius: radius.radiusKm,
         radiusUnits: 'KILOMETERS',
       },
     });

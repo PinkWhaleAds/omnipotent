@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { TargetingDimension } from '@src/types';
+import { GeoPlace, geoPlaceSchema, MAX_GEO_PLACES, TargetingDimension } from '@src/types';
 import { includeExclude, opaqueIds } from '../families';
 import { dimension, DimensionDescriptor, listsOf } from './descriptor';
 
@@ -9,6 +9,27 @@ const MAX_SHAPES = 500;
 
 /** ISO 3166-1 alpha-2 country code. Only the shape is checked, as everywhere else in the model. */
 const countryCodeSchema = z.string().regex(/^[A-Z]{2}$/, 'A country is an ISO 3166-1 alpha-2 code, e.g. FR');
+
+/**
+ * The places of the referential a TargetingGroup includes and excludes (D57).
+ *
+ * The include/exclude pair of the family, over places rather than codes: at least one side, and no
+ * place on both — told apart by their id, since a place sent and the same place read back differ in
+ * the fields the API fills.
+ */
+const placesSchema = z
+  .strictObject({
+    include: z.array(geoPlaceSchema).max(MAX_GEO_PLACES).default([]),
+    exclude: z.array(geoPlaceSchema).max(MAX_GEO_PLACES).default([]),
+  })
+  .refine(
+    (criteria): boolean => criteria.include.length > 0 || criteria.exclude.length > 0,
+    'a criterion must include or exclude something: drop the dimension to restrict nothing'
+  )
+  .refine((criteria): boolean => {
+    const included = new Set<string>(criteria.include.map((place: GeoPlace): string => place.id));
+    return !criteria.exclude.some((place: GeoPlace): boolean => included.has(place.id));
+  }, 'a place cannot be included and excluded at once');
 
 /** A postal code, whose format belongs to its country: the platform refuses what it does not know. */
 const zipCodeSchema = z.string().trim().min(1).max(16);
@@ -52,7 +73,9 @@ export const GEO_DIMENSIONS = {
   country: dimension('Pays', 'include_exclude', includeExclude(countryCodeSchema)),
   zip_code: dimension('Codes postaux', 'include_exclude', includeExclude(zipCodeSchema)),
   metro_code: dimension('Zones de diffusion TV', 'opaque_ids', opaqueIds()),
-  location: dimension('Lieux du référentiel de la plateforme', 'opaque_ids', opaqueIds()),
+  // Regions, departments, cities and postal codes of the referential, Google's catalog (D57): each
+  // replaces its country at the platforms, and must be in one the TargetingGroup includes.
+  location: dimension('Lieux', 'include_exclude', placesSchema),
   proximity: dimension(
     'Proximité autour de points',
     'shape',
@@ -64,6 +87,12 @@ export const GEO_DIMENSIONS = {
             longitude: longitudeSchema,
             radiusKm: radiusKmSchema,
             label: z.string().trim().min(1).max(300).optional(),
+            // Required on every write: the country the circle replaces (D57). Optional here only so a
+            // circle written before it reads back; the targeting service refuses one without it.
+            countryCode: countryCodeSchema
+              .optional()
+              .describe('ISO 3166-1 alpha-2 country of the centre, required: the country the circle replaces'),
+            address: z.string().trim().min(1).max(300).optional().describe('The address it was geocoded from'),
           })
         )
         .min(1)

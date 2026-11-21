@@ -72,6 +72,7 @@ function hawkRules(overrides: Partial<PlatformRules> = {}): PlatformRules {
     settings: {},
     locationIntent: false,
     extensions: false,
+    geo: { levels: [], excludedLevels: [], maxRadii: null },
     ...overrides,
   };
 }

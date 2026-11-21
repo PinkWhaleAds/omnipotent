@@ -7,6 +7,7 @@ import {
   TreeLevel,
 } from '@src/types';
 import { httpError } from '@utils';
+import type { GeoRules } from './geo-plan';
 
 /**
  * What one advertising platform accepts **on one lever**, as far as the domain model is concerned.
@@ -45,6 +46,9 @@ import { httpError } from '@utils';
  *   in it »; where it does not, the preview warns an AdGroup that asks for the latter
  * @property extensions - Whether it shows the extensions of a Lever; where it does not, the preview
  *   warns
+ * @property geo - What it targets finer than the country: the levels of the places it includes and
+ *   excludes, and how many circles it takes. A country holding a place or a circle it cannot target is
+ *   served whole there, with a warning (D57, `docs/phase-10.md` § 8.9)
  */
 export type PlatformRules = {
   label: string;
@@ -60,6 +64,7 @@ export type PlatformRules = {
   settings: Readonly<Record<string, boolean>>;
   locationIntent: boolean;
   extensions: boolean;
+  geo: GeoRules;
 };
 
 /**
@@ -101,8 +106,9 @@ export const PLATFORM_RULES: Readonly<Record<string, Readonly<Record<string, Pla
     // `docs/phase-10.md` § 8.3, from the study `plateformes/google-ads.md` and multi-search.
     search: {
       label: 'Google Ads',
-      // Finer places — regions, cities, postal codes — come with the place referential of lot 3c.
-      targeting: ['country', 'proximity', 'device'],
+      // The places of the referential — regions, departments, cities, postal codes — and the circles
+      // replace their country (D57). A postal code typed as text has no country: it is not taken.
+      targeting: ['country', 'location', 'proximity', 'device'],
       creatives: ['search_text:rsa'],
       // One TargetingGroup, one Google campaign with its one ad group, as multi-search does (D55): Google
       // sets places on the campaign, so two TargetingGroups never share one. Its budget is its own, or
@@ -122,6 +128,12 @@ export const PLATFORM_RULES: Readonly<Record<string, Readonly<Record<string, Pla
       settings: { searchPartners: true, aiMax: false },
       locationIntent: true,
       extensions: true,
+      // Every level in both ways, its ids being the referential's; 500 circles per campaign.
+      geo: {
+        levels: ['region', 'department', 'city', 'postal_code'],
+        excludedLevels: ['region', 'department', 'city', 'postal_code'],
+        maxRadii: 500,
+      },
     },
   },
 };

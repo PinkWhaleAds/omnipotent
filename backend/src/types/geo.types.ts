@@ -98,3 +98,30 @@ export const geoLocationListSchema = z.object({
 
 /** TypeScript type inferred from {@link geoLocationListSchema}. */
 export type GeoLocationList = z.infer<typeof geoLocationListSchema>;
+
+/** Most places a TargetingGroup includes, or excludes (multi-search's `MAX_GEO_AREAS`). */
+export const MAX_GEO_PLACES = 1000;
+
+/**
+ * Zod schema of a place of the referential, as the `location` dimension holds it.
+ *
+ * A caller sends its `id`; the API fills the rest from the referential, and answers it filled. Sending
+ * back what a read answered is not an error: those fields are written again from the referential
+ * (`docs/phase-10.md` § 8.9).
+ *
+ * @property id - Id of the referential (`GET /geo/locations`)
+ * @property level - Region, department, city or postal code
+ * @property name - Its name, as Google writes it (« Paris », « 75001 »)
+ * @property canonicalName - Its full name (« Paris,Paris,Ile-de-France,France »)
+ * @property countryCode - ISO 3166-1 alpha-2 country it belongs to, the one it replaces at the platforms
+ */
+export const geoPlaceSchema = z.strictObject({
+  id: geoLocationIdSchema,
+  level: geoLevelSchema.optional(),
+  name: z.string().max(255).optional(),
+  canonicalName: z.string().max(500).optional(),
+  countryCode: geoCountryCodeSchema.optional(),
+});
+
+/** TypeScript type inferred from {@link geoPlaceSchema}. */
+export type GeoPlace = z.infer<typeof geoPlaceSchema>;

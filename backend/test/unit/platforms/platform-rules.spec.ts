@@ -42,6 +42,7 @@ describe('Unit::Platforms::PlatformRules', () => {
       settings: {},
       locationIntent: false,
       extensions: false,
+      geo: { levels: [], excludedLevels: [], maxRadii: null },
       ...overrides,
     };
   }
@@ -67,6 +68,13 @@ describe('Unit::Platforms::PlatformRules', () => {
       settings: { searchPartners: true, aiMax: false },
       locationIntent: true,
       extensions: true,
+      // The places of the referential and the circles, every level in both ways (D57).
+      targeting: ['country', 'location', 'proximity', 'device'],
+      geo: {
+        levels: ['region', 'department', 'city', 'postal_code'],
+        excludedLevels: ['region', 'department', 'city', 'postal_code'],
+        maxRadii: 500,
+      },
     });
   });
 
