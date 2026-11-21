@@ -508,6 +508,32 @@ describe('Unit::Services::SyncService', () => {
       expect(units()[0]).toMatchObject({ syncState: 'synced', attempts: 0, nextAttemptAt: null });
     });
 
+    it('should apply again a unit written back to its last success after a failure, and clear its error', async (): Promise<void> => {
+      seedTree();
+      seedUnit();
+      await service.syncCampaign(CAMPAIGN_ID);
+      apply.mockClear();
+      // An attempt failed, maybe after part of it reached the platform; then a write brought the tree
+      // back to what the last success applied, and marked the unit.
+      await store.manager.update(
+        PlatformUnitEntity,
+        { id: UNIT_ID },
+        { syncState: 'pending', lastError: 'socket hang up', lastErrorCode: 'hawk_unreachable', lastErrorParams: {} }
+      );
+
+      await service.syncCampaign(CAMPAIGN_ID);
+
+      // The platform may no longer hold what the fingerprint says: it is read again and mended, and
+      // the unit is never shown up to date with the error of the older attempt.
+      expect(apply).toHaveBeenCalledTimes(1);
+      expect(units()[0]).toMatchObject({
+        syncState: 'synced',
+        lastError: null,
+        lastErrorCode: null,
+        lastErrorParams: null,
+      });
+    });
+
     it('should ask again a platform that had not taken the status, even with nothing changed', async (): Promise<void> => {
       seedTree();
       seedUnit();

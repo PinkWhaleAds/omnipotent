@@ -73,7 +73,11 @@ rien de la structure.
 Le hash est l'empreinte SHA-256 de cet objet voulu. Deux propriétés en découlent, et ce sont les deux
 qui comptent :
 
-- **rien n'a changé ⇒ aucun appel.** Le hash est identique, l'unité est sautée ;
+- **rien n'a changé ⇒ aucun appel.** Le hash est identique, l'unité est sautée. Sauf si la dernière
+  tentative a échoué, même quand l'arbre est depuis revenu à l'état du dernier succès : l'échec a pu
+  survenir après qu'une partie de la tentative est arrivée chez la plateforme, qui ne tient alors plus
+  ce que dit le hash. L'unité est réappliquée, et seul un succès efface son erreur (amendé le
+  2026-11-21, après la preuve de 3c en phase 10) ;
 - **une seule chose a changé ⇒ un appel.** L'adapter reçoit l'état complet et ce qu'il a déjà créé ;
   c'est lui qui n'envoie que les différences.
 

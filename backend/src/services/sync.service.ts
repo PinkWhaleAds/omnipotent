@@ -467,9 +467,14 @@ export class SyncService {
       // fingerprint (`../../CADRAGE.md` § 14). A write that marked the unit without changing what its
       // platform holds — a field another platform reads, a sync asked by hand, a pacing day that
       // spends the same — only clears the mark. A unit in error is tried again, and so is one whose
-      // platform had not taken the status asked for: it is still waiting for it.
+      // platform had not taken the status asked for: it is still waiting for it. So is one whose last
+      // attempt failed, even once its tree is written back to what the last success applied: the
+      // failure may have come after part of the attempt reached the platform (the brand's own calls,
+      // the status read back), which then no longer holds what the fingerprint says. Only a success
+      // clears an error, so a unit is never shown up to date with the error of an older attempt.
       const settled: boolean =
-        unit.syncState === 'synced' || (unit.syncState === 'pending' && unit.appliedStatus === desired.status);
+        unit.lastError === null &&
+        (unit.syncState === 'synced' || (unit.syncState === 'pending' && unit.appliedStatus === desired.status));
       if (settled && unit.syncedHash === hash) {
         if (unit.syncState === 'pending') {
           await this.dataSource.manager.update(
