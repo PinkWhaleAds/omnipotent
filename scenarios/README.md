@@ -102,3 +102,27 @@ Le référentiel est importé **par le worker, à son démarrage, quand il est v
 relance le worker et attends une minute — le fichier de Google pèse quelques dizaines de mégaoctets.
 Puis vérifie dans Google Ads, dans les paramètres de la campagne, ses zones géographiques : la ville,
 le code postal et le rayon, et plus la France entière.
+
+## `conversions-google.mjs` — un objectif de conversion et `maximize_conversions` chez Google
+
+La preuve du lot 3d (`backend/docs/phase-10.md` § 8.10), sur une campagne que `campagne-google.mjs` a
+lancée :
+
+1. il crée un objectif de conversion sur la marque — `achat-test` par défaut, à changer dans
+   `config.local.mjs` (`goalKey`) —, ou reprend celui de cette clé ;
+2. il attend que le worker l'ait mis en place sur le compte Google, et dit où il en est ;
+3. il sert une page de test sur `http://localhost:3013` (`pagePort`), avec le code de la marque et deux
+   boutons : le consentement, puis une conversion. Ouvre-la, avec l'onglet Réseau des outils du
+   navigateur : rien ne part avant le consentement, puis la balise de Google se charge et la conversion
+   part avec le libellé de l'objectif. Appuie sur Entrée pour la suite ;
+4. il passe le premier AdGroup de la campagne en `maximize_conversions` sur cet objectif, lit la
+   preview, attend la synchro et affiche les appels faits à Google.
+
+```sh
+node scenarios/conversions-google.mjs
+```
+
+Puis vérifie dans Google Ads : l'action de conversion dans Objectifs, Conversions, en action
+secondaire ; et dans les paramètres de la campagne nommée à la fin, l'enchère « Maximiser les
+conversions » sur l'objectif personnalisé seul. Pour revenir en arrière, repasse l'AdGroup en
+`maximize_clicks`.

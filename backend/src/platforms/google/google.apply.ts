@@ -984,12 +984,7 @@ export class GoogleUnitSync {
   ): Promise<void> {
     const operations: GoogleMutateOperation[] = [];
     for (const slot of slots) {
-      operations.push(
-        ...(await this.conversions.goalOperations(context, refs[slot.key], {
-          conversionAction: goal.refs.conversionAction ?? null,
-          customGoal: goal.refs.customGoal ?? null,
-        }))
-      );
+      operations.push(...(await this.conversions.goalOperations(context, refs[slot.key], goal.refs.customGoal)));
     }
     for (const key of plan.activateAfterGoal) {
       operations.push({

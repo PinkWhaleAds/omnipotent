@@ -240,6 +240,7 @@ const TREE_LEVELS: TreeLevelCase[] = [
       objective: 'awareness',
       bidStrategy: 'fixed_cpm',
       bidAmountCents: 450,
+      conversionGoalId: null,
       platformShares: null,
       locationIntent: null,
       startsOn: null,

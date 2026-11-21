@@ -147,6 +147,12 @@ describe('Unit::Services::ConversionGoalService', () => {
   });
 
   describe('create', () => {
+    beforeEach((): void => {
+      db.repository(ConversionGoalEntity).save.mockImplementation(
+        async (row: object): Promise<ConversionGoalEntity> => ({ ...goalRow(), ...row }) as ConversionGoalEntity
+      );
+    });
+
     it('should create an active goal as a manager, then ask for its setup', async (): Promise<void> => {
       db.repository(ConversionGoalEntity).save.mockResolvedValue(goalRow());
 

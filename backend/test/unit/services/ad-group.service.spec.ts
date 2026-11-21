@@ -434,6 +434,17 @@ describe('Unit::Services::AdGroupService', () => {
       });
     });
 
+    it('should name a new goal on update', async (): Promise<void> => {
+      seedGoal({ id: GOAL_ID, name: 'Achat', status: 'active' });
+
+      await service.update(JANE, IDS.organization, AD_GROUP_ID, { conversionGoalId: GOAL_ID });
+
+      expect(db.manager.save).toHaveBeenCalledWith(
+        AdGroupEntity,
+        expect.objectContaining({ conversionGoalId: GOAL_ID })
+      );
+    });
+
     it('should check a goal on update only when it changes, and let null name none', async (): Promise<void> => {
       seedAbove(db, adGroupRow({ conversionGoalId: GOAL_ID }));
       seedGoal({ id: GOAL_ID, name: 'Achat', status: 'archived' });

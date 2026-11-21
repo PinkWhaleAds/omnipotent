@@ -438,6 +438,71 @@ leur code, en `400`.
 | `ad_account_inactive`                 | Le compte est inactif ou suspendu                                                                                  | `platform`, `status`   |
 | `ad_account_timezone_unknown`         | Son fuseau n'est pas dans notre table, ou il n'a pas de devise : rien n'est deviné                                 | `platform`, `timezone` |
 
+## Les conversions
+
+`src/services/{conversion-goal,tracking}.service.ts` (`docs/phase-10.md` § 8.10, D58).
+
+### Ce que le front doit savoir
+
+Ce que fait multi-search, repris tel quel, avec ce que le modèle d'Omnipotent y change. Un front qui
+l'ignore installe un code qui ne mesure rien, ou montre prête une campagne qui ne peut pas partir.
+
+- **Un seul code par marque.** `GET /advertisers/:id/tracking` donne l'extrait à coller dans le `<head>`
+  de chaque page du site (`snippet`), l'adresse du script qu'il charge, et les domaines que la
+  Content Security Policy du site doit autoriser (`cspDomains`). La première lecture donne à la marque la
+  clé publique de son script : elle ne change plus ensuite.
+- **Rien ne part avant le consentement.** Le site appelle `msq('consent', { ads: 'granted' })` depuis
+  son bandeau de consentement, et `msq('consent', { ads: 'denied' })` en cas de refus. Avant, le script
+  ne charge aucune balise et ne pose aucun cookie : les conversions attendent, cinquante au plus, et un
+  refus les efface. Le front doit le dire à l'utilisateur, qui l'oublie sinon : un site sans cet appel ne
+  mesure rien, sans aucune erreur.
+- **Une conversion** est `msq('conversion', { goal: '<clé>', value, currency, orderId })`. `value` et
+  `currency` ne servent qu'à un objectif `dynamic` ; un objectif `fixed` envoie toujours sa valeur, un
+  objectif `none` aucune. `orderId` évite qu'une même commande compte deux fois. Ces appels sont ceux du
+  script de multi-search : un site déjà équipé garde son code.
+- **`lastSeenAt`** dit quand une page du site a chargé le script pour la dernière fois, à l'heure près :
+  `null` tant que le code n'est pas installé.
+- **L'état d'un objectif se lit compte par compte**, dans `platforms[].goals[]` : `pending` tant qu'il
+  n'est pas mis en place, `ready`, `manual_required` quand quelqu'un doit agir, `failed` quand la
+  plateforme a refusé, `paused` une fois l'objectif archivé. La mise en place se fait en tâche de fond
+  après chaque écriture ; ce qui échoue ou attend quelqu'un est repris toutes les demi-heures.
+- **La valeur d'un objectif est en centimes** (`defaultValueCents`), comme tout montant de l'API ; le
+  site, lui, envoie des unités (`value: 89.9`).
+- **La clé et la catégorie ne changent jamais.** Deux clés qui ne diffèrent que par `-` et `_` sont
+  refusées. Un objectif ne se supprime pas : il s'archive, et l'archivage est refusé tant qu'un AdGroup
+  d'une campagne lancée l'optimise. Chez Google, rien n'est supprimé : l'action reste, et le script ne
+  l'appelle plus.
+- **L'objectif optimisé se pose sur l'AdGroup** (`conversionGoalId`), à côté de sa stratégie, et non sur
+  la campagne comme chez multi-search. Il ne compte qu'en `maximize_conversions`. Il se change après le
+  lancement, comme la stratégie : **l'apprentissage de Google repart alors**, et le front doit le dire.
+- **Une campagne en `maximize_conversions` ne part pas** tant que son objectif n'est pas prêt sur le
+  compte de la plateforme : la preview le refuse, et la synchro aussi pour une campagne déjà lancée.
+
+### Les refus des routes
+
+| Code                                | Statut | Quand                                                                                                                            | `params`                                                 |
+| ----------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `conversion_goal_not_found`         | 404    | L'objectif n'existe pas, ou appartient à une autre Organization ou à une autre marque                                            | `{}`                                                     |
+| `conversion_goal_currency_required` | 400    | Une valeur (`fixed` ou `dynamic`) sans devise                                                                                    | `valueMode`                                              |
+| `conversion_goal_value_required`    | 400    | Une valeur fixe sans montant                                                                                                     | `valueMode`                                              |
+| `conversion_goal_key_taken`         | 409    | La marque a déjà un objectif de cette clé, archivé compris                                                                       | `key`                                                    |
+| `conversion_goal_key_too_close`     | 409    | La clé ne diffère d'une autre que par `-` et `_` : une plateforme ne les distinguerait pas                                       | `key`, `existingKey`                                     |
+| `conversion_goal_optimized`         | 409    | Archiver un objectif qu'optimise un AdGroup d'une campagne lancée : lui donner d'abord un autre objectif, ou une autre stratégie | `adGroupId`, `adGroupName`, `campaignId`, `campaignName` |
+| `conversion_goal_archived`          | 400    | Nommer sur un AdGroup un objectif archivé                                                                                        | `goalName`                                               |
+| `tracking_key_unknown`              | 404    | Le script d'une clé qu'aucune marque n'a (`GET /t/:key.js`)                                                                      | `{}`                                                     |
+
+### Pourquoi un suivi ou un objectif n'est pas prêt
+
+`messageCode` et `messageParams` de `platforms[]` et de `platforms[].goals[]`, quand c'est nous qui avons
+formulé le message ; un texte de la plateforme a `messageCode` nul.
+
+| Code                                          | Où       | Quand                                                                                                                                   | `params`           |
+| --------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| `tracking_not_supported`                      | suivi    | Omnipotent ne sait pas encore mettre le suivi en place sur cette plateforme                                                             | `platform`         |
+| `google_conversion_tracking_by_our_manager`   | suivi    | Les conversions du compte sont suivies par notre compte gestionnaire (suivi inter-comptes) : un opérateur doit le couper pour ce compte | `account`          |
+| `google_conversion_tracking_by_other_manager` | suivi    | Les conversions du compte sont suivies par un autre compte gestionnaire : il doit cesser de les suivre                                  | `account`          |
+| `google_conversion_snippet_missing`           | objectif | Google n'a pas donné d'extrait de page pour l'action de conversion                                                                      | `conversionAction` |
+
 ## La preview et le cycle de vie
 
 `src/services/preview.service.ts` (phase 8, `docs/phase-8.md` § 3 et § 4).
@@ -475,43 +540,47 @@ Elle bloquera son activation.
 
 ### Les erreurs de la preview, qui bloquent le lancement
 
-| Code                                        | Quand                                                                                                                                                                                                                                 | `params`                             |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| `preview_lever_missing`                     | La campagne n'achète sur aucun levier                                                                                                                                                                                                 | `{}`                                 |
-| `preview_political_advertising_unsupported` | La campagne est déclarée comme publicité politique : aucune plateforme du périmètre n'en accepte (D53)                                                                                                                                | `{}`                                 |
-| `preview_ad_group_missing`                  | Un levier sans AdGroup                                                                                                                                                                                                                | `lever`                              |
-| `preview_targeting_group_missing`           | Un AdGroup sans TargetingGroup                                                                                                                                                                                                        | `name`                               |
-| `preview_line_missing`                      | Un TargetingGroup sans Line                                                                                                                                                                                                           | `name`                               |
-| `preview_creative_missing`                  | Une Line sans créa, ou dont la créa a été supprimée                                                                                                                                                                                   | `name`                               |
-| `preview_creative_version_missing`          | Une créa dont aucune version ne diffuse                                                                                                                                                                                               | `creative`                           |
-| `preview_creative_text_duplicate`           | Une créa répète un texte là où son couple les veut tous différents, espaces et majuscules mis à part : deux titres d'une annonce responsive, par exemple                                                                              | `creative`, `field`, `text`          |
-| `preview_keywords_missing`                  | Un TargetingGroup Search sans mot-clé positif                                                                                                                                                                                         | `name`                               |
-| `preview_account_missing`                   | Aucun compte relié pour cette plateforme et cette devise                                                                                                                                                                              | `platform`, `currency`               |
-| `preview_account_unusable`                  | Le compte relié n'est pas actif                                                                                                                                                                                                       | `platform`, `status`, `statusReason` |
-| `preview_account_credentials_missing`       | Le compte n'a pas de credentials, sur une plateforme où chaque compte apporte les siens                                                                                                                                               | `platform`                           |
-| `preview_adapter_missing`                   | Le couple `(plateforme, levier)` n'a pas encore d'adapter                                                                                                                                                                             | `platform`, `lever`                  |
-| `preview_click_url_missing`                 | La plateforme exige une URL de clic que ni la Line ni sa créa n'ont                                                                                                                                                                   | `creative`                           |
-| `preview_bid_strategy_unsupported`          | La plateforme n'enchérit pas avec la stratégie de cet AdGroup                                                                                                                                                                         | `platform`, `strategy`               |
-| `preview_too_many_ads`                      | Plus d'annonces actives sous un même objet que la plateforme n'en diffuse : trois par ad group chez Google                                                                                                                            | `count`, `max`                       |
-| `preview_targeting_not_shared`              | Des TargetingGroups qui partagent une campagne de la plateforme demandent des lieux différents, alors qu'elle ne les pose que sur la campagne : donner un budget propre à l'un, ce qui l'éclate, ou le déplacer dans un autre AdGroup | `dimension`                          |
-| `preview_geo_outside_countries`             | Des lieux ou des rayons d'un TargetingGroup hors des pays qu'il inclut, ou un rayon sans pays, écrit avant D57 : inclure leur pays, ou les ôter                                                                                       | `count`, `names`                     |
-| `preview_geo_too_many_radii`                | Plus de rayons que cette plateforme n'en prend sur un objet                                                                                                                                                                           | `platform`, `count`, `max`           |
-| `preview_sitelink_descriptions`             | Un lien annexe à une seule ligne de description : les plateformes en prennent deux, ou aucune                                                                                                                                         | `text`                               |
-| `preview_iab_categories_missing`            | La plateforme exige des catégories IAB que la créa n'a pas                                                                                                                                                                            | `creative`                           |
-| `preview_platform_campaign_cap`             | L'éclatement dépasse le plafond d'objets par AdGroup                                                                                                                                                                                  | `objects`, `max`                     |
+| Code                                        | Quand                                                                                                                                                                                                                                 | `params`                                       |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `preview_lever_missing`                     | La campagne n'achète sur aucun levier                                                                                                                                                                                                 | `{}`                                           |
+| `preview_political_advertising_unsupported` | La campagne est déclarée comme publicité politique : aucune plateforme du périmètre n'en accepte (D53)                                                                                                                                | `{}`                                           |
+| `preview_ad_group_missing`                  | Un levier sans AdGroup                                                                                                                                                                                                                | `lever`                                        |
+| `preview_targeting_group_missing`           | Un AdGroup sans TargetingGroup                                                                                                                                                                                                        | `name`                                         |
+| `preview_line_missing`                      | Un TargetingGroup sans Line                                                                                                                                                                                                           | `name`                                         |
+| `preview_creative_missing`                  | Une Line sans créa, ou dont la créa a été supprimée                                                                                                                                                                                   | `name`                                         |
+| `preview_creative_version_missing`          | Une créa dont aucune version ne diffuse                                                                                                                                                                                               | `creative`                                     |
+| `preview_creative_text_duplicate`           | Une créa répète un texte là où son couple les veut tous différents, espaces et majuscules mis à part : deux titres d'une annonce responsive, par exemple                                                                              | `creative`, `field`, `text`                    |
+| `preview_keywords_missing`                  | Un TargetingGroup Search sans mot-clé positif                                                                                                                                                                                         | `name`                                         |
+| `preview_account_missing`                   | Aucun compte relié pour cette plateforme et cette devise                                                                                                                                                                              | `platform`, `currency`                         |
+| `preview_account_unusable`                  | Le compte relié n'est pas actif                                                                                                                                                                                                       | `platform`, `status`, `statusReason`           |
+| `preview_account_credentials_missing`       | Le compte n'a pas de credentials, sur une plateforme où chaque compte apporte les siens                                                                                                                                               | `platform`                                     |
+| `preview_adapter_missing`                   | Le couple `(plateforme, levier)` n'a pas encore d'adapter                                                                                                                                                                             | `platform`, `lever`                            |
+| `preview_click_url_missing`                 | La plateforme exige une URL de clic que ni la Line ni sa créa n'ont                                                                                                                                                                   | `creative`                                     |
+| `preview_bid_strategy_unsupported`          | La plateforme n'enchérit pas avec la stratégie de cet AdGroup                                                                                                                                                                         | `platform`, `strategy`                         |
+| `preview_too_many_ads`                      | Plus d'annonces actives sous un même objet que la plateforme n'en diffuse : trois par ad group chez Google                                                                                                                            | `count`, `max`                                 |
+| `preview_targeting_not_shared`              | Des TargetingGroups qui partagent une campagne de la plateforme demandent des lieux différents, alors qu'elle ne les pose que sur la campagne : donner un budget propre à l'un, ce qui l'éclate, ou le déplacer dans un autre AdGroup | `dimension`                                    |
+| `preview_geo_outside_countries`             | Des lieux ou des rayons d'un TargetingGroup hors des pays qu'il inclut, ou un rayon sans pays, écrit avant D57 : inclure leur pays, ou les ôter                                                                                       | `count`, `names`                               |
+| `preview_conversion_goal_missing`           | Un AdGroup en `maximize_conversions` ne nomme pas d'objectif, ou un objectif que l'Organization n'a pas : lui en donner un (`conversionGoalId`)                                                                                       | `{}`                                           |
+| `preview_conversion_goal_archived`          | L'objectif qu'optimise cet AdGroup est archivé : il n'est plus mesuré                                                                                                                                                                 | `goalName`                                     |
+| `preview_conversion_goal_not_ready`         | L'objectif qu'optimise cet AdGroup n'est pas prêt sur le compte de la plateforme ; `reasonCode` dit pourquoi, quand on le sait (voir « Les conversions »)                                                                             | `platform`, `goalName`, `status`, `reasonCode` |
+| `preview_geo_too_many_radii`                | Plus de rayons que cette plateforme n'en prend sur un objet                                                                                                                                                                           | `platform`, `count`, `max`                     |
+| `preview_sitelink_descriptions`             | Un lien annexe à une seule ligne de description : les plateformes en prennent deux, ou aucune                                                                                                                                         | `text`                                         |
+| `preview_iab_categories_missing`            | La plateforme exige des catégories IAB que la créa n'a pas                                                                                                                                                                            | `creative`                                     |
+| `preview_platform_campaign_cap`             | L'éclatement dépasse le plafond d'objets par AdGroup                                                                                                                                                                                  | `objects`, `max`                               |
 
 ### Les avertissements, qui ne bloquent rien
 
-| Code                              | Quand                                                                                                                                                      | `params`                                  |
-| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| `preview_targeting_dropped`       | Cette plateforme n'applique pas cette dimension : **ce montant y diffusera sans elle**                                                                     | `dimension`, `cents`                      |
-| `preview_geo_widened_to_country`  | Cette plateforme ne sait pas cibler un lieu ou un rayon de ce pays (`reasons` : `level`, `radius`) : **elle y diffuse dans tout le pays**, avec ce montant | `platform`, `country`, `reasons`, `cents` |
-| `preview_geo_exclusions_ignored`  | Cette plateforme n'exclut pas des lieux de ce niveau : ils ne sont pas exclus chez elle                                                                    | `platform`, `count`, `names`              |
-| `preview_creative_dropped`        | Cette plateforme n'accepte pas le couple de la créa                                                                                                        | `format`, `subtype`                       |
-| `preview_campaign_split`          | L'éclatement crée plusieurs objets là où il y en aurait eu un                                                                                              | `objects`, `level`                        |
-| `preview_node_paused`             | Un nœud en pause : il ne partira pas                                                                                                                       | `{}`                                      |
-| `preview_extensions_dropped`      | Cette plateforme ne montre aucune des extensions du levier                                                                                                 | `platform`                                |
-| `preview_location_intent_dropped` | Cette plateforme ne vise que les personnes présentes dans les lieux, pas celles qui s'y intéressent                                                        | `platform`                                |
+| Code                              | Quand                                                                                                                                                                                   | `params`                                  |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `preview_targeting_dropped`       | Cette plateforme n'applique pas cette dimension : **ce montant y diffusera sans elle**                                                                                                  | `dimension`, `cents`                      |
+| `preview_geo_widened_to_country`  | Cette plateforme ne sait pas cibler un lieu ou un rayon de ce pays (`reasons` : `level`, `radius`) : **elle y diffuse dans tout le pays**, avec ce montant                              | `platform`, `country`, `reasons`, `cents` |
+| `preview_geo_exclusions_ignored`  | Cette plateforme n'exclut pas des lieux de ce niveau : ils ne sont pas exclus chez elle                                                                                                 | `platform`, `count`, `names`              |
+| `preview_creative_dropped`        | Cette plateforme n'accepte pas le couple de la créa                                                                                                                                     | `format`, `subtype`                       |
+| `preview_campaign_split`          | L'éclatement crée plusieurs objets là où il y en aurait eu un                                                                                                                           | `objects`, `level`                        |
+| `preview_node_paused`             | Un nœud en pause : il ne partira pas                                                                                                                                                    | `{}`                                      |
+| `preview_extensions_dropped`      | Cette plateforme ne montre aucune des extensions du levier                                                                                                                              | `platform`                                |
+| `preview_bid_amount_ignored`      | Cette plateforme ne prend pas de montant sous cette stratégie : Google maximise les conversions sans coût cible, **le montant de l'AdGroup ou de ses TargetingGroups n'est pas envoyé** | `platform`, `strategy`                    |
+| `preview_location_intent_dropped` | Cette plateforme ne vise que les personnes présentes dans les lieux, pas celles qui s'y intéressent                                                                                     | `platform`                                |
 
 Chaque constat porte en plus `level`, `nodeId` et `platform` — nuls quand il concerne la campagne
 entière ou toutes les plateformes —, de sorte qu'une interface peut le poser à côté du nœud fautif
@@ -547,14 +616,17 @@ compte illisible) arrivent avec leur propre code, celui qu'elles portaient déj�
 Les refus que l'adapter de Google Ads formule lui-même, avant ou après avoir appelé Google
 (`phase-10.md` § 8.5) — aucun ne se retente seul :
 
-| Code                              | Quand                                                                                                                                   | `params`   |
-| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| `google_campaign_removed`         | La campagne Google de ce nœud a été supprimée hors d'Omnipotent : elle n'est jamais recréée en silence                                  | `campaign` |
-| `google_country_unsupported`      | Un pays inclus que Google Ads ne cible pas                                                                                              | `country`  |
-| `google_geo_outside_countries`    | Des lieux ou des rayons hors des pays inclus — la preview les refuse d'abord : sans eux, la campagne diffuserait plus large que demandé | `count`    |
-| `google_bid_strategy_unsupported` | Une stratégie avec laquelle Google Search n'enchérit pas ici — la preview la refuse d'abord                                             | `strategy` |
-| `google_bid_required`             | Un CPC manuel sans montant d'enchère                                                                                                    | `{}`       |
-| `google_ad_incomplete`            | Une Line active sans créa ou sans page de destination — la preview la refuse d'abord                                                    | `line`     |
+| Code                                 | Quand                                                                                                                                                                         | `params`             |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| `google_campaign_removed`            | La campagne Google de ce nœud a été supprimée hors d'Omnipotent : elle n'est jamais recréée en silence                                                                        | `campaign`           |
+| `google_country_unsupported`         | Un pays inclus que Google Ads ne cible pas                                                                                                                                    | `country`            |
+| `google_geo_outside_countries`       | Des lieux ou des rayons hors des pays inclus — la preview les refuse d'abord : sans eux, la campagne diffuserait plus large que demandé                                       | `count`              |
+| `google_bid_strategy_unsupported`    | Une stratégie avec laquelle Google Search n'enchérit pas ici — la preview la refuse d'abord                                                                                   | `strategy`           |
+| `google_conversion_goal_missing`     | Un AdGroup en `maximize_conversions` sans objectif — la preview le refuse d'abord                                                                                             | `{}`                 |
+| `google_conversion_goal_not_ready`   | L'objectif qu'optimise l'AdGroup n'est pas prêt sur ce compte : sans lui, la campagne enchérirait sur les objectifs du compte du client. L'unité repart seule dès qu'il l'est | `goalName`, `status` |
+| `google_conversion_goal_unavailable` | L'objectif est prêt mais n'a pas d'objectif personnalisé sur ce compte                                                                                                        | `{}`                 |
+| `google_bid_required`                | Un CPC manuel sans montant d'enchère                                                                                                                                          | `{}`                 |
+| `google_ad_incomplete`               | Une Line active sans créa ou sans page de destination — la preview la refuse d'abord                                                                                          | `line`               |
 
 Ce qui distingue les deux familles n'est pas le code mais `nextAttemptAt` : une prochaine tentative
 fixée veut dire « réessayer peut marcher », et **nulle** veut dire qu'il faut corriger quelque chose —

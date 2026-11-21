@@ -489,9 +489,7 @@ describe('Unit::Platforms::Google::Conversions', () => {
         ],
       });
 
-      await expect(
-        conversions.goalOperations(ACCOUNT, CAMPAIGN, { conversionAction: ACTION, customGoal: CUSTOM_GOAL })
-      ).resolves.toEqual([
+      await expect(conversions.goalOperations(ACCOUNT, CAMPAIGN, CUSTOM_GOAL)).resolves.toEqual([
         {
           conversionGoalCampaignConfigOperation: {
             update: {
@@ -521,15 +519,13 @@ describe('Unit::Platforms::Google::Conversions', () => {
         ],
       });
 
-      await expect(
-        conversions.goalOperations(ACCOUNT, CAMPAIGN, { conversionAction: ACTION, customGoal: CUSTOM_GOAL })
-      ).resolves.toEqual([]);
+      await expect(conversions.goalOperations(ACCOUNT, CAMPAIGN, CUSTOM_GOAL)).resolves.toEqual([]);
     });
 
     it('should refuse a goal without custom goal on the account', async (): Promise<void> => {
-      await expect(
-        conversions.goalOperations(ACCOUNT, CAMPAIGN, { conversionAction: ACTION, customGoal: null })
-      ).rejects.toMatchObject({ options: { messageCode: 'google_conversion_goal_unavailable' } });
+      await expect(conversions.goalOperations(ACCOUNT, CAMPAIGN, null)).rejects.toMatchObject({
+        options: { messageCode: 'google_conversion_goal_unavailable' },
+      });
       expect(search).not.toHaveBeenCalled();
     });
   });

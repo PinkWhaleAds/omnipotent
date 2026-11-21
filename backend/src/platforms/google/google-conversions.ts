@@ -242,15 +242,6 @@ function customerOfResource(resourceName: string | undefined): string | null {
 }
 
 /**
- * The goal a campaign bids on, as the desired state hands it: the ids of the goal on the campaign's
- * account.
- *
- * @property conversionAction - Resource name of its conversion action
- * @property customGoal - Resource name of its custom conversion goal
- */
-export type DesiredConversionGoal = { conversionAction: string | null; customGoal: string | null };
-
-/**
  * The conversions of one client account: its Google tag, the conversion actions and custom goals of
  * its goals, and the goal a campaign bids on.
  */
@@ -380,16 +371,16 @@ export class GoogleConversions {
    *
    * @param account - The account
    * @param campaign - Resource name of the campaign, `customers/<id>/campaigns/<id>`
-   * @param goal - The goal it bids on
+   * @param customGoal - Resource name of the custom goal of the goal it bids on, as its refs hold it
    * @returns The operations to send, none when the campaign already bids on it alone
    * @throws PlatformError coded `google_conversion_goal_unavailable` for a goal without custom goal
    */
   public async goalOperations(
     account: AccountContext,
     campaign: string,
-    goal: DesiredConversionGoal
+    customGoal: string | null | undefined
   ): Promise<GoogleMutateOperation[]> {
-    if (goal.customGoal === null) {
+    if (!customGoal) {
       throw refusal(
         'The conversion goal this campaign optimizes has no custom goal on this Google Ads account yet',
         'google_conversion_goal_unavailable'
@@ -403,12 +394,12 @@ export class GoogleConversions {
       CONVERSION_GAQL.goalConfig(campaignId)
     );
     const config: GoogleConversionGoalCampaignConfig | undefined = configRow?.conversionGoalCampaignConfig;
-    if (config?.customConversionGoal !== goal.customGoal) {
+    if (config?.customConversionGoal !== customGoal) {
       operations.push({
         conversionGoalCampaignConfigOperation: {
           update: {
             resourceName: `customers/${account.externalId}/conversionGoalCampaignConfigs/${campaignId}`,
-            customConversionGoal: goal.customGoal,
+            customConversionGoal: customGoal,
           },
           updateMask: 'customConversionGoal',
         },

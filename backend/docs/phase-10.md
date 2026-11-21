@@ -1038,3 +1038,47 @@ conformes dans son interface — la France remplacée par eux, et non additionn�
      n'a pas de référentiel des devises, et Google refuserait une devise qu'il ne connaît pas ;
    - les noms chez Google portent nos tags `[op:…]`, pas ceux de multi-search. À la bascule (§ 18),
      les actions que multi-search a créées chez les clients ne seront donc pas reprises d'elles-mêmes.
+
+**Où en est 3d**, sur la branche `phase-10-lot-3d` (PR n°15) :
+
+1. ✅ les objectifs : la table `conversion_goals` (migration `Conversions1793309000000`, qui porte toutes
+   les tables et colonnes de 3d), les routes `GET` et `POST /advertisers/:id/conversion-goals`, `GET` et
+   `PATCH /conversion-goals/:id` — à plat, comme les autres ressources d'Omnipotent, quand multi-search
+   les met sous l'Advertiser — et leurs quatre outils MCP ;
+2. ✅ le script : `GET /advertisers/:id/tracking` et `get-tracking`, la route publique `GET /t/:key.js`,
+   limitée à 120 appels par minute et par adresse, et le chargeur de multi-search avec sa part Google
+   seule. Les appels du site restent ceux de multi-search, `msq('consent', …)` et
+   `msq('conversion', …)` : un site déjà équipé garde son code. Ce que chaque plateforme apporte au
+   script vit dans `src/tracking/tracking-platforms.ts`, et le service n'en nomme aucune ;
+3. ✅ chez Google : les jobs `conversion.setup` et `conversion.sweep`, sous un verrou par Advertiser,
+   l'action secondaire et l'objectif personnalisé de chaque objectif, et une mise en place demandée
+   quand un compte est relié à la marque, quand il devient actif, ou quand la marque est renommée ;
+4. ✅ `maximize_conversions` : `conversionGoalId` sur l'AdGroup, la stratégie au registre de Google, et
+   chez Google l'objectif personnalisé de chaque campagne, les autres objectifs mis hors enchère. Une
+   campagne créée en `maximize_conversions` part en pause, reçoit son objectif, puis s'active, comme chez
+   multi-search : sans cet ordre, elle enchérirait un instant sur les objectifs du compte du client ;
+5. ✅ la preview : les trois erreurs et l'avertissement, et dans `error-codes.md` les codes et ce que le
+   front doit savoir, « Les conversions » ;
+6. **à faire** : la preuve, `scenarios/conversions-google.mjs`.
+
+**Les déductions prises en codant, à valider** :
+
+1. **Le balayage ne reprend que ce qui attend**, pas toutes les marques : un objectif ou un suivi
+   `pending`, `failed` ou `manual_required`, un objectif changé depuis sa mise en place, un compte actif
+   sans rien de mis en place. multi-search relit toutes les demi-heures chaque compte de chaque marque
+   qui a un objectif. Omnipotent s'est donné pour règle qu'aucun job ne parcourt le parc
+   (`src/jobs/index.ts`), et le quota de Google est celui de tout le projet (D45). Un réglage changé à la
+   main chez Google n'est donc rétabli qu'à la prochaine écriture de l'objectif ; chez multi-search, ce
+   n'était pas mieux, l'empreinte inchangée sautant l'objectif.
+2. **Une première mise en place laisse une ligne `pending`**, même quand la plateforme échoue aussitôt,
+   pour que le balayage la retrouve. multi-search ne laissait rien, et repassait par tout.
+3. **Une unité en pause n'est jamais bloquée par son objectif.** La synchro ne refuse qu'une unité qui
+   diffuse ; une campagne terminée dont l'objectif a été archivé depuis se met en pause sans encombre.
+4. **Le verrou de la synchro est devenu une fonction partagée** (`src/services/lock.helpers.ts`), que le
+   suivi prend aussi.
+5. **`lastConversionAt` n'est pas repris** : multi-search le déclare et ne l'écrit jamais. Il viendra
+   avec les rapports (phase 15).
+6. **`preview_conversion_bidding_unavailable` et `preview_conversion_counting_ignored` ne sont pas
+   écrits** : le premier est déjà `preview_bid_strategy_unsupported`, une plateforme qui n'enchérit pas
+   sur les conversions ne déclarant pas la stratégie ; le second ne concerne qu'OpenAI et Thrad, Google
+   et Microsoft comptant une conversion par clic.
